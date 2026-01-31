@@ -203,7 +203,7 @@ export default function ContactPage() {
                         <option value="">{"Select an event type"}</option>
                         <option value="weddings">{"Weddings"}</option>
                         <option value="birthday-party">{"Birthday Party"}</option>
-                        <option value="bachollorette">{"Bachollorette"}</option>
+                        <option value="bachelorette">{"Bachelorette"}</option>
                         <option value="bachelor-parties">{"Bachelor Parties"}</option>
                         <option value="birthday-parties">{"Birthday Parties"}</option>
                         <option value="dance-social">{"Dance Social"}</option>
