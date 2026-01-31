@@ -40,8 +40,8 @@ export default function HomePage() {
           <div className="container mx-auto px-4 lg:px-8 relative z-10">
             <ScrollReveal>
               <div className="text-center mb-24">
-                <div className="inline-block mb-8 animate-flame-flicker">
-                  <div className="relative w-32 h-32 animate-glow">
+                <div className="inline-block mb-8">
+                  <div className="relative w-32 h-32">
                     <Image
                       src="/images/screenshot-202026-01-10-20at-2012.png"
                       alt="Teez Events"

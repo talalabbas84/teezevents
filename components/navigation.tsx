@@ -38,8 +38,8 @@ export function Navigation() {
     >
       <div className="container mx-auto px-4 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative w-14 h-14 transition-all duration-500 group-hover:scale-110 group-hover:rotate-12 animate-flame-flicker">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="relative w-14 h-14">
               <Image src="/images/image.png" alt="Teez Events Logo" fill className="object-contain drop-shadow-lg" />
             </div>
             <div className="flex flex-col">

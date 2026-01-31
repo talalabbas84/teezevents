@@ -65,7 +65,7 @@ export function HeroCarousel() {
           <div className="relative h-full container mx-auto px-4 lg:px-8 flex items-center">
             <div className="max-w-5xl text-white">
               <div className="mb-8 overflow-hidden">
-                <div className="relative w-24 h-24 animate-flame-flicker animate-glow">
+                <div className="relative w-24 h-24">
                   <Image
                     src="/images/screenshot-202026-01-10-20at-2012.png"
                     alt="Teez Events Flame"

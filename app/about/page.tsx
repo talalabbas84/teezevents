@@ -17,8 +17,8 @@ export default function AboutPage() {
         <section className="relative py-32 lg:py-48 overflow-hidden dark-section">
           <div className="container mx-auto px-4 lg:px-8 relative z-10">
             <div className="max-w-5xl mx-auto text-center">
-              <div className="inline-block mb-10 animate-flame-flicker">
-                <div className="relative w-32 h-32 animate-glow">
+              <div className="inline-block mb-10">
+                <div className="relative w-32 h-32">
                   <Image
                     src="/images/screenshot-202026-01-10-20at-2012.png"
                     alt="Teez Events"
