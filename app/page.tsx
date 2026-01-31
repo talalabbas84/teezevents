@@ -72,13 +72,13 @@ export default function HomePage() {
             </ScrollReveal>
 
             <div className="grid md:grid-cols-3 gap-12 lg:gap-16">
-              <ScrollReveal delay={100}>
-                <div className="group relative">
+              <ScrollReveal delay={100} className="h-full">
+                <div className="group relative h-full">
                   <div
                     className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl"
                     style={{ background: "linear-gradient(135deg, #D88C4A, #C57A3A)" }}
                   />
-                  <div className="relative glass-dark rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-4 border-2 border-transparent hover:border-[#D88C4A]">
+                  <div className="relative glass-dark rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-4 border-2 border-transparent hover:border-[#D88C4A] h-full flex flex-col">
                     <div
                       className="w-28 h-28 rounded-2xl flex items-center justify-center mx-auto mb-8 transform group-hover:scale-125 group-hover:rotate-12 transition-all duration-500"
                       style={{ background: "linear-gradient(135deg, #D88C4A, #C57A3A)" }}
@@ -100,13 +100,13 @@ export default function HomePage() {
                 </div>
               </ScrollReveal>
 
-              <ScrollReveal delay={200}>
-                <div className="group relative">
+              <ScrollReveal delay={200} className="h-full">
+                <div className="group relative h-full">
                   <div
                     className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl"
                     style={{ background: "linear-gradient(135deg, #C57A3A, #D88C4A)" }}
                   />
-                  <div className="relative glass-dark rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-4 border-2 border-transparent hover:border-[#C57A3A]">
+                  <div className="relative glass-dark rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-4 border-2 border-transparent hover:border-[#C57A3A] h-full flex flex-col">
                     <div
                       className="w-28 h-28 rounded-2xl flex items-center justify-center mx-auto mb-8 transform group-hover:scale-125 group-hover:rotate-12 transition-all duration-500"
                       style={{ background: "linear-gradient(135deg, #C57A3A, #D88C4A)" }}
@@ -128,13 +128,13 @@ export default function HomePage() {
                 </div>
               </ScrollReveal>
 
-              <ScrollReveal delay={300}>
-                <div className="group relative">
+              <ScrollReveal delay={300} className="h-full">
+                <div className="group relative h-full">
                   <div
                     className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl"
                     style={{ background: "linear-gradient(135deg, #B86A2E, #C57A3A)" }}
                   />
-                  <div className="relative glass-dark rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-4 border-2 border-transparent hover:border-[#B86A2E]">
+                  <div className="relative glass-dark rounded-3xl p-10 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-4 border-2 border-transparent hover:border-[#B86A2E] h-full flex flex-col">
                     <div
                       className="w-28 h-28 rounded-2xl flex items-center justify-center mx-auto mb-8 transform group-hover:scale-125 group-hover:rotate-12 transition-all duration-500"
                       style={{ background: "linear-gradient(135deg, #B86A2E, #C57A3A)" }}
