@@ -2,7 +2,6 @@ import { Navigation } from "@/components/navigation"
 import { HeroCarousel } from "@/components/hero-carousel"
 import { EventPreviewSection } from "@/components/event-preview-section"
 import { TestimonialsSection } from "@/components/testimonials-section"
-import { StatsCounterSection } from "@/components/stats-counter"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { ScrollReveal } from "@/components/scroll-reveal"
@@ -160,7 +159,6 @@ export default function HomePage() {
         </section>
 
         <EventPreviewSection />
-        <StatsCounterSection />
         <TestimonialsSection />
 
         <section className="py-24 lg:py-40 dark-section">

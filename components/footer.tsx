@@ -13,7 +13,7 @@ export function Footer() {
               <div className="text-sm font-sans uppercase tracking-wider text-background/70">{"Events"}</div>
             </div>
             <p className="text-background/80 leading-relaxed mb-6">
-              {"Creating unforgettable Latin-inspired events that bring people together in celebration."}
+              {"Creating unforgettable events that bring people together in celebration."}
             </p>
             <div className="flex gap-4">
               <a
@@ -76,7 +76,7 @@ export function Footer() {
             <ul className="space-y-3">
               <li className="text-background/80">{"Corporate Events"}</li>
               <li className="text-background/80">{"Themed Parties"}</li>
-              <li className="text-background/80">{"Latin Celebrations"}</li>
+              <li className="text-background/80">{"Signature Celebrations"}</li>
               <li className="text-background/80">{"Wedding Receptions"}</li>
               <li className="text-background/80">{"Private Functions"}</li>
             </ul>

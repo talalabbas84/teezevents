@@ -8,9 +8,9 @@ import Image from "next/image"
 
 const slides = [
   {
-    image: "/vibrant-latin-dance-party-with-colorful-lights.jpg",
+    image: "/vibrant-dance-party-with-colorful-lights.jpg",
     title: "Ignite Your Celebrations",
-    subtitle: "Where Latin Culture Meets Unforgettable Moments",
+    subtitle: "Where Celebration Meets Unforgettable Moments",
   },
   {
     image: "/elegant-themed-party-halloween-event-atmosphere.jpg",

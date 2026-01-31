@@ -42,7 +42,7 @@ export default function AboutPage() {
                 style={{ color: "#EADFCB" }}
               >
                 {
-                  "We're not just event planners – we're experience creators, culture celebrators, and memory makers dedicated to bringing the vibrant spirit of Latin celebrations to life."
+                  "We're not just event planners – we're experience creators, culture celebrators, and memory makers dedicated to bringing the vibrant spirit of celebration to life."
                 }
               </p>
             </div>
@@ -57,12 +57,12 @@ export default function AboutPage() {
                 <div className="space-y-8 text-xl leading-relaxed" style={{ color: "#2B2B2B" }}>
                   <p>
                     {
-                      "Founded over a decade ago, Teez Events was born from a simple passion: to share the rich, vibrant culture of Latin celebrations with our community. What started as intimate gatherings has blossomed into one of the region's premier event management companies."
+                      "Founded over a decade ago, Teez Events was born from a simple passion: to share the joy of celebration with our community. What started as intimate gatherings has blossomed into one of the region's premier event management companies."
                     }
                   </p>
                   <p>
                     {
-                      "We specialize in creating immersive experiences that capture the energy, warmth, and authenticity of Latin culture. From salsa nights under the stars to elegant corporate galas with Latin flair, every event we host is infused with the same dedication to excellence and cultural authenticity."
+                      "We specialize in creating immersive experiences that capture energy, warmth, and authenticity. From salsa nights under the stars to elegant corporate galas with signature flair, every event we host is infused with the same dedication to excellence and genuine authenticity."
                     }
                   </p>
                   <p>
@@ -72,7 +72,7 @@ export default function AboutPage() {
                   </p>
                   <p>
                     {
-                      "Our mission is to create transformative event experiences that celebrate Latin culture, foster genuine connections, and leave lasting impressions on every guest who walks through our doors."
+                      "Our mission is to create transformative event experiences that celebrate community, foster genuine connections, and leave lasting impressions on every guest who walks through our doors."
                     }
                   </p>
                 </div>

@@ -1,32 +1,24 @@
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Calendar } from "lucide-react"
+import { ArrowRight, Calendar, Ticket } from "lucide-react"
 
-const featuredEvents = [
-  {
-    id: "halloween-2024",
-    title: "Halloween Fiesta",
-    date: "October 31, 2024",
-    image: "/halloween-party-decorations-with-costumes-and-ligh.jpg",
-    description: "A spooky Latin celebration with DJ, costumes, and themed cocktails",
-    category: "Past Event",
-  },
-  {
-    id: "roaring-20s",
-    title: "Roaring 20s Gala",
-    date: "December 15, 2024",
-    image: "/1920s-gatsby-style-party-elegant-art-deco.jpg",
-    description: "Step back in time to the glamorous era of jazz and elegance",
-    category: "Past Event",
-  },
+const upcomingEvents = [
   {
     id: "summer-salsa",
     title: "Summer Salsa Night",
     date: "Coming June 2026",
     image: "/outdoor-salsa-dancing-party-summer-evening.jpg",
-    description: "Dance under the stars with live salsa band and authentic cuisine",
-    category: "Upcoming Event",
+    description: "Dance under the stars with live salsa band and chef-crafted cuisine",
+    ticketsUrl: "/contact",
+  },
+  {
+    id: "spring-carnival",
+    title: "Spring Carnival",
+    date: "Coming April 2026",
+    image: "/colorful-carnival-celebration-with-decorations.jpg",
+    description: "A vibrant carnival celebration with food, games, and live entertainment",
+    ticketsUrl: "/contact",
   },
 ]
 
@@ -35,31 +27,29 @@ export function EventPreviewSection() {
     <section className="py-20 lg:py-32 bg-muted/30">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4 text-balance">{"Our Events"}</h2>
+          <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4 text-balance">{"Upcoming Events"}</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {"From intimate gatherings to grand celebrations, explore our portfolio of unforgettable experiences"}
+            {"Reserve your spot at our upcoming celebrations and view event details."}
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-          {featuredEvents.map((event) => (
-            <Link key={event.id} href={`/events/${event.id}`} className="group">
-              <Card className="overflow-hidden border-2 hover:border-primary transition-all duration-300 hover:shadow-xl">
+        <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-8 mb-12">
+          {upcomingEvents.map((event) => (
+            <Card
+              key={event.id}
+              className="group overflow-hidden border-2 hover:border-primary transition-all duration-300 hover:shadow-xl"
+            >
+              <Link href={`/events/${event.id}`} className="block">
                 <div className="relative overflow-hidden aspect-[3/2]">
                   <img
                     src={event.image || "/placeholder.svg"}
                     alt={event.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   />
-                  {event.category === "Past Event" && (
-                    <div className="absolute top-4 left-4">
-                      <span className="inline-block px-3 py-1 bg-primary text-primary-foreground text-sm font-medium rounded-full">
-                        {"Ended"}
-                      </span>
-                    </div>
-                  )}
                 </div>
-                <CardContent className="p-6">
+              </Link>
+              <CardContent className="p-6">
+                <Link href={`/events/${event.id}`} className="block">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                     <Calendar size={16} />
                     <span>{event.date}</span>
@@ -72,9 +62,23 @@ export function EventPreviewSection() {
                     {"View Details"}
                     <ArrowRight size={18} />
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+                </Link>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Button size="sm" className="bg-primary text-primary-foreground hover:bg-accent" asChild>
+                    <Link href={`/events/${event.id}`}>
+                      <ArrowRight className="mr-2" size={16} />
+                      {"Event Details"}
+                    </Link>
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-2 border-primary text-primary" asChild>
+                    <Link href={event.ticketsUrl}>
+                      <Ticket className="mr-2" size={16} />
+                      {"Buy Tickets"}
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
 

@@ -11,7 +11,7 @@ const testimonials = [
     company: "Tech Solutions Inc.",
     image: "/testimonial-jennifer-martinez.jpg",
     rating: 5,
-    text: "Teez Events transformed our company anniversary into an unforgettable celebration. The Latin-inspired entertainment was a huge hit with our team, and the attention to detail was impeccable. Highly recommend!",
+    text: "Teez Events transformed our company anniversary into an unforgettable celebration. The live entertainment was a huge hit with our team, and the attention to detail was impeccable. Highly recommend!",
   },
   {
     name: "Michael Chen",
@@ -27,7 +27,7 @@ const testimonials = [
     company: "Community Arts Center",
     image: "/testimonial-sophia-rodriguez.jpg",
     rating: 5,
-    text: "We've worked with Teez Events on multiple community celebrations, and they never disappoint. Their passion for Latin culture and expertise in event planning shines through in every detail. True professionals!",
+    text: "We've worked with Teez Events on multiple community celebrations, and they never disappoint. Their passion for creating memorable celebrations and expertise in event planning shines through in every detail. True professionals!",
   },
   {
     name: "David Thompson",
@@ -43,7 +43,7 @@ const testimonials = [
     company: "Private Event",
     image: "/testimonial-maria-gonzalez.jpg",
     rating: 5,
-    text: "My 50th birthday party was absolutely spectacular! The themed decorations, live salsa band, and authentic cuisine created an atmosphere that transported us straight to Latin America. My guests are still talking about it!",
+    text: "My 50th birthday party was absolutely spectacular! The themed decorations, live salsa band, and authentic cuisine created an atmosphere that transported us to another world. My guests are still talking about it!",
   },
   {
     name: "Robert Williams",

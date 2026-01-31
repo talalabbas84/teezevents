@@ -12,13 +12,13 @@ const eventsData: Record<string, any> = {
     location: "Downtown Event Center",
     attendees: "500+",
     description:
-      "Our Halloween Fiesta was a spooky spectacular that brought together over 500 guests for an unforgettable night of Latin-inspired Halloween celebrations. The event featured live DJ sets, a costume contest with amazing prizes, themed cocktails, and an atmosphere that perfectly blended Halloween thrills with Latin energy.",
+      "Our Halloween Fiesta was a spooky spectacular that brought together over 500 guests for an unforgettable night of themed Halloween celebrations. The event featured live DJ sets, a costume contest with amazing prizes, themed cocktails, and an atmosphere that perfectly blended Halloween thrills with electric energy.",
     highlights: [
-      "Live DJ spinning Latin and Halloween-themed hits",
+      "Live DJ spinning Halloween-themed hits",
       "Best Costume Contest with $1000 grand prize",
       "Themed cocktail bar with signature drinks",
       "Professional photography and photo booth",
-      "Authentic Latin cuisine with a spooky twist",
+      "Chef-crafted cuisine with a spooky twist",
     ],
     gallery: [
       "/halloween-party-decorations-with-costumes-and-ligh.jpg",
@@ -62,24 +62,25 @@ const eventsData: Record<string, any> = {
     location: "Outdoor Pavilion",
     attendees: "400+",
     description:
-      "Get ready for an enchanting evening under the stars! Our Summer Salsa Night will feature a live salsa band, professional dance instructors, and authentic Latin cuisine. Whether you're a seasoned dancer or a beginner, this event promises an unforgettable experience filled with rhythm, flavor, and warm summer vibes.",
+      "Get ready for an enchanting evening under the stars! Our Summer Salsa Night will feature a live salsa band, professional dance instructors, and chef-crafted cuisine. Whether you're a seasoned dancer or a beginner, this event promises an unforgettable experience filled with rhythm, flavor, and warm summer vibes.",
     highlights: [
       "Live salsa band performance",
       "Professional salsa dance lessons",
-      "Authentic Latin food stations",
+      "Chef-curated food stations",
       "Open-air dance floor under the stars",
       "Tropical cocktails and refreshments",
     ],
     gallery: [
       "/outdoor-salsa-dancing-party-summer-evening.jpg",
       "/live-salsa-band-outdoor-stage.jpg",
-      "/latin-food-catering-display.jpg",
+      "/food-catering-display.jpg",
       "/couples-dancing-salsa-outdoors.jpg",
       "/summer-cocktails-tropical-drinks.jpg",
       "/outdoor-pavilion-evening-lights.jpg",
     ],
     videoUrl: null,
     category: "Upcoming Event",
+    ticketsUrl: "/contact",
   },
   "corporate-gala": {
     title: "Corporate Anniversary Gala",
@@ -87,10 +88,10 @@ const eventsData: Record<string, any> = {
     location: "Luxury Hotel",
     attendees: "250+",
     description:
-      "We had the honor of creating an elegant corporate anniversary celebration that seamlessly blended professional sophistication with Latin-inspired entertainment. The event featured keynote speeches, awards ceremony, gourmet dining, and live entertainment that kept guests engaged throughout the evening.",
+      "We had the honor of creating an elegant corporate anniversary celebration that seamlessly blended professional sophistication with live entertainment. The event featured keynote speeches, awards ceremony, gourmet dining, and performances that kept guests engaged throughout the evening.",
     highlights: [
       "Elegant ballroom setup with custom lighting",
-      "Live Latin jazz ensemble",
+      "Live jazz ensemble",
       "Gourmet multi-course dining",
       "Professional AV and presentation setup",
       "Awards ceremony and keynote speeches",
@@ -107,12 +108,12 @@ const eventsData: Record<string, any> = {
     category: "Past Event",
   },
   "new-years-bash": {
-    title: "New Year's Latin Bash",
+    title: "New Year's Bash",
     date: "December 31, 2025",
     location: "City Center Plaza",
     attendees: "800+",
     description:
-      "The biggest celebration of the year! Our New Year's Latin Bash brought together over 800 guests for an epic countdown featuring live Latin music, multiple DJ stages, gourmet food stations, and a spectacular fireworks display at midnight. The energy was electric as we danced into the new year together.",
+      "The biggest celebration of the year! Our New Year's Bash brought together over 800 guests for an epic countdown featuring live music, multiple DJ stages, gourmet food stations, and a spectacular fireworks display at midnight. The energy was electric as we danced into the new year together.",
     highlights: [
       "Multiple stages with live bands and DJs",
       "Midnight fireworks spectacular",
@@ -137,7 +138,7 @@ const eventsData: Record<string, any> = {
     location: "Riverside Park",
     attendees: "600+",
     description:
-      "Join us for a vibrant spring celebration that brings the carnival spirit to life! This family-friendly event will feature carnival games, food vendors, live entertainment, face painting, and exciting activities for all ages. Experience the joy and color of a traditional Latin American carnival right in our community.",
+      "Join us for a vibrant spring celebration that brings the carnival spirit to life! This family-friendly event will feature carnival games, food vendors, live entertainment, face painting, and exciting activities for all ages. Experience the joy and color of a traditional carnival right in our community.",
     highlights: [
       "Carnival games and prizes",
       "Live music and dance performances",
@@ -155,6 +156,7 @@ const eventsData: Record<string, any> = {
     ],
     videoUrl: null,
     category: "Upcoming Event",
+    ticketsUrl: "/contact",
   },
 }
 
@@ -246,13 +248,25 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
               {/* Sidebar */}
               <div>
                 <div className="sticky top-24 space-y-6">
+                  {event.category === "Upcoming Event" && (
+                    <div className="bg-primary/10 p-6 rounded-lg border border-primary/20">
+                      <h3 className="text-xl font-serif font-bold mb-4">{"Tickets"}</h3>
+                      <p className="text-muted-foreground mb-6 leading-relaxed">
+                        {"Secure your spot for this upcoming event."}
+                      </p>
+                      <Button className="w-full bg-primary text-primary-foreground hover:bg-accent" size="lg" asChild>
+                        <Link href={event.ticketsUrl || "/contact"}>{"Buy Tickets"}</Link>
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="bg-muted/50 p-6 rounded-lg border border-border">
                     <h3 className="text-xl font-serif font-bold mb-4">{"Interested in hosting a similar event?"}</h3>
                     <p className="text-muted-foreground mb-6 leading-relaxed">
                       {"Let us bring your vision to life with our expert event planning and management services."}
                     </p>
-                    <Button className="w-full bg-primary text-primary-foreground hover:bg-accent" size="lg">
-                      {"Contact Us"}
+                    <Button className="w-full bg-primary text-primary-foreground hover:bg-accent" size="lg" asChild>
+                      <Link href="/contact">{"Contact Us"}</Link>
                     </Button>
                   </div>
 
