@@ -1,40 +1,8 @@
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Heart, Users, Award, Lightbulb, Sparkles } from "lucide-react"
-import Link from "next/link"
 import Image from "next/image"
 
 export default function AboutPage() {
-  const values = [
-    {
-      icon: Heart,
-      title: "Passion",
-      description:
-        "We pour our heart into every event, ensuring each celebration is filled with authentic energy and joy.",
-      color: "#D88C4A",
-    },
-    {
-      icon: Users,
-      title: "Community",
-      description: "Building connections and bringing people together is at the core of everything we do.",
-      color: "#C57A3A",
-    },
-    {
-      icon: Award,
-      title: "Excellence",
-      description: "We maintain the highest standards in event planning, execution, and client satisfaction.",
-      color: "#B86A2E",
-    },
-    {
-      icon: Lightbulb,
-      title: "Creativity",
-      description: "Innovative themes, unique experiences, and memorable moments define our approach.",
-      color: "#D88C4A",
-    },
-  ]
-
   const stats = [
     { number: "500+", label: "Events Hosted" },
     { number: "50K+", label: "Happy Guests" },
@@ -102,16 +70,11 @@ export default function AboutPage() {
                       "Our team brings together diverse talents – event designers, cultural consultants, entertainment coordinators, and hospitality professionals – all united by a shared mission: to create unforgettable moments that bring people together in celebration."
                     }
                   </p>
-                </div>
-                <div className="mt-12">
-                  <Button
-                    size="lg"
-                    className="magnetic-button text-xl px-12 py-8 shadow-xl font-bold"
-                    style={{ backgroundColor: "#C57A3A", color: "white" }}
-                    asChild
-                  >
-                    <Link href="/team">{"Meet Our Team"}</Link>
-                  </Button>
+                  <p>
+                    {
+                      "Our mission is to create transformative event experiences that celebrate Latin culture, foster genuine connections, and leave lasting impressions on every guest who walks through our doors."
+                    }
+                  </p>
                 </div>
               </div>
               <div className="relative animate-slide-in-right">
@@ -154,97 +117,6 @@ export default function AboutPage() {
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="py-24 lg:py-40" style={{ backgroundColor: "#EADFCB" }}>
-          <div className="container mx-auto px-4 lg:px-8">
-            <div className="text-center mb-24">
-              <h2 className="text-6xl md:text-7xl font-serif font-bold mb-8 text-gradient animate-fade-in">
-                {"Our Values"}
-              </h2>
-              <p className="text-2xl animate-fade-in stagger-1" style={{ color: "#2B2B2B" }}>
-                {"The principles that guide every decision we make and every event we create"}
-              </p>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12">
-              {values.map((value, index) => (
-                <Card
-                  key={index}
-                  className={`border-3 hover-lift overflow-hidden animate-fade-in-up stagger-${index + 1} bg-white shadow-xl`}
-                >
-                  <CardContent className="p-10 text-center relative">
-                    <div
-                      className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-500 blur-3xl"
-                      style={{ background: `radial-gradient(circle, ${value.color}, transparent)` }}
-                    />
-                    <div className="relative">
-                      <div
-                        className="w-28 h-28 rounded-2xl flex items-center justify-center mx-auto mb-8 transform transition-transform duration-500 hover:scale-125 hover:rotate-12 shadow-xl"
-                        style={{ backgroundColor: value.color }}
-                      >
-                        <value.icon className="w-14 h-14 text-white" />
-                      </div>
-                      <h3 className="text-3xl md:text-4xl font-serif font-bold mb-6" style={{ color: "#B86A2E" }}>
-                        {value.title}
-                      </h3>
-                      <p className="leading-relaxed text-xl" style={{ color: "#2B2B2B" }}>
-                        {value.description}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="py-24 lg:py-40 relative overflow-hidden"
-          style={{ background: "linear-gradient(135deg, #C57A3A, #D88C4A)" }}
-        >
-          <div className="container mx-auto px-4 lg:px-8 relative">
-            <div className="max-w-5xl mx-auto text-center text-white">
-              <Sparkles className="w-24 h-24 mx-auto mb-10 opacity-90 animate-bounce-subtle" />
-              <h2 className="text-6xl md:text-7xl font-serif font-bold mb-12 animate-scale-in">{"Our Mission"}</h2>
-              <p className="text-3xl md:text-4xl leading-relaxed opacity-95 animate-fade-in-up stagger-2">
-                {
-                  "To create transformative event experiences that celebrate Latin culture, foster genuine connections, and leave lasting impressions on every guest who walks through our doors."
-                }
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="py-24 lg:py-40" style={{ backgroundColor: "#EADFCB" }}>
-          <div className="container mx-auto px-4 lg:px-8">
-            <div className="bg-white rounded-3xl p-20 text-center shadow-2xl hover-lift">
-              <h2 className="text-5xl md:text-6xl font-serif font-bold mb-8 text-gradient animate-fade-in">
-                {"Ready to Create Something Amazing?"}
-              </h2>
-              <p className="text-2xl mb-12 max-w-3xl mx-auto animate-fade-in stagger-1" style={{ color: "#2B2B2B" }}>
-                {"Let's bring your vision to life. Contact us today to start planning your unforgettable event."}
-              </p>
-              <div className="flex flex-wrap gap-8 justify-center animate-fade-in-up stagger-2">
-                <Button
-                  size="lg"
-                  className="magnetic-button text-xl px-12 py-8 shadow-xl font-bold"
-                  style={{ backgroundColor: "#C57A3A", color: "white" }}
-                  asChild
-                >
-                  <Link href="/contact">{"Get in Touch"}</Link>
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-3 text-xl px-12 py-8 font-bold bg-transparent"
-                  style={{ borderColor: "#C57A3A", color: "#C57A3A", borderWidth: "2px" }}
-                  asChild
-                >
-                  <Link href="/events">{"View Our Work"}</Link>
-                </Button>
-              </div>
             </div>
           </div>
         </section>

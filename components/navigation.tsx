@@ -22,7 +22,6 @@ export function Navigation() {
     { href: "/", label: "Home" },
     { href: "/about", label: "About Us" },
     { href: "/events", label: "Events" },
-    { href: "/team", label: "Meet The Team" },
     { href: "/contact", label: "Contact" },
   ]
 

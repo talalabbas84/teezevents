@@ -3,7 +3,6 @@ import { Footer } from "@/components/footer"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, MapPin, Users } from "lucide-react"
-import Image from "next/image"
 
 const allEvents = [
   {
@@ -82,50 +81,12 @@ export default function EventsPage() {
     <main className="min-h-screen">
       <Navigation />
       <div className="pt-20">
-        <section className="relative py-32 lg:py-48 overflow-hidden dark-section">
-          <div className="container mx-auto px-4 lg:px-8 relative z-10">
-            <div className="max-w-4xl mx-auto text-center">
-              <div className="inline-block mb-10 animate-flame-flicker">
-                <div className="relative w-28 h-28 animate-glow">
-                  <Image
-                    src="/images/screenshot-202026-01-10-20at-2012.png"
-                    alt="Teez Events"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-              </div>
-              <h1
-                className="text-7xl md:text-9xl font-serif font-bold mb-10 text-balance animate-scale-in"
-                style={{ color: "#EADFCB" }}
-              >
-                {"Our Events Portfolio"}
-              </h1>
-              <div
-                className="h-1.5 w-40 mx-auto mb-10 rounded-full animate-pulse"
-                style={{ background: "linear-gradient(90deg, #C57A3A, #D88C4A, #B86A2E)" }}
-              />
-              <p
-                className="text-2xl md:text-3xl leading-relaxed animate-fade-in-up stagger-2"
-                style={{ color: "#EADFCB" }}
-              >
-                {
-                  "Explore our collection of unforgettable experiences. From themed celebrations to corporate galas, each event is crafted with passion and precision."
-                }
-              </p>
-            </div>
-          </div>
-        </section>
-
         <section className="py-24 lg:py-40" style={{ backgroundColor: "#EADFCB" }}>
           <div className="container mx-auto px-4 lg:px-8">
             <div className="mb-20 text-center">
               <h2 className="text-6xl md:text-7xl font-serif font-bold mb-6 text-gradient animate-fade-in">
                 {"Upcoming Events"}
               </h2>
-              <p className="text-2xl animate-fade-in stagger-1" style={{ color: "#2B2B2B" }}>
-                {"Join us for these exciting celebrations"}
-              </p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
               {upcomingEvents.map((event, index) => (
@@ -142,14 +103,6 @@ export default function EventsPage() {
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-125 group-hover:rotate-3"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      <div className="absolute top-6 right-6 animate-pulse">
-                        <span
-                          className="inline-block px-5 py-3 text-white text-base font-bold rounded-full shadow-xl"
-                          style={{ backgroundColor: "#D88C4A" }}
-                        >
-                          {event.category}
-                        </span>
-                      </div>
                     </div>
                     <CardContent className="p-10">
                       <h3
@@ -216,7 +169,7 @@ export default function EventsPage() {
                           className="inline-block px-5 py-3 text-white text-base font-bold rounded-full shadow-xl"
                           style={{ backgroundColor: "#C57A3A" }}
                         >
-                          {event.category}
+                          {"Ended"}
                         </span>
                       </div>
                     </div>

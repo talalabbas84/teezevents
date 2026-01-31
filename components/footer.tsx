@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from "lucide-react"
+import { Facebook, Instagram, Twitter, Mail, MapPin } from "lucide-react"
 
 export function Footer() {
   return (
@@ -63,11 +63,6 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/team" className="text-background/80 hover:text-primary transition-colors">
-                  {"Our Team"}
-                </Link>
-              </li>
-              <li>
                 <Link href="/contact" className="text-background/80 hover:text-primary transition-colors">
                   {"Contact"}
                 </Link>
@@ -94,21 +89,15 @@ export function Footer() {
               <li className="flex items-start gap-3">
                 <Mail size={20} className="text-primary mt-0.5 flex-shrink-0" />
                 <a
-                  href="mailto:info@teezevents.com"
+                  href="mailto:info@teasevents.ca"
                   className="text-background/80 hover:text-primary transition-colors"
                 >
-                  {"info@teezevents.com"}
-                </a>
-              </li>
-              <li className="flex items-start gap-3">
-                <Phone size={20} className="text-primary mt-0.5 flex-shrink-0" />
-                <a href="tel:+1234567890" className="text-background/80 hover:text-primary transition-colors">
-                  {"(123) 456-7890"}
+                  {"info@teasevents.ca"}
                 </a>
               </li>
               <li className="flex items-start gap-3">
                 <MapPin size={20} className="text-primary mt-0.5 flex-shrink-0" />
-                <span className="text-background/80">{"123 Event Plaza, City, ST 12345"}</span>
+                <span className="text-background/80">{"Toronto"}</span>
               </li>
             </ul>
           </div>

@@ -9,17 +9,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Mail, Phone, MapPin, Clock, Send } from "lucide-react"
+import { Mail, MapPin, Clock, Send, MessageCircle, Instagram } from "lucide-react"
 import { useState } from "react"
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    phone: "",
-    eventType: "",
     date: "",
-    guests: "",
     message: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -40,10 +37,7 @@ export default function ContactPage() {
       setFormData({
         name: "",
         email: "",
-        phone: "",
-        eventType: "",
         date: "",
-        guests: "",
         message: "",
       })
       setSubmitStatus("idle")
@@ -61,19 +55,25 @@ export default function ContactPage() {
     {
       icon: Mail,
       title: "Email Us",
-      details: "info@teezevents.com",
-      link: "mailto:info@teezevents.com",
+      details: "info@teasevents.ca",
+      link: "mailto:info@teasevents.ca",
     },
     {
-      icon: Phone,
-      title: "Call Us",
-      details: "(123) 456-7890",
-      link: "tel:+1234567890",
+      icon: MessageCircle,
+      title: "WhatsApp",
+      details: "Chat with us on WhatsApp",
+      link: "https://wa.me/1234567890",
+    },
+    {
+      icon: Instagram,
+      title: "Instagram DM",
+      details: "Send us a DM on Instagram",
+      link: "https://instagram.com",
     },
     {
       icon: MapPin,
       title: "Visit Us",
-      details: "123 Event Plaza, City, ST 12345",
+      details: "Toronto",
       link: "https://maps.google.com",
     },
     {
@@ -108,7 +108,7 @@ export default function ContactPage() {
         {/* Contact Info Cards */}
         <section className="py-16 lg:py-24">
           <div className="container mx-auto px-4 lg:px-8">
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+            <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 mb-16">
               {contactInfo.map((info, index) => (
                 <Card
                   key={index}
@@ -174,74 +174,26 @@ export default function ContactPage() {
                     </div>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">{"Phone Number"}</Label>
-                      <Input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        placeholder="(123) 456-7890"
-                        className="border-2"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="eventType">{"Event Type *"}</Label>
-                      <select
-                        id="eventType"
-                        name="eventType"
-                        value={formData.eventType}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-3 py-2 border-2 border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <option value="">{"Select an event type"}</option>
-                        <option value="corporate">{"Corporate Event"}</option>
-                        <option value="wedding">{"Wedding Reception"}</option>
-                        <option value="birthday">{"Birthday Party"}</option>
-                        <option value="latin">{"Latin Celebration"}</option>
-                        <option value="themed">{"Themed Party"}</option>
-                        <option value="other">{"Other"}</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="date">{"Preferred Event Date"}</Label>
-                      <Input
-                        id="date"
-                        name="date"
-                        type="date"
-                        value={formData.date}
-                        onChange={handleChange}
-                        className="border-2"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="guests">{"Expected Guests"}</Label>
-                      <Input
-                        id="guests"
-                        name="guests"
-                        type="number"
-                        value={formData.guests}
-                        onChange={handleChange}
-                        placeholder="100"
-                        className="border-2"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="date">{"Preferred Event Date"}</Label>
+                    <Input
+                      id="date"
+                      name="date"
+                      type="date"
+                      value={formData.date}
+                      onChange={handleChange}
+                      className="border-2"
+                    />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="message">{"Tell Us About Your Event *"}</Label>
+                    <Label htmlFor="message">{"Your Message *"}</Label>
                     <Textarea
                       id="message"
                       name="message"
                       value={formData.message}
                       onChange={handleChange}
-                      placeholder="Share your vision, ideas, and any specific requirements..."
+                      placeholder="Share your message, ideas, and any specific requirements..."
                       required
                       rows={6}
                       className="border-2 resize-none"
