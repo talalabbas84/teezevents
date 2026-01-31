@@ -16,6 +16,8 @@ export default function ContactPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    phone: "",
+    eventType: "",
     date: "",
     message: "",
   })
@@ -37,6 +39,8 @@ export default function ContactPage() {
       setFormData({
         name: "",
         email: "",
+        phone: "",
+        eventType: "",
         date: "",
         message: "",
       })
@@ -145,7 +149,7 @@ export default function ContactPage() {
                   {"Fill out the form below and we'll get back to you within 24 hours."}
                 </p>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form id="contact-form" onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="name">{"Full Name *"}</Label>
@@ -171,6 +175,42 @@ export default function ContactPage() {
                         required
                         className="border-2"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">{"Phone Number"}</Label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        placeholder="(123) 456-7890"
+                        className="border-2"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="eventType">{"Event Type"}</Label>
+                      <select
+                        id="eventType"
+                        name="eventType"
+                        value={formData.eventType}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border-2 border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="">{"Select an event type"}</option>
+                        <option value="weddings">{"Weddings"}</option>
+                        <option value="birthday-party">{"Birthday Party"}</option>
+                        <option value="bachollorette">{"Bachollorette"}</option>
+                        <option value="bachelor-parties">{"Bachelor Parties"}</option>
+                        <option value="birthday-parties">{"Birthday Parties"}</option>
+                        <option value="dance-social">{"Dance Social"}</option>
+                        <option value="promotion">{"Promotion"}</option>
+                        <option value="celebration-party">{"Celebration Party"}</option>
+                        <option value="others">{"Others"}</option>
+                      </select>
                     </div>
                   </div>
 

@@ -108,7 +108,7 @@ export function HeroCarousel() {
                   style={{ borderColor: "#D88C4A", borderWidth: "2px" }}
                   asChild
                 >
-                  <Link href="/contact">Let's Talk</Link>
+                  <Link href="/contact#contact-form">{"Hire us?"}</Link>
                 </Button>
               </div>
             </div>
