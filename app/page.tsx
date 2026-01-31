@@ -14,6 +14,7 @@ export default function HomePage() {
     <main className="min-h-screen">
       <Navigation />
       <div className="pt-20">
+        <EventPreviewSection />
         <HeroCarousel />
 
         <section
@@ -158,7 +159,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        <EventPreviewSection />
         <TestimonialsSection />
 
         <section className="py-24 lg:py-40 dark-section">
