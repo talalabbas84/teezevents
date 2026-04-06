@@ -9,6 +9,7 @@
     "db:seed": "node prisma/seed.js",
     "dev": "next dev",
     "lint": "eslint .",
+    "postinstall": "prisma generate",
     "start": "next start"
   },
   "dependencies": {
