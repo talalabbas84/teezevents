@@ -1,180 +1,81 @@
+import type { ReactNode } from "react"
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
-import { Calendar, MapPin, Users, ArrowLeft, Play } from "lucide-react"
+import {
+  ArrowLeft,
+  Calendar,
+  Camera,
+  Clock,
+  CreditCard,
+  MapPin,
+  Play,
+  Ticket,
+  UserCheck,
+  Users,
+} from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import {
+  allEvents,
+  eventsById,
+  getEventPrimaryTicketHref,
+  getEventPrimaryTicketLabel,
+  supportsCheckout,
+} from "@/lib/events"
 
-const eventsData: Record<string, any> = {
-  "halloween-2024": {
-    title: "Halloween Fiesta",
-    date: "October 31, 2024",
-    location: "Downtown Event Center",
-    attendees: "500+",
-    description:
-      "Our Halloween Fiesta was a spooky spectacular that brought together over 500 guests for an unforgettable night of themed Halloween celebrations. The event featured live DJ sets, a costume contest with amazing prizes, themed cocktails, and an atmosphere that perfectly blended Halloween thrills with electric energy.",
-    highlights: [
-      "Live DJ spinning Halloween-themed hits",
-      "Best Costume Contest with $1000 grand prize",
-      "Themed cocktail bar with signature drinks",
-      "Professional photography and photo booth",
-      "Chef-crafted cuisine with a spooky twist",
-    ],
-    gallery: [
-      "/halloween-party-decorations-with-costumes-and-ligh.jpg",
-      "/halloween-costume-party-group-dancing.jpg",
-      "/spooky-cocktails-halloween-themed-drinks.jpg",
-      "/halloween-dj-performance-event.jpg",
-      "/halloween-photo-booth-props-guests.jpg",
-      "/halloween-decorations-venue-setup.jpg",
-    ],
-    videoUrl: "/placeholder-video-halloween-highlights.mp4",
-    category: "Past Event",
-  },
-  "roaring-20s": {
-    title: "Roaring 20s Gala",
-    date: "December 15, 2024",
-    location: "Grand Ballroom",
-    attendees: "350+",
-    description:
-      "Step back in time to the golden age of jazz and glamour. Our Roaring 20s Gala transformed the Grand Ballroom into a 1920s speakeasy, complete with art deco decor, flapper dresses, dapper suits, and live jazz ensemble. Guests enjoyed prohibition-style cocktails, Charleston dance lessons, and an evening of pure elegance.",
-    highlights: [
-      "Live jazz band and swing orchestra",
-      "Charleston and swing dance lessons",
-      "Prohibition-era cocktail experience",
-      "Period-appropriate dress code",
-      "Art deco decor and vintage ambiance",
-    ],
-    gallery: [
-      "/1920s-gatsby-style-party-elegant-art-deco.jpg",
-      "/art-deco-ballroom-elegant-setup.jpg",
-      "/flapper-dresses-guests-dancing.jpg",
-      "/jazz-band-live-performance-1920s.jpg",
-      "/vintage-cocktails-prohibition-style.jpg",
-      "/gatsby-themed-entrance-decor.jpg",
-    ],
-    videoUrl: "/placeholder-video-roaring-20s-highlights.mp4",
-    category: "Past Event",
-  },
-  "summer-salsa": {
-    title: "Summer Salsa Night",
-    date: "Coming June 2026",
-    location: "Outdoor Pavilion",
-    attendees: "400+",
-    description:
-      "Get ready for an enchanting evening under the stars! Our Summer Salsa Night will feature a live salsa band, professional dance instructors, and chef-crafted cuisine. Whether you're a seasoned dancer or a beginner, this event promises an unforgettable experience filled with rhythm, flavor, and warm summer vibes.",
-    highlights: [
-      "Live salsa band performance",
-      "Professional salsa dance lessons",
-      "Chef-curated food stations",
-      "Open-air dance floor under the stars",
-      "Tropical cocktails and refreshments",
-    ],
-    gallery: [
-      "/outdoor-salsa-dancing-party-summer-evening.jpg",
-      "/live-salsa-band-outdoor-stage.jpg",
-      "/food-catering-display.jpg",
-      "/couples-dancing-salsa-outdoors.jpg",
-      "/summer-cocktails-tropical-drinks.jpg",
-      "/outdoor-pavilion-evening-lights.jpg",
-    ],
-    videoUrl: null,
-    category: "Upcoming Event",
-    ticketsUrl: "/contact",
-  },
-  "corporate-gala": {
-    title: "Corporate Anniversary Gala",
-    date: "September 20, 2024",
-    location: "Luxury Hotel",
-    attendees: "250+",
-    description:
-      "We had the honor of creating an elegant corporate anniversary celebration that seamlessly blended professional sophistication with live entertainment. The event featured keynote speeches, awards ceremony, gourmet dining, and performances that kept guests engaged throughout the evening.",
-    highlights: [
-      "Elegant ballroom setup with custom lighting",
-      "Live jazz ensemble",
-      "Gourmet multi-course dining",
-      "Professional AV and presentation setup",
-      "Awards ceremony and keynote speeches",
-    ],
-    gallery: [
-      "/corporate-event-elegant-ballroom-setup.jpg",
-      "/business-gala-formal-dining.jpg",
-      "/corporate-awards-ceremony-stage.jpg",
-      "/elegant-table-settings-corporate.jpg",
-      "/live-entertainment-corporate-event.jpg",
-      "/professional-event-lighting-setup.jpg",
-    ],
-    videoUrl: "/placeholder-video-corporate-gala-highlights.mp4",
-    category: "Past Event",
-  },
-  "new-years-bash": {
-    title: "New Year's Bash",
-    date: "December 31, 2025",
-    location: "City Center Plaza",
-    attendees: "800+",
-    description:
-      "The biggest celebration of the year! Our New Year's Bash brought together over 800 guests for an epic countdown featuring live music, multiple DJ stages, gourmet food stations, and a spectacular fireworks display at midnight. The energy was electric as we danced into the new year together.",
-    highlights: [
-      "Multiple stages with live bands and DJs",
-      "Midnight fireworks spectacular",
-      "Champagne toast and countdown celebration",
-      "International food and drink stations",
-      "VIP lounge with premium open bar",
-    ],
-    gallery: [
-      "/new-years-party-fireworks-celebration.jpg",
-      "/countdown-celebration-crowd.jpg",
-      "/champagne-toast-new-years.jpg",
-      "/live-band-new-years-performance.jpg",
-      "/fireworks-display-city-celebration.jpg",
-      "/new-years-party-crowd-dancing.jpg",
-    ],
-    videoUrl: "/placeholder-video-new-years-highlights.mp4",
-    category: "Past Event",
-  },
-  "spring-carnival": {
-    title: "Spring Carnival",
-    date: "Coming April 2026",
-    location: "Riverside Park",
-    attendees: "600+",
-    description:
-      "Join us for a vibrant spring celebration that brings the carnival spirit to life! This family-friendly event will feature carnival games, food vendors, live entertainment, face painting, and exciting activities for all ages. Experience the joy and color of a traditional carnival right in our community.",
-    highlights: [
-      "Carnival games and prizes",
-      "Live music and dance performances",
-      "Food vendors and food trucks",
-      "Face painting and kids activities",
-      "Artisan market and craft vendors",
-    ],
-    gallery: [
-      "/colorful-carnival-celebration-with-decorations.jpg",
-      "/carnival-games-families-playing.jpg",
-      "/food-vendors-carnival-atmosphere.jpg",
-      "/live-music-carnival-stage.jpg",
-      "/face-painting-kids-carnival.jpg",
-      "/colorful-decorations-carnival-setup.jpg",
-    ],
-    videoUrl: null,
-    category: "Upcoming Event",
-    ticketsUrl: "/contact",
-  },
+function ActionButton({
+  href,
+  label,
+  icon,
+  variant = "default",
+}: {
+  href: string
+  label: string
+  icon: ReactNode
+  variant?: "default" | "outline"
+}) {
+  return (
+    <Button
+      className={
+        variant === "default"
+          ? "w-full bg-primary text-primary-foreground hover:bg-accent"
+          : "w-full border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+      }
+      size="lg"
+      variant={variant}
+      asChild
+    >
+      <Link href={href}>
+        {icon}
+        {label}
+      </Link>
+    </Button>
+  )
 }
 
-export default function EventDetailPage({ params }: { params: { id: string } }) {
-  const event = eventsData[params.id]
+export function generateStaticParams() {
+  return allEvents.map((event) => ({ id: event.id }))
+}
+
+export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const event = eventsById[id]
 
   if (!event) {
     notFound()
   }
 
+  const buyTicketHref = getEventPrimaryTicketHref(event)
+  const buyTicketLabel = getEventPrimaryTicketLabel(event)
+
   return (
     <main className="min-h-screen bg-background">
       <Navigation />
       <div className="pt-20">
-        {/* Hero Image */}
         <div className="relative h-[60vh] min-h-[500px]">
           <img src={event.gallery[0] || "/placeholder.svg"} alt={event.title} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-8 lg:p-16">
             <div className="container mx-auto">
               <Link
@@ -184,6 +85,23 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                 <ArrowLeft size={20} />
                 {"Back to Events"}
               </Link>
+              <div className="mb-4 flex flex-wrap gap-3">
+                {event.category === "Upcoming Event" && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
+                    {"Upcoming"}
+                  </span>
+                )}
+                {event.ticketPrice && (
+                  <span className="rounded-full border border-white/20 bg-black/30 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
+                    {event.ticketPrice}
+                  </span>
+                )}
+                {event.spotsLeft !== undefined && event.capacity !== undefined && (
+                  <span className="rounded-full border border-white/20 bg-black/30 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
+                    {event.spotsLeft}/{event.capacity} spots left
+                  </span>
+                )}
+              </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-4 text-balance">
                 {event.title}
               </h1>
@@ -192,14 +110,20 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                   <Calendar size={20} />
                   <span className="text-lg">{event.date}</span>
                 </div>
+                {event.time && (
+                  <div className="flex items-center gap-2">
+                    <Clock size={20} />
+                    <span className="text-lg">{event.time}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <MapPin size={20} />
-                  <span className="text-lg">{event.location}</span>
+                  <span className="text-lg">{event.venue ? `${event.venue} • ${event.location}` : event.location}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Users size={20} />
                   <span className="text-lg">
-                    {event.attendees} {event.category === "Upcoming Event" ? "Expected" : "Attendees"}
+                    {event.category === "Upcoming Event" && event.capacity ? `${event.capacity} spots` : `${event.attendees} attendees`}
                   </span>
                 </div>
               </div>
@@ -207,17 +131,16 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
           </div>
         </div>
 
-        {/* Event Details */}
         <section className="py-16 lg:py-24">
           <div className="container mx-auto px-4 lg:px-8">
             <div className="grid lg:grid-cols-3 gap-12">
               <div className="lg:col-span-2">
                 <h2 className="text-3xl font-serif font-bold mb-6">{"About This Event"}</h2>
-                <p className="text-lg text-muted-foreground leading-relaxed mb-8">{event.description}</p>
+                <p className="text-lg text-muted-foreground leading-relaxed mb-10">{event.description}</p>
 
                 <h3 className="text-2xl font-serif font-bold mb-4">{"Event Highlights"}</h3>
                 <ul className="space-y-3 mb-12">
-                  {event.highlights.map((highlight: string, index: number) => (
+                  {event.highlights.map((highlight, index) => (
                     <li key={index} className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
                       <span className="text-muted-foreground leading-relaxed">{highlight}</span>
@@ -225,7 +148,36 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                   ))}
                 </ul>
 
-                {/* Video Section */}
+                {event.sections && event.sections.length > 0 && (
+                  <div className="mb-12">
+                    <h3 className="text-2xl font-serif font-bold mb-6">{"Plan Your Night"}</h3>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {event.sections.map((section) => (
+                        <div key={section.title} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+                          <h4 className="text-xl font-serif font-bold mb-3">{section.title}</h4>
+                          <div className="space-y-3">
+                            {section.body.map((paragraph, index) => (
+                              <p key={index} className="text-muted-foreground leading-relaxed">
+                                {paragraph}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {event.kindNote && (
+                  <div className="mb-12 rounded-2xl border border-primary/20 bg-primary/10 p-6">
+                    <div className="mb-3 flex items-center gap-3 text-primary">
+                      <Camera size={20} />
+                      <h3 className="text-xl font-serif font-bold">{"Kind Note"}</h3>
+                    </div>
+                    <p className="text-muted-foreground leading-relaxed">{event.kindNote}</p>
+                  </div>
+                )}
+
                 {event.videoUrl && (
                   <div className="mb-12">
                     <h3 className="text-2xl font-serif font-bold mb-6">{"Event Highlights Video"}</h3>
@@ -245,33 +197,93 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                 )}
               </div>
 
-              {/* Sidebar */}
               <div>
                 <div className="sticky top-24 space-y-6">
                   {event.category === "Upcoming Event" && (
-                    <div className="bg-primary/10 p-6 rounded-lg border border-primary/20">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/10 p-6">
                       <h3 className="text-xl font-serif font-bold mb-4">{"Tickets"}</h3>
+                      <div className="mb-5 space-y-3 rounded-xl bg-background/80 p-4">
+                        {event.ticketPrice && (
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm text-muted-foreground">{"Price"}</span>
+                            <span className="font-semibold">{event.ticketPrice}</span>
+                          </div>
+                        )}
+                        {event.spotsLeft !== undefined && event.capacity !== undefined && (
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm text-muted-foreground">{"Availability"}</span>
+                            <span className="font-semibold">
+                              {event.spotsLeft}/{event.capacity} spots left
+                            </span>
+                          </div>
+                        )}
+                        {event.hostedBy && (
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm text-muted-foreground">{"Hosted by"}</span>
+                            <span className="font-semibold">{event.hostedBy}</span>
+                          </div>
+                        )}
+                      </div>
                       <p className="text-muted-foreground mb-6 leading-relaxed">
-                        {"Secure your spot for this upcoming event."}
+                        {event.ticketNote || "Secure your spot for this upcoming event."}
                       </p>
-                      <Button className="w-full bg-primary text-primary-foreground hover:bg-accent" size="lg" asChild>
-                        <Link href={event.ticketsUrl || "/contact"}>{"Buy Tickets"}</Link>
-                      </Button>
+                      <div className="space-y-3">
+                        <ActionButton
+                          href={buyTicketHref}
+                          label={buyTicketLabel}
+                          icon={
+                            supportsCheckout(event) ? (
+                              <CreditCard className="mr-2" size={18} />
+                            ) : (
+                              <Ticket className="mr-2" size={18} />
+                            )
+                          }
+                        />
+                        {event.ticketsUrl && supportsCheckout(event) && (
+                          <ActionButton
+                            href={event.ticketsUrl}
+                            label={"Request Manual RSVP"}
+                            icon={<Ticket className="mr-2" size={18} />}
+                            variant="outline"
+                          />
+                        )}
+                      </div>
                     </div>
                   )}
 
-                  <div className="bg-muted/50 p-6 rounded-lg border border-border">
+                  {event.guestStats && (
+                    <div className="rounded-2xl border border-border bg-card p-6">
+                      <div className="mb-4 flex items-center gap-3">
+                        <UserCheck size={20} className="text-primary" />
+                        <h3 className="text-xl font-serif font-bold">{"Guest List"}</h3>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-muted-foreground">{"Mutuals"}</span>
+                          <span className="font-semibold">{event.guestStats.mutuals}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-muted-foreground">{"Going"}</span>
+                          <span className="font-semibold">{event.guestStats.going}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-muted-foreground">{"Interested"}</span>
+                          <span className="font-semibold">{event.guestStats.interested}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl border border-border bg-muted/50 p-6">
                     <h3 className="text-xl font-serif font-bold mb-4">{"Interested in hosting a similar event?"}</h3>
                     <p className="text-muted-foreground mb-6 leading-relaxed">
-                      {"Let us bring your vision to life with our expert event planning and management services."}
+                      {"Let us bring your vision to life with expert planning, warm hospitality, and a room full of good energy."}
                     </p>
-                    <Button className="w-full bg-primary text-primary-foreground hover:bg-accent" size="lg" asChild>
-                      <Link href="/contact">{"Contact Us"}</Link>
-                    </Button>
+                    <ActionButton href="/contact" label={"Contact Us"} icon={<ArrowLeft className="mr-2 rotate-180" size={18} />} />
                   </div>
 
                   {event.category === "Past Event" && (
-                    <div className="bg-accent/10 p-6 rounded-lg border border-accent/20">
+                    <div className="rounded-2xl border border-accent/20 bg-accent/10 p-6">
                       <h3 className="text-xl font-serif font-bold mb-3">{"Event Success"}</h3>
                       <div className="space-y-3">
                         <div>
@@ -291,12 +303,11 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
           </div>
         </section>
 
-        {/* Photo Gallery */}
         <section className="py-16 lg:py-24 bg-muted/30">
           <div className="container mx-auto px-4 lg:px-8">
-            <h2 className="text-3xl md:text-4xl font-serif font-bold mb-8 text-center">{"Photo Gallery"}</h2>
+            <h2 className="text-3xl md:text-4xl font-serif font-bold mb-8 text-center">{"Photo Album"}</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {event.gallery.map((image: string, index: number) => (
+              {event.gallery.map((image, index) => (
                 <div
                   key={index}
                   className="relative aspect-square overflow-hidden rounded-lg group cursor-pointer hover:shadow-xl transition-shadow"

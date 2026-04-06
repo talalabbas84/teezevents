@@ -10,9 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Mail, MapPin, Clock, Send, MessageCircle, Instagram } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 
 export default function ContactPage() {
+  const searchParams = useSearchParams()
+  const eventParam = searchParams.get("event")
+  const intentParam = searchParams.get("intent")
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -23,6 +27,30 @@ export default function ContactPage() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
+
+  useEffect(() => {
+    if (eventParam !== "blossom") {
+      return
+    }
+
+    setFormData((prev) => {
+      if (prev.eventType || prev.date || prev.message) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        eventType: "dance-social",
+        date: "2026-04-25",
+        message:
+          intentParam === "rsvp"
+            ? "Hi, I'd like to RSVP for BLOSSOM on April 25, 2026 and receive the e-transfer details."
+            : "Hi, I'm interested in tickets for BLOSSOM on April 25, 2026. Please share the next steps.",
+      }
+    })
+  }, [eventParam, intentParam])
+
+  const isBlossomInquiry = eventParam === "blossom"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,12 +126,12 @@ export default function ContactPage() {
           <div className="container mx-auto px-4 lg:px-8 relative">
             <div className="max-w-4xl mx-auto text-center">
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold mb-6 text-balance animate-fade-in-up">
-                {"Let's Create Something Amazing"}
+                {isBlossomInquiry ? "BLOSSOM RSVP" : "Let's Create Something Amazing"}
               </h1>
               <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed animate-fade-in-up">
-                {
-                  "Ready to bring your event vision to life? Get in touch with us and let's start planning your unforgettable celebration."
-                }
+                {isBlossomInquiry
+                  ? "Use this form if you need a manual RSVP for BLOSSOM. The secure card checkout now lives directly on the event page."
+                  : "Ready to bring your event vision to life? Get in touch with us and let's start planning your unforgettable celebration."}
               </p>
             </div>
           </div>
@@ -146,8 +174,22 @@ export default function ContactPage() {
               <div>
                 <h2 className="text-3xl md:text-4xl font-serif font-bold mb-6">{"Send Us a Message"}</h2>
                 <p className="text-lg text-muted-foreground mb-8">
-                  {"Fill out the form below and we'll get back to you within 24 hours."}
+                  {isBlossomInquiry
+                    ? "Tell us who's coming and we’ll send over BLOSSOM payment details within 24 hours."
+                    : "Fill out the form below and we'll get back to you within 24 hours."}
                 </p>
+
+                {isBlossomInquiry && (
+                  <div className="mb-8 rounded-2xl border border-primary/20 bg-primary/10 p-5">
+                    <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary mb-2">
+                      {"Saturday, April 25, 2026 • 6:00 PM"}
+                    </div>
+                    <div className="text-lg font-serif font-bold mb-2">{"BLOSSOM at 1001 Bay St, Toronto ON"}</div>
+                    <p className="text-muted-foreground leading-relaxed">
+                      {"Ticket price is $22. If you prefer a manual RSVP instead of card checkout, use this form and we’ll follow up with next steps."}
+                    </p>
+                  </div>
+                )}
 
                 <form id="contact-form" onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid md:grid-cols-2 gap-6">

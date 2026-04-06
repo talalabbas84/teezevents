@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELED
+  EXPIRED
+  REFUNDED
+}
+
+model Event {
+  id               String        @id
+  title            String
+  startsAt         DateTime?
+  venue            String?
+  address          String?
+  currency         String        @default("cad")
+  ticketPriceCents Int
+  capacity         Int
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  orders           TicketOrder[]
+}
+
+model TicketOrder {
+  id                      String      @id @default(cuid())
+  orderNumber             String      @unique
+  eventId                 String
+  event                   Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventTitleSnapshot      String
+  eventDateSnapshot       String?
+  status                  OrderStatus @default(PENDING)
+  customerName            String
+  customerEmail           String
+  customerPhone           String?
+  quantity                Int
+  unitPriceCents          Int
+  totalPriceCents         Int
+  currency                String      @default("cad")
+  stripeCheckoutSessionId String?     @unique
+  stripePaymentIntentId   String?     @unique
+  notes                   String?
+  expiresAt               DateTime?
+  paidAt                  DateTime?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  @@index([eventId, status])
+  @@index([customerEmail])
+}
