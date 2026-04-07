@@ -49,13 +49,17 @@ function formatCurrency(amountInCents: number, currency = "CAD") {
   }).format(amountInCents / 100)
 }
 
+function clampQuantity(value: number, maxQuantity: number) {
+  return Math.min(maxQuantity, Math.max(1, Math.trunc(value)))
+}
+
 export function CheckoutForm({
   eventId,
   eventTitle,
   ticketPriceCents,
   currency,
   availableTickets,
-  maxTicketsPerOrder = 4,
+  maxTicketsPerOrder,
   ticketTiers = [],
   defaultTierId = null,
 }: {
@@ -73,6 +77,7 @@ export function CheckoutForm({
   const [phone, setPhone] = useState("")
   const [notes, setNotes] = useState("")
   const [quantity, setQuantity] = useState(1)
+  const [quantityInput, setQuantityInput] = useState("1")
   const [selectedTierId, setSelectedTierId] = useState(defaultTierId || ticketTiers[0]?.id || "")
   const [voucherInput, setVoucherInput] = useState("")
   const [appliedVoucherCode, setAppliedVoucherCode] = useState<string | null>(null)
@@ -88,7 +93,8 @@ export function CheckoutForm({
   )
 
   const baseAvailable = selectedTier ? selectedTier.available : availableTickets
-  const baseMaxPerOrder = Math.max(1, Math.min(maxTicketsPerOrder, selectedTier?.maxPerOrder || maxTicketsPerOrder))
+  const eventLimit = Math.max(1, Math.min(maxTicketsPerOrder || availableTickets || 1, availableTickets || maxTicketsPerOrder || 1))
+  const baseMaxPerOrder = Math.max(1, Math.min(eventLimit, selectedTier?.maxPerOrder || eventLimit))
   const displayedPricing = appliedQuote || {
     quantity,
     unitPriceCents: selectedTier?.priceCents || ticketPriceCents,
@@ -111,8 +117,12 @@ export function CheckoutForm({
   const soldOut = displayedPricing.availableTickets <= 0
 
   useEffect(() => {
-    setQuantity((current) => Math.min(Math.max(current, 1), maxQuantity))
+    setQuantity((current) => clampQuantity(current, maxQuantity))
   }, [maxQuantity])
+
+  useEffect(() => {
+    setQuantityInput(String(quantity))
+  }, [quantity])
 
   useEffect(() => {
     if (!appliedVoucherCode) {
@@ -223,6 +233,51 @@ export function CheckoutForm({
         ? `${payload.quote.voucher.code} applied${payload.quote.voucher.discountLabel ? ` • ${payload.quote.voucher.discountLabel}` : ""}`
         : "Voucher applied.",
     )
+  }
+
+  function setClampedQuantity(nextQuantity: number) {
+    const clampedQuantity = clampQuantity(nextQuantity, maxQuantity)
+    setQuantity(clampedQuantity)
+    setQuantityInput(String(clampedQuantity))
+    setError("")
+  }
+
+  function handleQuantityChange(nextValue: string) {
+    const digitsOnly = nextValue.replace(/\D/g, "")
+
+    if (!digitsOnly) {
+      setQuantityInput("")
+      setError("")
+      return
+    }
+
+    const normalizedDigits = digitsOnly.replace(/^0+(?=\d)/, "")
+    const parsedQuantity = Number(normalizedDigits)
+
+    if (!Number.isFinite(parsedQuantity)) {
+      return
+    }
+
+    const clampedQuantity = clampQuantity(parsedQuantity, maxQuantity)
+    setQuantity(clampedQuantity)
+    setQuantityInput(String(clampedQuantity === parsedQuantity ? parsedQuantity : clampedQuantity))
+    setError("")
+  }
+
+  function handleQuantityBlur() {
+    if (!quantityInput.trim()) {
+      setClampedQuantity(1)
+      return
+    }
+
+    const parsedQuantity = Number(quantityInput)
+
+    if (!Number.isFinite(parsedQuantity)) {
+      setClampedQuantity(1)
+      return
+    }
+
+    setClampedQuantity(parsedQuantity)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -351,25 +406,43 @@ export function CheckoutForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="checkout-quantity">{"Tickets"}</Label>
-          <Input
-            id="checkout-quantity"
-            type="number"
-            min={1}
-            max={maxQuantity}
-            value={quantity}
-            onChange={(event) => {
-              const nextValue = Number(event.target.value)
-
-              if (!Number.isFinite(nextValue)) {
-                setQuantity(1)
-                return
-              }
-
-              setQuantity(Math.min(maxQuantity, Math.max(1, Math.trunc(nextValue))))
-            }}
-            required
-            disabled={isSubmitting || soldOut}
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-11 shrink-0 border-border px-0 text-lg"
+              onClick={() => setClampedQuantity(quantity - 1)}
+              disabled={isSubmitting || soldOut || quantity <= 1}
+              aria-label="Decrease ticket quantity"
+            >
+              -
+            </Button>
+            <Input
+              id="checkout-quantity"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              value={quantityInput}
+              onFocus={(event) => event.currentTarget.select()}
+              onClick={(event) => event.currentTarget.select()}
+              onChange={(event) => handleQuantityChange(event.target.value)}
+              onBlur={handleQuantityBlur}
+              className="text-center"
+              required
+              disabled={isSubmitting || soldOut}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-11 shrink-0 border-border px-0 text-lg"
+              onClick={() => setClampedQuantity(quantity + 1)}
+              disabled={isSubmitting || soldOut || quantity >= maxQuantity}
+              aria-label="Increase ticket quantity"
+            >
+              +
+            </Button>
+          </div>
           <p className="text-xs text-muted-foreground">
             {`Up to ${maxQuantity} ticket${maxQuantity === 1 ? "" : "s"} for this selection.`}
           </p>

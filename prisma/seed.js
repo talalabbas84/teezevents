@@ -22,7 +22,7 @@ async function main() {
       ticketPriceCents: 2200,
       capacity: 80,
       checkoutEnabled: true,
-      maxTicketsPerOrder: 4,
+      maxTicketsPerOrder: 80,
       ticketNote:
         "Invite-only and limited capacity. Card payments are processed in secure Stripe Checkout and holds expire automatically if payment is not completed.",
       featured: true,
@@ -46,7 +46,7 @@ async function main() {
       ticketPriceCents: 2200,
       capacity: 80,
       checkoutEnabled: true,
-      maxTicketsPerOrder: 4,
+      maxTicketsPerOrder: 80,
       ticketNote:
         "Invite-only and limited capacity. Card payments are processed in secure Stripe Checkout and holds expire automatically if payment is not completed.",
       featured: true,

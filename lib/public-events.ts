@@ -171,7 +171,7 @@ function mergeEventRecord(
     ticketPrice: formatPrice(ticketPriceCents, currency),
     ticketPriceCents,
     currency,
-    maxTicketsPerOrder: dbEvent.maxTicketsPerOrder || base?.maxTicketsPerOrder || 4,
+    maxTicketsPerOrder: Math.max(1, Math.min(dbEvent.maxTicketsPerOrder || base?.maxTicketsPerOrder || capacity, capacity)),
     checkoutEnabled: dbEvent.checkoutEnabled,
     ticketNote:
       dbEvent.ticketNote ||

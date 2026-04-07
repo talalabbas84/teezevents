@@ -207,7 +207,7 @@ function fromEvent(event?: AdminManagedEventView | null): EventFormState {
     ticketPriceCad: ((event?.ticketPriceCents || 0) / 100).toFixed(2),
     capacity: String(event?.capacity || 80),
     checkoutEnabled: event?.checkoutEnabled ?? true,
-    maxTicketsPerOrder: String(event?.maxTicketsPerOrder || 4),
+    maxTicketsPerOrder: String(event?.maxTicketsPerOrder || event?.capacity || 80),
     ticketNote: event?.ticketNote || "",
     featured: event?.featured ?? false,
     isActive: event?.isActive ?? true,

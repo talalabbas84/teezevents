@@ -89,7 +89,7 @@ const events: EventData[] = [
     ticketPrice: "$22",
     ticketPriceCents: 2200,
     currency: "cad",
-    maxTicketsPerOrder: 4,
+    maxTicketsPerOrder: 80,
     checkoutEnabled: true,
     ticketNote:
       "Invite-only and limited capacity. Card payments are processed in a secure Stripe checkout. Once all 80 spots are claimed, the waitlist opens.",

@@ -311,11 +311,15 @@ function buildDbEventData(event: EventData): Omit<DbEventRecord, "createdAt" | "
     ticketPriceCents: event.ticketPriceCents,
     capacity: event.capacity,
     checkoutEnabled: Boolean(event.checkoutEnabled),
-    maxTicketsPerOrder: event.maxTicketsPerOrder || 4,
+    maxTicketsPerOrder: resolveMaxTicketsPerOrder(event.maxTicketsPerOrder, event.capacity),
     ticketNote: event.ticketNote || null,
     featured: Boolean(event.featured),
     isActive: true,
   }
+}
+
+function resolveMaxTicketsPerOrder(maxTicketsPerOrder: number | null | undefined, capacity: number) {
+  return Math.max(1, Math.min(maxTicketsPerOrder || capacity, capacity))
 }
 
 function clampRate(numerator: number, denominator: number) {
@@ -689,9 +693,10 @@ export async function getCheckoutQuote({
   const availableTickets = selectedTier
     ? getTierAvailableInventory(selectedTier, eventAvailable, tierReservationMap.get(selectedTier.id) || 0)
     : eventAvailable
+  const eventMaxTicketsPerOrder = resolveMaxTicketsPerOrder(event.maxTicketsPerOrder, event.capacity)
   const maxTicketsPerOrder = Math.max(
     1,
-    Math.min(event.maxTicketsPerOrder, selectedTier?.maxPerOrder || event.maxTicketsPerOrder),
+    Math.min(eventMaxTicketsPerOrder, selectedTier?.maxPerOrder || eventMaxTicketsPerOrder),
   )
 
   if (quantity > maxTicketsPerOrder) {
@@ -838,7 +843,7 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
           ticketPriceCents: checkoutEvent.ticketPriceCents,
           capacity: checkoutEvent.capacity,
           checkoutEnabled: Boolean(checkoutEvent.checkoutEnabled),
-          maxTicketsPerOrder: checkoutEvent.maxTicketsPerOrder || 4,
+          maxTicketsPerOrder: resolveMaxTicketsPerOrder(checkoutEvent.maxTicketsPerOrder, checkoutEvent.capacity),
           ticketNote: checkoutEvent.ticketNote || null,
           featured: Boolean(checkoutEvent.featured),
           isActive: true,
@@ -882,7 +887,7 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
       }
 
       let availableTickets = eventAvailable
-      let maxTicketsPerOrder = event.maxTicketsPerOrder
+      let maxTicketsPerOrder = resolveMaxTicketsPerOrder(event.maxTicketsPerOrder, event.capacity)
 
       if (selectedTier) {
         const tierReservations = (await tx.ticketOrder.aggregate({
@@ -905,7 +910,10 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
         })) as AggregateResult
 
         availableTickets = getTierAvailableInventory(selectedTier, eventAvailable, tierReservations._sum.quantity ?? 0)
-        maxTicketsPerOrder = Math.max(1, Math.min(event.maxTicketsPerOrder, selectedTier.maxPerOrder || event.maxTicketsPerOrder))
+        maxTicketsPerOrder = Math.max(
+          1,
+          Math.min(resolveMaxTicketsPerOrder(event.maxTicketsPerOrder, event.capacity), selectedTier.maxPerOrder || resolveMaxTicketsPerOrder(event.maxTicketsPerOrder, event.capacity)),
+        )
       }
 
       if (input.quantity > maxTicketsPerOrder) {
@@ -1140,7 +1148,7 @@ export async function createComplimentaryOrder(input: ComplimentaryOrderRequest)
         ticketPriceCents: checkoutEvent.ticketPriceCents || 0,
         capacity: checkoutEvent.capacity,
         checkoutEnabled: Boolean(checkoutEvent.checkoutEnabled),
-        maxTicketsPerOrder: checkoutEvent.maxTicketsPerOrder || 4,
+        maxTicketsPerOrder: resolveMaxTicketsPerOrder(checkoutEvent.maxTicketsPerOrder, checkoutEvent.capacity),
         ticketNote: checkoutEvent.ticketNote || null,
         featured: Boolean(checkoutEvent.featured),
         isActive: true,
