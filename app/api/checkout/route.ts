@@ -10,8 +10,28 @@ const checkoutSchema = z.object({
   customerEmail: z.string().trim().email().max(190),
   customerPhone: z.string().trim().max(40).optional(),
   quantity: z.number().int().min(1).max(10),
+  ticketTierId: z.string().trim().min(1).optional(),
+  voucherCode: z.string().trim().max(40).optional(),
   notes: z.string().trim().max(500).optional(),
 })
+
+function getBaseUrl(request: Request) {
+  const origin = request.headers.get("origin")
+
+  if (origin) {
+    return origin
+  }
+
+  const forwardedHost = request.headers.get("x-forwarded-host")
+  const host = forwardedHost || request.headers.get("host")
+  const protocol = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https")
+
+  if (host) {
+    return `${protocol}://${host}`
+  }
+
+  return process.env.NEXT_PUBLIC_APP_URL || null
+}
 
 export async function POST(request: Request) {
   const json = await request.json().catch(() => null)
@@ -21,20 +41,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid checkout request." }, { status: 400 })
   }
 
-  const event = getCheckoutEvent(parsed.data.eventId)
+  const event = await getCheckoutEvent(parsed.data.eventId)
 
   if (!event) {
     return NextResponse.json({ error: "This event is not available for checkout." }, { status: 404 })
   }
 
-  if (event.maxTicketsPerOrder && parsed.data.quantity > event.maxTicketsPerOrder) {
-    return NextResponse.json(
-      { error: `You can buy up to ${event.maxTicketsPerOrder} ticket(s) per order.` },
-      { status: 400 },
-    )
-  }
-
-  const baseUrl = request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL
+  const baseUrl = getBaseUrl(request)
 
   if (!baseUrl) {
     return NextResponse.json({ error: "Missing NEXT_PUBLIC_APP_URL configuration." }, { status: 500 })
@@ -44,6 +57,8 @@ export async function POST(request: Request) {
     const result = await createStripeCheckoutForOrder({
       ...parsed.data,
       customerPhone: parsed.data.customerPhone || undefined,
+      ticketTierId: parsed.data.ticketTierId || undefined,
+      voucherCode: parsed.data.voucherCode || undefined,
       notes: parsed.data.notes || undefined,
       baseUrl,
     })
@@ -56,7 +71,7 @@ export async function POST(request: Request) {
       message,
     )
       ? 500
-      : /sold out|remain|not available/i.test(message)
+      : /sold out|remain|not available|buy up to|voucher|ticket tier|quantity|expired|not active yet|redemption limit/i.test(message)
         ? 400
         : 500
 

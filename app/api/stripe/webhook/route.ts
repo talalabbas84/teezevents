@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { markOrderExpiredFromCheckoutSession, markOrderPaidFromCheckoutSession } from "@/lib/checkout"
+import { finalizePaidOrderFromCheckoutSession, markOrderExpiredFromCheckoutSession } from "@/lib/checkout"
+import { sendTicketsForOrder } from "@/lib/ticket-delivery"
 import { constructStripeWebhookEvent } from "@/lib/stripe-server"
 
 export const runtime = "nodejs"
@@ -41,7 +42,14 @@ export async function POST(request: Request) {
         const paymentIntentId =
           typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null
 
-        await markOrderPaidFromCheckoutSession(session.id, paymentIntentId).catch(() => null)
+        const order = await finalizePaidOrderFromCheckoutSession(session.id, paymentIntentId).catch(() => null)
+
+        if (order) {
+          await sendTicketsForOrder({
+            orderId: order.id,
+            skipIfAlreadySent: true,
+          }).catch(() => null)
+        }
         break
       }
       case "checkout.session.expired":

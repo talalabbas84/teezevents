@@ -4,11 +4,13 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, CreditCard, MapPin, Ticket, Users } from "lucide-react"
-import { allEvents, getEventPrimaryTicketHref, getEventPrimaryTicketLabel, supportsCheckout } from "@/lib/events"
+import { getEventPrimaryTicketHref, getEventPrimaryTicketLabel, supportsCheckout } from "@/lib/events"
+import { listPublicEvents } from "@/lib/public-events"
 
-export default function EventsPage() {
-  const pastEvents = allEvents.filter((event) => event.category === "Past Event")
-  const upcomingEvents = allEvents.filter((event) => event.category === "Upcoming Event")
+export default async function EventsPage() {
+  const events = await listPublicEvents()
+  const pastEvents = events.filter((event) => event.category === "Past Event")
+  const upcomingEvents = events.filter((event) => event.category === "Upcoming Event")
 
   return (
     <main className="min-h-screen">

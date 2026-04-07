@@ -6,11 +6,12 @@ import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { CheckoutForm } from "@/components/checkout-form"
 import { getCheckoutSetupIssue, getEventInventorySnapshot } from "@/lib/checkout"
-import { eventsById, supportsCheckout } from "@/lib/events"
+import { supportsCheckout } from "@/lib/events"
+import { getPublicEventById } from "@/lib/public-events"
 
 export default async function CheckoutPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const event = eventsById[id]
+  const event = await getPublicEventById(id)
 
   if (!event || !supportsCheckout(event) || !event.ticketPriceCents || !event.currency || !event.capacity) {
     notFound()
@@ -55,6 +56,8 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
                     currency={event.currency}
                     availableTickets={inventory.available}
                     maxTicketsPerOrder={event.maxTicketsPerOrder}
+                    ticketTiers={inventory.ticketTiers}
+                    defaultTierId={inventory.defaultTierId}
                   />
                 ) : (
                   <div className="space-y-5">
@@ -109,6 +112,26 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
                         </span>
                       </div>
                     </div>
+
+                    {inventory?.ticketTiers.length ? (
+                      <div className="rounded-2xl border border-border bg-muted/20 p-4">
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Live Pricing</div>
+                        <div className="mt-3 space-y-2 text-sm">
+                          {inventory.ticketTiers.map((tier) => (
+                            <div key={tier.id} className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="font-medium">{tier.name}</div>
+                                {tier.description && <div className="text-muted-foreground">{tier.description}</div>}
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium">{tier.priceLabel}</div>
+                                <div className="text-xs text-muted-foreground">{`${tier.available} left`}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -116,6 +139,13 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
                   <h3 className="mb-3 text-xl font-serif font-bold">{"Before You Pay"}</h3>
                   <div className="space-y-3 text-sm text-muted-foreground">
                     <p>{"Card payments are handled in Stripe and ticket holds expire automatically if checkout is not completed."}</p>
+                    {process.env.NODE_ENV !== "production" && (
+                      <p>
+                        {
+                          ""
+                        }
+                      </p>
+                    )}
                     <p>{"Invite-only events still require respectful conduct and a positive vibe throughout the night."}</p>
                     <p>{event.kindNote || "Tickets are subject to venue capacity."}</p>
                   </div>

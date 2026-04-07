@@ -18,11 +18,12 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import {
   allEvents,
-  eventsById,
   getEventPrimaryTicketHref,
   getEventPrimaryTicketLabel,
   supportsCheckout,
 } from "@/lib/events"
+import { getEventInventorySnapshot } from "@/lib/checkout"
+import { getPublicEventById } from "@/lib/public-events"
 
 function ActionButton({
   href,
@@ -60,7 +61,7 @@ export function generateStaticParams() {
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const event = eventsById[id]
+  const event = await getPublicEventById(id)
 
   if (!event) {
     notFound()
@@ -68,6 +69,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const buyTicketHref = getEventPrimaryTicketHref(event)
   const buyTicketLabel = getEventPrimaryTicketLabel(event)
+  const inventory = event.category === "Upcoming Event" ? await getEventInventorySnapshot(id).catch(() => null) : null
 
   return (
     <main className="min-h-screen bg-background">
@@ -227,6 +229,23 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                       <p className="text-muted-foreground mb-6 leading-relaxed">
                         {event.ticketNote || "Secure your spot for this upcoming event."}
                       </p>
+                      {inventory?.ticketTiers.length ? (
+                        <div className="mb-6 space-y-3 rounded-xl bg-background/80 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Ticket Tiers</div>
+                          {inventory.ticketTiers.map((tier) => (
+                            <div key={tier.id} className="flex items-start justify-between gap-4 text-sm">
+                              <div>
+                                <div className="font-medium">{tier.name}</div>
+                                {tier.description && <div className="text-muted-foreground">{tier.description}</div>}
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium">{tier.priceLabel}</div>
+                                <div className="text-xs text-muted-foreground">{`${tier.available} left`}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                       <div className="space-y-3">
                         <ActionButton
                           href={buyTicketHref}

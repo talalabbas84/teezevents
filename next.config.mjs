@@ -3,7 +3,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  serverExternalPackages: ["@prisma/client", "prisma", "stripe"],
+  serverExternalPackages: ["@prisma/client", "prisma", "stripe", "nodemailer"],
   images: {
     unoptimized: true,
   },

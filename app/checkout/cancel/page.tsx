@@ -3,7 +3,7 @@ import { RotateCcw } from "lucide-react"
 import { Footer } from "@/components/footer"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
-import { eventsById } from "@/lib/events"
+import { getPublicEventById } from "@/lib/public-events"
 
 export default async function CheckoutCancelPage({
   searchParams,
@@ -11,7 +11,7 @@ export default async function CheckoutCancelPage({
   searchParams: Promise<{ event?: string }>
 }) {
   const { event: eventId } = await searchParams
-  const event = eventId ? eventsById[eventId] : null
+  const event = eventId ? await getPublicEventById(eventId) : null
 
   return (
     <main className="min-h-screen bg-background">

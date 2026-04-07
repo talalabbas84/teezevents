@@ -4,11 +4,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Calendar, Clock, CreditCard, MapPin, Ticket, Users } from "lucide-react"
 import {
-  featuredUpcomingEvents,
   getEventPrimaryTicketHref,
   getEventPrimaryTicketLabel,
   supportsCheckout,
 } from "@/lib/events"
+import { getFeaturedPublicEvents } from "@/lib/public-events"
 
 function TicketButton({
   href,
@@ -40,7 +40,9 @@ function TicketButton({
   )
 }
 
-export function EventPreviewSection() {
+export async function EventPreviewSection() {
+  const featuredUpcomingEvents = await getFeaturedPublicEvents()
+
   return (
     <section className="py-20 lg:py-32 bg-muted/30">
       <div className="container mx-auto px-4 lg:px-8">

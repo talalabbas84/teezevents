@@ -16,26 +16,70 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum EventCategory {
+  UPCOMING
+  PAST
+}
+
+enum EventKind {
+  THEMED
+  SIGNATURE
+  CORPORATE
+  SOCIAL
+}
+
+enum OrderSource {
+  CHECKOUT
+  ADMIN_COMP
+}
+
+enum TicketStatus {
+  ISSUED
+  CHECKED_IN
+}
+
+enum DiscountType {
+  FIXED
+  PERCENT
+}
+
 model Event {
-  id               String        @id
-  title            String
-  startsAt         DateTime?
-  venue            String?
-  address          String?
-  currency         String        @default("cad")
-  ticketPriceCents Int
-  capacity         Int
-  isActive         Boolean       @default(true)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  orders           TicketOrder[]
+  id                 String        @id
+  title              String
+  startsAt           DateTime?
+  venue              String?
+  address            String?
+  hostedBy           String?
+  image              String?
+  previewDescription String?
+  description        String?
+  category           EventCategory @default(UPCOMING)
+  eventKind          EventKind     @default(SOCIAL)
+  currency           String        @default("cad")
+  ticketPriceCents   Int
+  capacity           Int
+  checkoutEnabled    Boolean       @default(false)
+  maxTicketsPerOrder Int           @default(4)
+  ticketNote         String?
+  featured           Boolean       @default(false)
+  isActive           Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  orders             TicketOrder[]
+  tickets            Ticket[]
+  ticketTiers        TicketTier[]
+  vouchers           Voucher[]
 }
 
 model TicketOrder {
   id                      String      @id @default(cuid())
   orderNumber             String      @unique
+  accessToken             String?     @unique @default(cuid())
   eventId                 String
   event                   Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  source                  OrderSource @default(CHECKOUT)
+  internalLabel           String?
+  issuedByAdminEmail      String?
   eventTitleSnapshot      String
   eventDateSnapshot       String?
   status                  OrderStatus @default(PENDING)
@@ -44,16 +88,88 @@ model TicketOrder {
   customerPhone           String?
   quantity                Int
   unitPriceCents          Int
+  discountAmountCents     Int         @default(0)
   totalPriceCents         Int
   currency                String      @default("cad")
+  ticketTierId            String?
+  ticketTier              TicketTier? @relation(fields: [ticketTierId], references: [id], onDelete: SetNull)
+  ticketTierNameSnapshot  String?
+  voucherId               String?
+  voucher                 Voucher?    @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  voucherCodeSnapshot     String?
   stripeCheckoutSessionId String?     @unique
   stripePaymentIntentId   String?     @unique
   notes                   String?
+  ticketEmailSendCount    Int         @default(0)
+  ticketEmailLastSentAt   DateTime?
+  ticketEmailLastSentTo   String?
   expiresAt               DateTime?
   paidAt                  DateTime?
   createdAt               DateTime    @default(now())
   updatedAt               DateTime    @updatedAt
+  tickets                 Ticket[]
 
   @@index([eventId, status])
   @@index([customerEmail])
+  @@index([ticketTierId])
+  @@index([voucherId])
+}
+
+model Ticket {
+  id            String       @id @default(cuid())
+  ticketCode    String       @unique
+  orderId       String
+  order         TicketOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  eventId       String
+  event         Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status        TicketStatus @default(ISSUED)
+  holderName    String
+  holderEmail   String
+  ticketIndex   Int
+  checkedInAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([orderId, ticketIndex])
+  @@index([eventId, status])
+}
+
+model TicketTier {
+  id            String        @id @default(cuid())
+  eventId       String
+  event         Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  priceCents    Int
+  quantityLimit Int?
+  maxPerOrder   Int?
+  sortOrder     Int           @default(0)
+  isActive      Boolean       @default(true)
+  isHidden      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  orders        TicketOrder[]
+
+  @@index([eventId, isActive, sortOrder])
+}
+
+model Voucher {
+  id             String        @id @default(cuid())
+  eventId        String
+  event          Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  code           String        @unique
+  description    String?
+  discountType   DiscountType
+  amountOffCents Int?
+  percentOff     Int?
+  minimumQuantity Int?
+  maxRedemptions Int?
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  orders         TicketOrder[]
+
+  @@index([eventId, isActive])
 }

@@ -3,7 +3,7 @@ import { CheckCircle2, Ticket } from "lucide-react"
 import { Footer } from "@/components/footer"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
-import { formatCurrency, getOrderBySessionId } from "@/lib/checkout"
+import { formatCurrency, syncOrderPaymentStatusFromCheckoutSession } from "@/lib/checkout"
 
 export default async function CheckoutSuccessPage({
   searchParams,
@@ -11,7 +11,7 @@ export default async function CheckoutSuccessPage({
   searchParams: Promise<{ session_id?: string }>
 }) {
   const { session_id: sessionId } = await searchParams
-  const order = sessionId ? await getOrderBySessionId(sessionId) : null
+  const order = sessionId ? await syncOrderPaymentStatusFromCheckoutSession(sessionId).catch(() => null) : null
 
   return (
     <main className="min-h-screen bg-background">
@@ -26,7 +26,7 @@ export default async function CheckoutSuccessPage({
               </div>
               <h1 className="mb-4 text-4xl font-serif font-bold text-balance">{"Your tickets are secured."}</h1>
               <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground">
-                {"Stripe has confirmed your checkout. Keep an eye on your inbox for any follow-up details from TEEZ."}
+                {"Stripe has confirmed your checkout. Your order now issues a QR ticket for each guest so entry can be managed directly from the TEEZ dashboard."}
               </p>
 
               {order && (
@@ -40,11 +40,25 @@ export default async function CheckoutSuccessPage({
                     <div>{`Tickets: ${order.quantity}`}</div>
                     <div>{`Total: ${formatCurrency(order.totalPriceCents, order.currency)}`}</div>
                     <div>{`Email: ${order.customerEmail}`}</div>
+                    {order.ticketTierNameSnapshot && <div>{`Tier: ${order.ticketTierNameSnapshot}`}</div>}
+                    {order.voucherCodeSnapshot && (
+                      <div>{`Voucher: ${order.voucherCodeSnapshot} (-${formatCurrency(order.discountAmountCents, order.currency)})`}</div>
+                    )}
+                  </div>
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    {order.tickets.length > 0
+                      ? `${order.tickets.length} ticket QR code(s) are ready.`
+                      : "Ticket issuance is still syncing. Refresh this page if your wallet is not ready yet."}
                   </div>
                 </div>
               )}
 
               <div className="flex flex-wrap justify-center gap-4">
+                {order?.accessToken && (
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
+                    <Link href={`/tickets/${order.accessToken}`}>{"Open Ticket Wallet"}</Link>
+                  </Button>
+                )}
                 <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
                   <Link href={order ? `/events/${order.eventId}` : "/events"}>{"Back to Event"}</Link>
                 </Button>

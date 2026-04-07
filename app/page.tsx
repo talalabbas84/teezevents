@@ -9,7 +9,7 @@ import { Calendar, Sparkles, Users, Flame } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
-export default function HomePage() {
+export default async function HomePage() {
   return (
     <main className="min-h-screen">
       <Navigation />
