@@ -177,8 +177,10 @@ export async function renderOrderTicketPackPdf(order: TicketPdfOrder) {
   const event = eventsById[order.eventId]
   const eventDate = formatEventDate(order)
   const eventTime = formatEventTime(order) || "See event details"
-  const venue = event?.venue || order.event.venue || "Venue to be announced"
-  const location = event?.location || order.event.address || "Toronto"
+  const venue = event
+    ? event.venue?.trim() || "Location shared after confirmation"
+    : order.event.venue?.trim() || "Location shared after confirmation"
+  const location = event ? event.location : order.event.address || "Toronto"
 
   const summaryPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT])
   summaryPage.drawRectangle({

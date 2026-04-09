@@ -56,9 +56,9 @@ const events: EventData[] = [
     shortDate: "Saturday, Apr 25, 2026",
     startsAtIso: "2026-04-25T18:00:00-04:00",
     time: "6:00 PM",
-    venue: "Party Room - 2nd floor",
-    location: "1001 Bay St, Toronto ON",
-    address: "1001 Bay St, Toronto ON",
+    venue: "",
+    location: "Downtown Toronto",
+    address: "Downtown Toronto",
     hostedBy: "TEEZ",
     attendees: "80",
     image: "/vibrant-dance-party-with-colorful-lights.jpg",
@@ -69,7 +69,7 @@ const events: EventData[] = [
     category: "Upcoming Event",
     type: "social",
     highlights: [
-      "Invite-only spring social with only 80 total spots",
+      "Invite-only spring social with a limited guest list",
       "Relaxed but elevated dance night with familiar faces and new connections",
       "Pastels and soft spring tones dress code",
       "Finger foods included throughout the evening",
@@ -92,7 +92,7 @@ const events: EventData[] = [
     maxTicketsPerOrder: 80,
     checkoutEnabled: true,
     ticketNote:
-      "Invite-only and limited capacity. Card payments are processed in a secure Stripe checkout. Once all 80 spots are claimed, the waitlist opens.",
+      "Invite-only and limited capacity. Card payments are processed in secure Stripe checkout, and exact venue details are shared after payment or RSVP confirmation.",
     spotsLeft: 75,
     capacity: 80,
     sections: [
@@ -120,7 +120,7 @@ const events: EventData[] = [
         title: "Ticketing",
         body: [
           "$22 per guest.",
-          "Use the checkout page to pay by card and reserve your spot instantly, or contact TEEZ if you need a manual RSVP.",
+          "Use the checkout page to pay by card, or contact TEEZ if you need a manual RSVP. Exact venue details are shared after confirmation.",
         ],
       },
     ],

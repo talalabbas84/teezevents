@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Calendar, Clock, CreditCard, MapPin, Ticket, Users } from "lucide-react"
+import { ArrowRight, Calendar, Clock, CreditCard, MapPin, Ticket } from "lucide-react"
 import {
   getEventPrimaryTicketHref,
   getEventPrimaryTicketLabel,
@@ -101,14 +101,6 @@ export async function EventPreviewSection() {
                         <MapPin size={16} />
                         <span>{event.location}</span>
                       </div>
-                      {event.spotsLeft !== undefined && event.capacity !== undefined && (
-                        <div className="flex items-center gap-2">
-                          <Users size={16} />
-                          <span>
-                            {event.spotsLeft}/{event.capacity} spots left
-                          </span>
-                        </div>
-                      )}
                     </div>
                     <p className="text-muted-foreground leading-relaxed mb-4">{event.previewDescription}</p>
                     <div className="flex items-center gap-2 text-primary font-medium group-hover:gap-3 transition-all">

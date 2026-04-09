@@ -76,8 +76,8 @@ export default async function TicketCodePage({ params }: { params: Promise<{ tic
               eventTitle={ticket.order.eventTitleSnapshot}
               eventDate={eventDate}
               eventTime={eventTime}
-              venue={event?.venue || ticket.event.venue}
-              location={event?.location || ticket.event.address}
+              venue={event?.venue ?? undefined}
+              location={event?.location ?? ticket.event.address ?? "Toronto"}
               holderName={ticket.holderName}
               orderNumber={ticket.order.orderNumber}
               ticketCode={ticket.ticketCode}

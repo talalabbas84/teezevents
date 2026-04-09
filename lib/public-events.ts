@@ -103,7 +103,7 @@ function buildFallbackHighlights(dbEvent: DbEventRecord) {
   const highlights = [
     dbEvent.venue ? `Hosted at ${dbEvent.venue}` : null,
     dbEvent.ticketPriceCents > 0 ? `${formatPrice(dbEvent.ticketPriceCents, dbEvent.currency)} ticketed entry` : "Complimentary entry",
-    `${dbEvent.capacity} total spots available`,
+    "Limited guest capacity",
     dbEvent.checkoutEnabled ? "Secure Stripe checkout enabled" : "Manual RSVP or admin-issued tickets only",
   ]
 
@@ -135,7 +135,8 @@ function mergeEventRecord(
   }
 
   const base = catalogEvent
-  const location = dbEvent.address || base?.location || "Toronto"
+  const location = base?.location ?? dbEvent.address ?? "Toronto"
+  const venue = base?.venue ?? dbEvent.venue ?? undefined
   const startsAt = dbEvent.startsAt
   const capacity = dbEvent.capacity || base?.capacity || 0
   const ticketPriceCents = dbEvent.ticketPriceCents ?? base?.ticketPriceCents ?? 0
@@ -148,9 +149,9 @@ function mergeEventRecord(
     shortDate: formatShortDate(startsAt),
     startsAtIso: startsAt?.toISOString() || base?.startsAtIso,
     time: formatTime(startsAt) || base?.time,
-    venue: dbEvent.venue || base?.venue,
+    venue,
     location,
-    address: dbEvent.address || base?.address || location,
+    address: base?.address ?? dbEvent.address ?? location,
     hostedBy: dbEvent.hostedBy || base?.hostedBy,
     attendees: base?.attendees || `${capacity}`,
     image: dbEvent.image || base?.image || "/placeholder.svg",

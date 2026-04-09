@@ -157,8 +157,8 @@ export default async function TicketWalletPage({ params }: { params: Promise<{ a
                     eventTitle={order.eventTitleSnapshot}
                     eventDate={eventDate}
                     eventTime={eventTime}
-                    venue={event?.venue || order.event.venue}
-                    location={event?.location || order.event.address}
+                    venue={event?.venue ?? undefined}
+                    location={event?.location ?? order.event.address ?? "Toronto"}
                     holderName={ticket.holderName}
                     orderNumber={order.orderNumber}
                     ticketCode={ticket.ticketCode}

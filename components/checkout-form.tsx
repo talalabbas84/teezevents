@@ -354,9 +354,7 @@ export function CheckoutForm({
                     </div>
                     <div className="text-right">
                       <div className="font-semibold">{tier.priceLabel}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {tier.available > 0 ? `${tier.available} left` : "Sold out"}
-                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">{tier.available > 0 ? "Available" : "Sold out"}</div>
                     </div>
                   </div>
                 </button>
@@ -444,7 +442,7 @@ export function CheckoutForm({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            {`Up to ${maxQuantity} ticket${maxQuantity === 1 ? "" : "s"} for this selection.`}
+            {"Choose how many tickets you want for this order."}
           </p>
         </div>
       </div>

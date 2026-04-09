@@ -67,14 +67,6 @@ export default async function EventsPage() {
                           <MapPin size={20} style={{ color: "#D88C4A" }} />
                           <span className="font-semibold">{event.location}</span>
                         </div>
-                        <div className="flex items-center gap-4 text-lg" style={{ color: "#2B2B2B" }}>
-                          <Users size={20} style={{ color: "#D88C4A" }} />
-                          <span className="font-semibold">
-                            {event.spotsLeft !== undefined && event.capacity !== undefined
-                              ? `${event.spotsLeft}/${event.capacity} spots left`
-                              : `${event.attendees} Expected`}
-                          </span>
-                        </div>
                       </div>
                       <p className="leading-relaxed text-xl" style={{ color: "#6B4423" }}>
                         {event.previewDescription}

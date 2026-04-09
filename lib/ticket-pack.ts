@@ -84,8 +84,10 @@ export async function renderOrderTicketPackHtml(order: TicketPackOrder) {
   const event = eventsById[order.eventId]
   const eventTime = formatEventTime(order)
   const eventDate = formatEventDate(order)
-  const venue = event?.venue || order.event.venue || ""
-  const location = event?.location || order.event.address || ""
+  const venue = event
+    ? event.venue?.trim() || "Location shared after confirmation"
+    : order.event.venue?.trim() || "Location shared after confirmation"
+  const location = event ? event.location : order.event.address || ""
   const walletUrl = order.accessToken ? getPublicTicketWalletUrl(order.accessToken) : null
   const ticketCards = await Promise.all(
     order.tickets.map(async (ticket) => {
@@ -108,7 +110,7 @@ export async function renderOrderTicketPackHtml(order: TicketPackOrder) {
               <div><span>Status</span><strong>${ticket.checkedInAt ? "Checked In" : "Valid"}</strong></div>
             </div>
             <div class="venue-block">
-              <div class="venue">${escapeHtml(venue || "Venue to be announced")}</div>
+              <div class="venue">${escapeHtml(venue)}</div>
               <div class="location">${escapeHtml(location || "Toronto")}</div>
             </div>
             <div class="links">
@@ -271,7 +273,7 @@ export async function renderOrderTicketPackHtml(order: TicketPackOrder) {
         <div class="hero-grid">
           <div><span>Date</span><strong>${escapeHtml(eventDate)}</strong></div>
           <div><span>Time</span><strong>${escapeHtml(eventTime || "See event details")}</strong></div>
-          <div><span>Venue</span><strong>${escapeHtml(venue || "Venue to be announced")}</strong></div>
+          <div><span>Venue</span><strong>${escapeHtml(venue)}</strong></div>
           <div><span>Location</span><strong>${escapeHtml(location || "Toronto")}</strong></div>
           <div><span>Tickets</span><strong>${order.quantity}</strong></div>
           <div><span>Total</span><strong>${escapeHtml(formatCurrency(order.totalPriceCents, order.currency))}</strong></div>

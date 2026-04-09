@@ -180,10 +180,10 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                     <div className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-primary">
                       Saturday, April 25, 2026 • 6:00 PM
                     </div>
-                    <div className="mb-2 text-lg font-serif font-bold">BLOSSOM at 1001 Bay St, Toronto ON</div>
+                    <div className="mb-2 text-lg font-serif font-bold">BLOSSOM in Downtown Toronto</div>
                     <p className="leading-relaxed text-muted-foreground">
                       Ticket price is $22. If you prefer a manual RSVP instead of card checkout, use this form and
-                      we'll follow up with next steps.
+                      we&apos;ll follow up with next steps and venue details.
                     </p>
                   </div>
                 )}

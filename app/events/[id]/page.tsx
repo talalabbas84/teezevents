@@ -12,7 +12,6 @@ import {
   Play,
   Ticket,
   UserCheck,
-  Users,
 } from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -98,11 +97,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     {event.ticketPrice}
                   </span>
                 )}
-                {event.spotsLeft !== undefined && event.capacity !== undefined && (
-                  <span className="rounded-full border border-white/20 bg-black/30 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
-                    {event.spotsLeft}/{event.capacity} spots left
-                  </span>
-                )}
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-4 text-balance">
                 {event.title}
@@ -121,12 +115,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 <div className="flex items-center gap-2">
                   <MapPin size={20} />
                   <span className="text-lg">{event.venue ? `${event.venue} • ${event.location}` : event.location}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users size={20} />
-                  <span className="text-lg">
-                    {event.category === "Upcoming Event" && event.capacity ? `${event.capacity} spots` : `${event.attendees} attendees`}
-                  </span>
                 </div>
               </div>
             </div>
@@ -211,14 +199,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                             <span className="font-semibold">{event.ticketPrice}</span>
                           </div>
                         )}
-                        {event.spotsLeft !== undefined && event.capacity !== undefined && (
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-muted-foreground">{"Availability"}</span>
-                            <span className="font-semibold">
-                              {event.spotsLeft}/{event.capacity} spots left
-                            </span>
-                          </div>
-                        )}
                         {event.hostedBy && (
                           <div className="flex items-center justify-between gap-4">
                             <span className="text-sm text-muted-foreground">{"Hosted by"}</span>
@@ -240,7 +220,9 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                               </div>
                               <div className="text-right">
                                 <div className="font-medium">{tier.priceLabel}</div>
-                                <div className="text-xs text-muted-foreground">{`${tier.available} left`}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {tier.available > 0 ? "Available" : "Sold out"}
+                                </div>
                               </div>
                             </div>
                           ))}

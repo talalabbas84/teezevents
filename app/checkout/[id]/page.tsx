@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Calendar, Clock, MapPin, ShieldCheck, Ticket } from "lucide-react"
+import { Calendar, Clock, MapPin, ShieldCheck } from "lucide-react"
 import { Footer } from "@/components/footer"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
@@ -103,14 +103,6 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
                         <MapPin size={16} className="text-primary" />
                         <span>{event.venue ? `${event.venue} • ${event.location}` : event.location}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Ticket size={16} className="text-primary" />
-                        <span>
-                          {inventory
-                            ? `${inventory.available}/${inventory.capacity} spots currently available`
-                            : `${event.spotsLeft ?? event.capacity}/${event.capacity} spots currently available`}
-                        </span>
-                      </div>
                     </div>
 
                     {inventory?.ticketTiers.length ? (
@@ -125,7 +117,9 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
                               </div>
                               <div className="text-right">
                                 <div className="font-medium">{tier.priceLabel}</div>
-                                <div className="text-xs text-muted-foreground">{`${tier.available} left`}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {tier.available > 0 ? "Available" : "Sold out"}
+                                </div>
                               </div>
                             </div>
                           ))}
