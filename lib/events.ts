@@ -73,7 +73,7 @@ const events: EventData[] = [
       "Relaxed but elevated dance night with familiar faces and new connections",
       "Pastels and soft spring tones dress code",
       "Finger foods included throughout the evening",
-      "BYOB with no bar service onsite",
+      // "BYOB with no bar service onsite",
       "Secure card checkout powered by Stripe",
     ],
     gallery: [
@@ -113,7 +113,7 @@ const events: EventData[] = [
         title: "Food & Drinks",
         body: [
           "A selection of finger foods will be available throughout the evening.",
-          "Drinks are BYOB and there is no bar service onsite.",
+          // "Drinks are BYOB and there is no bar service onsite.",
         ],
       },
       {
