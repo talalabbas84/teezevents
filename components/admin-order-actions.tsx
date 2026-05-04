@@ -3,7 +3,7 @@
 import type { FormEvent } from "react"
 
 import { useState } from "react"
-import { Download, Loader2, Mail, Pencil, Ticket } from "lucide-react"
+import { Download, Loader2, Mail, Pencil, RotateCcw, Ticket } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -25,6 +25,8 @@ export function AdminOrderActions({
   ticketTierName,
   voucherCode,
   totalLabel,
+  status: orderStatus,
+  canRefund = false,
 }: {
   orderId: string
   accessToken: string | null
@@ -39,9 +41,12 @@ export function AdminOrderActions({
   ticketTierName: string | null
   voucherCode: string | null
   totalLabel: string
+  status: "PENDING" | "PAID" | "CANCELED" | "EXPIRED" | "REFUNDED"
+  canRefund?: boolean
 }) {
   const [status, setStatus] = useState("")
   const [isSending, setIsSending] = useState(false)
+  const [isRefunding, setIsRefunding] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [editName, setEditName] = useState(customerName)
@@ -125,6 +130,40 @@ export function AdminOrderActions({
 
     setStatus("Order updated. Reloading dashboard...")
     setIsDialogOpen(false)
+    window.location.reload()
+  }
+
+  async function handleRefundClick() {
+    const confirmed = window.confirm(
+      `Refund ${totalLabel} for this order? Stripe will process the refund and this order will stop being valid for check-in.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setStatus("")
+    setIsRefunding(true)
+
+    const response = await fetch(`/api/admin/orders/${orderId}/refund`, {
+      method: "POST",
+    }).catch(() => null)
+
+    if (!response) {
+      setIsRefunding(false)
+      setStatus("Network error.")
+      return
+    }
+
+    const payload = await response.json().catch(() => null)
+
+    if (!response.ok || !payload?.ok) {
+      setIsRefunding(false)
+      setStatus(payload?.error || "Unable to refund order.")
+      return
+    }
+
+    setStatus("Refunded. Reloading...")
     window.location.reload()
   }
 
@@ -270,6 +309,21 @@ export function AdminOrderActions({
             Email
           </span>
         </Button>
+        {canRefund && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-destructive text-destructive"
+            disabled={isRefunding || orderStatus !== "PAID"}
+            onClick={() => void handleRefundClick()}
+          >
+            <span className="inline-flex items-center gap-1">
+              {isRefunding ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+              Refund
+            </span>
+          </Button>
+        )}
       </div>
       {!emailEnabled && <div className="text-xs text-muted-foreground">SMTP not configured</div>}
       {status && <div className="max-w-[220px] text-right text-xs text-muted-foreground">{status}</div>}

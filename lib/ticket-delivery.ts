@@ -82,6 +82,68 @@ export async function sendTicketsForOrder({
   }
 }
 
+export async function sendTicketsForEvent({
+  eventId,
+  skipIfAlreadySent = true,
+}: {
+  eventId: string
+  skipIfAlreadySent?: boolean
+}) {
+  const prisma = getPrismaClient()
+  const orders = await prisma.ticketOrder.findMany({
+    where: {
+      eventId,
+      status: "PAID",
+    },
+    orderBy: [{ createdAt: "asc" }],
+    select: {
+      id: true,
+      orderNumber: true,
+      customerEmail: true,
+    },
+  })
+
+  const results: Array<{
+    orderId: string
+    orderNumber: string
+    recipientEmail: string
+    status: "sent" | "skipped" | "failed"
+    error?: string
+  }> = []
+
+  for (const order of orders) {
+    try {
+      const result = await sendTicketsForOrder({
+        orderId: order.id,
+        skipIfAlreadySent,
+      })
+
+      results.push({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        recipientEmail: result.recipientEmail,
+        status: result.status,
+      })
+    } catch (error) {
+      results.push({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        recipientEmail: order.customerEmail,
+        status: "failed",
+        error: error instanceof Error ? error.message : "Unable to email tickets.",
+      })
+    }
+  }
+
+  return {
+    total: orders.length,
+    sent: results.filter((result) => result.status === "sent").length,
+    skipped: results.filter((result) => result.status === "skipped").length,
+    failed: results.filter((result) => result.status === "failed").length,
+    results,
+  }
+}
+
 export async function getOrderTicketPack(orderId: string) {
   const order = await getDeliverableOrder(orderId)
 

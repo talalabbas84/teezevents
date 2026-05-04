@@ -191,6 +191,25 @@ function emptyVoucher(): VoucherFormState {
   }
 }
 
+function generateVoucherCode() {
+  const suffix =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().replace(/-/g, "").slice(0, 8)
+      : Math.random().toString(36).slice(2, 10)
+
+  return `TEEZ-${suffix}`.toUpperCase()
+}
+
+function oneTimeFixedVoucher(): VoucherFormState {
+  return {
+    ...emptyVoucher(),
+    code: generateVoucherCode(),
+    description: "One-time voucher",
+    discountType: "FIXED",
+    maxRedemptions: "1",
+  }
+}
+
 function fromEvent(event?: AdminManagedEventView | null): EventFormState {
   return {
     id: event?.id || "",
@@ -847,23 +866,42 @@ function EventEditorCard({
                 </p>
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="border-primary text-primary"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    vouchers: [...current.vouchers, emptyVoucher()],
-                  }))
-                }
-                disabled={isSubmitting}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Plus size={14} />
-                  Add Voucher
-                </span>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-primary text-primary"
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      vouchers: [...current.vouchers, oneTimeFixedVoucher()],
+                    }))
+                  }
+                  disabled={isSubmitting}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Sparkles size={14} />
+                    Generate One-Time
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-primary text-primary"
+                  onClick={() =>
+                    setForm((current) => ({
+                      ...current,
+                      vouchers: [...current.vouchers, emptyVoucher()],
+                    }))
+                  }
+                  disabled={isSubmitting}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Plus size={14} />
+                    Add Voucher
+                  </span>
+                </Button>
+              </div>
             </div>
 
             {form.vouchers.length === 0 ? (

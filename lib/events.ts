@@ -48,6 +48,26 @@ export type EventData = {
   featured?: boolean
 }
 
+export const roaring20sGallery = [
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904276/teez-events/roaring20s/Punta_Cana-134_besxou.jpg",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904250/teez-events/roaring20s/Punta_Cana-141_et0ytt.jpg",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904235/teez-events/roaring20s/ef631d7b-c34e-4b00-b684-250446fa2989_za3nqm.jpg",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904205/teez-events/roaring20s/IMG_6697_ycsqkl.jpg",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904183/teez-events/roaring20s/Punta_Cana-096_kqlpeu.jpg",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904164/teez-events/roaring20s/Punta_Cana-099_ylcm72.jpg",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904126/teez-events/roaring20s/Punta_Cana-111_yscjjx.jpg",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904076/teez-events/roaring20s/Roaring_20s-048_ofweob.jpg",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904061/teez-events/roaring20s/Roaring_20s-043_cudnkz.jpg",
+]
+
+export const halloweenGallery = [
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904526/teez-events/HAlloween/fa265eb2-2191-4aa1-857a-ec49a564a46f.png",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904514/teez-events/HAlloween/3e640abc-87bd-4065-91a6-0f808ba92c2c.png",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904502/teez-events/HAlloween/ecb3e066-25d9-4bba-b8f2-fff5303b53b7.png",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904489/teez-events/HAlloween/c135d9f7-fdb1-4059-a679-d06da8dde316.png",
+  "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904327/teez-events/HAlloween/Canon_20251101_19513532_fhjgug.jpg",
+]
+
 const events: EventData[] = [
   {
     id: "blossom",
@@ -166,6 +186,70 @@ const events: EventData[] = [
     featured: true,
   },
   {
+    id: "halloween-2026",
+    title: "Halloween Night",
+    date: "Saturday, October 31, 2026",
+    shortDate: "Saturday, Oct 31, 2026",
+    startsAtIso: "2026-10-31T20:00:00-04:00",
+    time: "8:00 PM",
+    venue: "Secret Venue",
+    location: "Toronto",
+    address: "Toronto, ON",
+    hostedBy: "TEEZ",
+    attendees: "Limited",
+    image: halloweenGallery[0],
+    previewDescription:
+      "A cinematic Halloween party with costumes, moody lighting, music, photo moments, and a room built for full spooky-season energy.",
+    description:
+      "Halloween Night is the next TEEZ themed experience: a dark, stylish, high-energy celebration built around costumes, music, movement, and atmospheric visuals. Expect a room that feels immersive from the moment guests arrive, with photo-ready details, a sharp dress-up culture, and the kind of social flow that keeps people moving all night.",
+    category: "Upcoming Event",
+    type: "themed",
+    highlights: [
+      "Costume-forward Halloween theme with elevated party styling",
+      "DJ-led dance floor and moody room lighting",
+      "Photo moments designed for groups, couples, and solo portraits",
+      "Limited guest list to keep the room energetic and manageable",
+      "Exact venue details shared with confirmed guests",
+    ],
+    gallery: halloweenGallery,
+    videoUrl: null,
+    ticketsUrl: "/contact?event=halloween-2026&intent=rsvp",
+    ticketNote:
+      "Tickets and venue details will be released closer to the event. Join the RSVP list to get first access when sales open.",
+    spotsLeft: 250,
+    capacity: 250,
+    sections: [
+      {
+        title: "The Mood",
+        body: [
+          "Dark, polished, and playful. This is Halloween without the throwaway decorations: cinematic lighting, strong outfits, and a room that photographs beautifully.",
+        ],
+      },
+      {
+        title: "Dress Code",
+        body: [
+          "Costumes are strongly encouraged.",
+          "Think character, texture, drama, and details that make people stop and ask for a photo.",
+        ],
+      },
+      {
+        title: "Guest Flow",
+        body: [
+          "The night is designed around easy arrivals, social pockets, photo moments, and a dance floor that builds as the room fills.",
+        ],
+      },
+      {
+        title: "Ticketing",
+        body: [
+          "RSVP interest is open now. Ticket price, venue, and final capacity will be announced before checkout goes live.",
+        ],
+      },
+    ],
+    kindNote:
+      "By attending, guests agree to be photographed and filmed for TEEZ marketing and promotional materials. Costumes should be expressive without creating safety issues or blocking movement in the venue.",
+    featured: true,
+  },
+  {
     id: "halloween-2024",
     title: "Halloween Fiesta",
     date: "October 31, 2024",
@@ -202,10 +286,10 @@ const events: EventData[] = [
     shortDate: "December 15, 2024",
     location: "Grand Ballroom",
     attendees: "350+",
-    image: "/1920s-gatsby-style-party-elegant-art-deco.jpg",
-    previewDescription: "Step back in time to the glamorous era of jazz and elegance.",
+    image: roaring20sGallery[0],
+    previewDescription: "A Gatsby-inspired night of jazz, pearls, champagne energy, and full-room glamour.",
     description:
-      "Step back in time to the golden age of jazz and glamour. Our Roaring 20s Gala transformed the Grand Ballroom into a 1920s speakeasy, complete with art deco decor, flapper dresses, dapper suits, and live jazz ensemble. Guests enjoyed prohibition-style cocktails, Charleston dance lessons, and an evening of pure elegance.",
+      "Step back in time to the golden age of jazz and glamour. Our Roaring 20s Gala transformed the room into a 1920s-style social, with pearls, suits, shimmer, dancing, cinematic lighting, and an atmosphere built for people to arrive as guests and leave feeling like they were part of a scene.",
     category: "Past Event",
     type: "themed",
     highlights: [
@@ -215,15 +299,34 @@ const events: EventData[] = [
       "Period-appropriate dress code",
       "Art deco decor and vintage ambiance",
     ],
-    gallery: [
-      "/1920s-gatsby-style-party-elegant-art-deco.jpg",
-      "/art-deco-ballroom-elegant-setup.jpg",
-      "/flapper-dresses-guests-dancing.jpg",
-      "/jazz-band-live-performance-1920s.jpg",
-      "/vintage-cocktails-prohibition-style.jpg",
-      "/gatsby-themed-entrance-decor.jpg",
-    ],
+    gallery: roaring20sGallery,
     videoUrl: "/placeholder-video-roaring-20s-highlights.mp4",
+    sections: [
+      {
+        title: "The Atmosphere",
+        body: [
+          "The night leaned into Gatsby-era style without feeling like a costume party. Warm lighting, dressed-up guests, and a lively dance floor gave the event a cinematic quality from the first arrival.",
+        ],
+      },
+      {
+        title: "Guest Experience",
+        body: [
+          "Guests had a clear theme to follow, easy photo moments throughout the room, and a flow that moved naturally from mingling to dancing to full celebration.",
+        ],
+      },
+      {
+        title: "Production Details",
+        body: [
+          "The visual direction focused on elegance, movement, and social energy: textured outfits, intimate framing, and a gallery that feels alive rather than staged.",
+        ],
+      },
+      {
+        title: "Why It Worked",
+        body: [
+          "The theme was specific enough to inspire people, but flexible enough that everyone could participate comfortably. That balance is where TEEZ events come alive.",
+        ],
+      },
+    ],
   },
   {
     id: "corporate-gala",

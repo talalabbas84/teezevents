@@ -50,6 +50,7 @@ export function AdminCompOrderForm({
     emailStatus: string
     emailRecipient: string
   } | null>(null)
+  const singleEvent = events.length === 1
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -116,19 +117,23 @@ export function AdminCompOrderForm({
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="comp-event">Event</Label>
-              <select
-                id="comp-event"
-                value={eventId}
-                onChange={(event) => setEventId(event.target.value)}
-                className="w-full rounded-md border-2 border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
-                disabled={isSubmitting}
-              >
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {`${event.title} • ${event.dateLabel}`}
-                  </option>
-                ))}
-              </select>
+              {singleEvent ? (
+                <Input value={events[0] ? `${events[0].title} • ${events[0].dateLabel}` : ""} disabled />
+              ) : (
+                <select
+                  id="comp-event"
+                  value={eventId}
+                  onChange={(event) => setEventId(event.target.value)}
+                  className="w-full rounded-md border-2 border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                  disabled={isSubmitting}
+                >
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {`${event.title} • ${event.dateLabel}`}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -1,5 +1,7 @@
 import "server-only"
 
+import type { Prisma } from "@prisma/client"
+
 import { eventsById, supportsCheckout, type EventData } from "@/lib/events"
 import { getPublicEventById } from "@/lib/public-events"
 import { getPrismaClient } from "@/lib/prisma"
@@ -208,6 +210,30 @@ type AdminDashboardData = {
   }>
 }
 
+export type AdminEventOperationsData = {
+  event: DbEventRecord
+  summary: {
+    paidOrders: number
+    refundedOrders: number
+    pendingOrders: number
+    ticketsSold: number
+    pendingTickets: number
+    checkedInCount: number
+    revenueCents: number
+    refundedCents: number
+    discountAmountCents: number
+    remainingCapacity: number
+    sellThroughRate: number
+    checkInRate: number
+    deliveredOrders: number
+    ticketDeliveryRate: number
+  }
+  orders: OrderWithEvent[]
+  tickets: TicketWithRelations[]
+  ticketTiers: Array<TicketTierRecord & { soldCount: number; revenueCents: number }>
+  vouchers: Array<VoucherRecord & { redemptionCount: number; discountCents: number }>
+}
+
 type CheckoutSetupIssue = {
   title: string
   description: string
@@ -385,7 +411,7 @@ function withOrderIncludes() {
   } as const
 }
 
-async function findOrderByUnique(where: Record<string, string>) {
+async function findOrderByUnique(where: Prisma.TicketOrderWhereUniqueInput) {
   const prisma = getPrismaClient()
 
   return (await prisma.ticketOrder.findUnique({
@@ -816,6 +842,9 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
   }
 
   const now = new Date()
+  const checkoutEventCurrency = checkoutEvent.currency.toLowerCase()
+  const checkoutEventCapacity = checkoutEvent.capacity
+  const checkoutEventTicketPriceCents = checkoutEvent.ticketPriceCents
 
   const createdOrder = await prisma.$transaction(
     async (tx): Promise<CreatedOrder> => {
@@ -839,11 +868,11 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
                 : checkoutEvent.type === "corporate"
                   ? "CORPORATE"
                   : "SOCIAL",
-          currency: checkoutEvent.currency.toLowerCase(),
-          ticketPriceCents: checkoutEvent.ticketPriceCents,
-          capacity: checkoutEvent.capacity,
+          currency: checkoutEventCurrency,
+          ticketPriceCents: checkoutEventTicketPriceCents,
+          capacity: checkoutEventCapacity,
           checkoutEnabled: Boolean(checkoutEvent.checkoutEnabled),
-          maxTicketsPerOrder: resolveMaxTicketsPerOrder(checkoutEvent.maxTicketsPerOrder, checkoutEvent.capacity),
+          maxTicketsPerOrder: resolveMaxTicketsPerOrder(checkoutEvent.maxTicketsPerOrder, checkoutEventCapacity),
           ticketNote: checkoutEvent.ticketNote || null,
           featured: Boolean(checkoutEvent.featured),
           isActive: true,
@@ -1122,6 +1151,9 @@ export async function createComplimentaryOrder(input: ComplimentaryOrderRequest)
   }
 
   const now = new Date()
+  const checkoutEventCurrency = checkoutEvent.currency.toLowerCase()
+  const checkoutEventCapacity = checkoutEvent.capacity
+  const checkoutEventTicketPriceCents = checkoutEvent.ticketPriceCents || 0
 
   return prisma.$transaction(async (tx) => {
     const event = (await tx.event.upsert({
@@ -1144,11 +1176,11 @@ export async function createComplimentaryOrder(input: ComplimentaryOrderRequest)
               : checkoutEvent.type === "corporate"
                 ? "CORPORATE"
                 : "SOCIAL",
-        currency: checkoutEvent.currency.toLowerCase(),
-        ticketPriceCents: checkoutEvent.ticketPriceCents || 0,
-        capacity: checkoutEvent.capacity,
+        currency: checkoutEventCurrency,
+        ticketPriceCents: checkoutEventTicketPriceCents,
+        capacity: checkoutEventCapacity,
         checkoutEnabled: Boolean(checkoutEvent.checkoutEnabled),
-        maxTicketsPerOrder: resolveMaxTicketsPerOrder(checkoutEvent.maxTicketsPerOrder, checkoutEvent.capacity),
+        maxTicketsPerOrder: resolveMaxTicketsPerOrder(checkoutEvent.maxTicketsPerOrder, checkoutEventCapacity),
         ticketNote: checkoutEvent.ticketNote || null,
         featured: Boolean(checkoutEvent.featured),
         isActive: true,
@@ -1418,6 +1450,63 @@ export async function updateAdminOrder(input: UpdateAdminOrderInput) {
   })
 }
 
+export async function refundAdminOrder(orderId: string) {
+  const prisma = getPrismaClient()
+  const existingOrder = (await prisma.ticketOrder.findUnique({
+    where: {
+      id: orderId,
+    },
+    include: withOrderIncludes(),
+  })) as OrderWithEvent | null
+
+  if (!existingOrder) {
+    throw new Error("Order not found.")
+  }
+
+  if (existingOrder.status === "REFUNDED") {
+    return existingOrder
+  }
+
+  if (existingOrder.status !== "PAID") {
+    throw new Error("Only paid orders can be refunded.")
+  }
+
+  if (existingOrder.source !== "CHECKOUT" || existingOrder.totalPriceCents <= 0) {
+    throw new Error("Complimentary or zero-dollar orders do not have a Stripe payment to refund.")
+  }
+
+  if (!existingOrder.stripePaymentIntentId) {
+    throw new Error("This order is missing its Stripe payment intent. Refund it from Stripe, then mark the order manually.")
+  }
+
+  const stripe = getStripeClient()
+
+  await stripe.refunds.create({
+    payment_intent: existingOrder.stripePaymentIntentId,
+    reason: "requested_by_customer",
+    metadata: {
+      orderId: existingOrder.id,
+      orderNumber: existingOrder.orderNumber,
+      eventId: existingOrder.eventId,
+    },
+  })
+
+  const refundedAt = new Date()
+  const refundNote = `Refunded from admin on ${refundedAt.toISOString()}.`
+
+  return (await prisma.ticketOrder.update({
+    where: {
+      id: existingOrder.id,
+    },
+    data: {
+      status: "REFUNDED",
+      expiresAt: null,
+      notes: existingOrder.notes ? `${existingOrder.notes}\n${refundNote}` : refundNote,
+    },
+    include: withOrderIncludes(),
+  })) as OrderWithEvent
+}
+
 export async function syncOrderPaymentStatusFromCheckoutSession(sessionId: string) {
   const currentOrder = await getOrderBySessionId(sessionId)
 
@@ -1611,7 +1700,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   const compOrders = allPaidOrders.filter((order) => order.source === "ADMIN_COMP")
   const complimentaryTickets = compOrders.reduce((total, order) => total + order.quantity, 0)
   const deliveredOrders = allPaidOrders.filter((order) => order.ticketEmailSendCount > 0)
-  const allTickets = typedEvents.flatMap((event) => event.tickets)
+  const allTickets = allPaidOrders.flatMap((order) => order.tickets)
   const totalCapacity = typedEvents.reduce((total, event) => total + event.capacity, 0)
   const totalDiscountAmountCents = allPaidOrders.reduce((total, order) => total + order.discountAmountCents, 0)
   const totalRevenueCents = typedEvents.reduce(
@@ -1684,8 +1773,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   const eventSummaries = typedEvents.map((event) => {
     const paidOrders = event.orders.length
-    const ticketsIssued = event.tickets.length
-    const checkedInCount = event.tickets.filter((ticket) => Boolean(ticket.checkedInAt)).length
+    const eventTickets = event.orders.flatMap((order) => order.tickets)
+    const ticketsIssued = event.orders.reduce((total, order) => total + order.quantity, 0)
+    const checkedInCount = eventTickets.filter((ticket) => Boolean(ticket.checkedInAt)).length
     const revenueCents = event.orders.reduce((total, order) => total + order.totalPriceCents, 0)
     const remainingCapacity = Math.max(event.capacity - ticketsIssued, 0)
 
@@ -1749,6 +1839,99 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     voucherUsage: Array.from(voucherUsageMap.values())
       .sort((left, right) => right.discountAmountCents - left.discountAmountCents)
       .slice(0, 6),
+  }
+}
+
+export async function getAdminEventOperationsData(eventId: string): Promise<AdminEventOperationsData | null> {
+  const prisma = getPrismaClient()
+  const now = new Date()
+  const event = await prisma.event.findUnique({
+    where: {
+      id: eventId,
+    },
+    include: {
+      orders: {
+        orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+        include: withOrderIncludes(),
+      },
+      tickets: {
+        orderBy: [{ checkedInAt: "desc" }, { createdAt: "desc" }],
+        include: {
+          event: true,
+          order: {
+            include: withOrderIncludes(),
+          },
+        },
+      },
+      ticketTiers: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      },
+      vouchers: {
+        orderBy: [{ createdAt: "desc" }, { code: "asc" }],
+      },
+    },
+  })
+
+  if (!event) {
+    return null
+  }
+
+  const orders = event.orders as OrderWithEvent[]
+  const tickets = event.tickets as TicketWithRelations[]
+  const ticketTiers = event.ticketTiers as TicketTierRecord[]
+  const vouchers = event.vouchers as VoucherRecord[]
+  const paidOrders = orders.filter((order) => order.status === "PAID")
+  const refundedOrders = orders.filter((order) => order.status === "REFUNDED")
+  const pendingOrders = orders.filter((order) => order.status === "PENDING" && order.expiresAt && order.expiresAt > now)
+  const activeTickets = paidOrders.flatMap((order) => order.tickets)
+  const ticketsSold = paidOrders.reduce((total, order) => total + order.quantity, 0)
+  const pendingTickets = pendingOrders.reduce((total, order) => total + order.quantity, 0)
+  const checkedInCount = activeTickets.filter((ticket) => Boolean(ticket.checkedInAt)).length
+  const revenueCents = paidOrders.reduce((total, order) => total + order.totalPriceCents, 0)
+  const refundedCents = refundedOrders.reduce((total, order) => total + order.totalPriceCents, 0)
+  const discountAmountCents = paidOrders.reduce((total, order) => total + order.discountAmountCents, 0)
+  const deliveredOrders = paidOrders.filter((order) => order.ticketEmailSendCount > 0)
+
+  return {
+    event: event as DbEventRecord,
+    summary: {
+      paidOrders: paidOrders.length,
+      refundedOrders: refundedOrders.length,
+      pendingOrders: pendingOrders.length,
+      ticketsSold,
+      pendingTickets,
+      checkedInCount,
+      revenueCents,
+      refundedCents,
+      discountAmountCents,
+      remainingCapacity: Math.max(event.capacity - ticketsSold - pendingTickets, 0),
+      sellThroughRate: clampRate(ticketsSold, event.capacity),
+      checkInRate: clampRate(checkedInCount, ticketsSold),
+      deliveredOrders: deliveredOrders.length,
+      ticketDeliveryRate: clampRate(deliveredOrders.length, paidOrders.length),
+    },
+    orders,
+    tickets,
+    ticketTiers: ticketTiers.map((tier) => {
+      const tierOrders = paidOrders.filter((order) => order.ticketTierId === tier.id)
+
+      return {
+        ...tier,
+        soldCount: tierOrders.reduce((total, order) => total + order.quantity, 0),
+        revenueCents: tierOrders.reduce((total, order) => total + order.totalPriceCents, 0),
+      }
+    }),
+    vouchers: vouchers.map((voucher) => {
+      const voucherOrders = paidOrders.filter(
+        (order) => order.voucherId === voucher.id || (!order.voucherId && order.voucherCodeSnapshot === voucher.code),
+      )
+
+      return {
+        ...voucher,
+        redemptionCount: voucherOrders.length,
+        discountCents: voucherOrders.reduce((total, order) => total + order.discountAmountCents, 0),
+      }
+    }),
   }
 }
 

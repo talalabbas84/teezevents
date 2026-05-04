@@ -40,6 +40,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This ticket belongs to a different event." }, { status: 400 })
   }
 
+  if (parsed.data.mode === "checkin" && existingTicket.order.status !== "PAID") {
+    return NextResponse.json({ error: `This order is ${existingTicket.order.status.toLowerCase()} and cannot be checked in.` }, { status: 400 })
+  }
+
   const alreadyCheckedIn = Boolean(existingTicket.checkedInAt)
   const ticket =
     parsed.data.mode === "checkin" ? (await markTicketCheckedIn(normalizedCode)) || existingTicket : existingTicket
