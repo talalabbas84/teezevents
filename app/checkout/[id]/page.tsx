@@ -7,11 +7,18 @@ import { Button } from "@/components/ui/button"
 import { CheckoutForm } from "@/components/checkout-form"
 import { getCheckoutSetupIssue, getEventInventorySnapshot } from "@/lib/checkout"
 import { supportsCheckout } from "@/lib/events"
-import { getPublicEventById } from "@/lib/public-events"
+import { getCheckoutEventById } from "@/lib/public-events"
 
-export default async function CheckoutPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CheckoutPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ voucher?: string }>
+}) {
   const { id } = await params
-  const event = await getPublicEventById(id)
+  const { voucher } = await searchParams
+  const event = await getCheckoutEventById(id)
 
   if (!event || !supportsCheckout(event) || !event.ticketPriceCents || !event.currency || !event.capacity) {
     notFound()
@@ -58,6 +65,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ id: s
                     maxTicketsPerOrder={event.maxTicketsPerOrder}
                     ticketTiers={inventory.ticketTiers}
                     defaultTierId={inventory.defaultTierId}
+                    initialVoucherCode={voucher || ""}
                   />
                 ) : (
                   <div className="space-y-5">

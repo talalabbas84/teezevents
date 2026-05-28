@@ -114,12 +114,13 @@ function mergeEventRecord(
   catalogEvent: EventData | null,
   dbEvent: DbEventRecord | null,
   spotsLeft?: number,
+  options: { includeInactive?: boolean } = {},
 ): EventData | null {
   if (!catalogEvent && !dbEvent) {
     return null
   }
 
-  if (dbEvent && !dbEvent.isActive) {
+  if (dbEvent && !dbEvent.isActive && !options.includeInactive) {
     return null
   }
 
@@ -182,6 +183,11 @@ function mergeEventRecord(
     capacity,
     sections: base?.sections,
     guestStats: base?.guestStats,
+    timeline: base?.timeline,
+    perks: base?.perks,
+    faqs: base?.faqs,
+    policies: base?.policies,
+    shareText: base?.shareText,
     kindNote: base?.kindNote,
     featured: dbEvent.featured,
   }
@@ -322,6 +328,33 @@ export async function getPublicEventById(eventId: string) {
     const inventoryMap = await getInventoryMap([eventId])
     const reserved = inventoryMap.get(eventId) || 0
     return mergeEventRecord(catalogEvent, dbEvent, Math.max(dbEvent.capacity - reserved, 0))
+  } catch {
+    return catalogEvent
+  }
+}
+
+export async function getCheckoutEventById(eventId: string) {
+  noStore()
+
+  const catalogEvent = eventsById[eventId] || null
+
+  try {
+    const prisma = getPrismaClient()
+    const dbEvent = (await prisma.event.findUnique({
+      where: {
+        id: eventId,
+      },
+    })) as DbEventRecord | null
+
+    if (!dbEvent) {
+      return catalogEvent
+    }
+
+    const inventoryMap = await getInventoryMap([eventId])
+    const reserved = inventoryMap.get(eventId) || 0
+    return mergeEventRecord(catalogEvent, dbEvent, Math.max(dbEvent.capacity - reserved, 0), {
+      includeInactive: true,
+    })
   } catch {
     return catalogEvent
   }

@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 
 import { AdminCompOrderForm } from "@/components/admin-comp-order-form"
+import { AdminDiscountCodeGenerator } from "@/components/admin-discount-code-generator"
 import { AdminEventEmailActions } from "@/components/admin-event-email-actions"
 import { AdminOrderActions } from "@/components/admin-order-actions"
 import { Badge } from "@/components/ui/badge"
@@ -384,6 +385,19 @@ export default async function AdminEventOperationsPage({
         </section>
 
         <section id="promotions" className="grid gap-6 xl:grid-cols-2">
+          <Card className="border border-border shadow-xl xl:col-span-2">
+            <CardContent className="space-y-5 p-6">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Guest Discounts</div>
+                <h2 className="mt-2 text-2xl font-serif font-bold">Generate unique future-event codes</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Paste Blossom guest emails or an exported orders CSV, choose the discount amount, and download one assigned code per guest.
+                </p>
+              </div>
+              <AdminDiscountCodeGenerator eventId={event.id} />
+            </CardContent>
+          </Card>
+
           <Card className="border border-border shadow-xl">
             <CardContent className="p-6">
               <div className="mb-5 flex items-center justify-between gap-3">

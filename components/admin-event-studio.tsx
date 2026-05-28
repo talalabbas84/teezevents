@@ -162,6 +162,12 @@ function toDateTimeLocal(value: string | null) {
   return local.toISOString().slice(0, 16)
 }
 
+function dateToDateTimeLocal(date: Date) {
+  const offset = date.getTimezoneOffset()
+  const local = new Date(date.getTime() - offset * 60 * 1000)
+  return local.toISOString().slice(0, 16)
+}
+
 function emptyTier(sortOrder = 0): TierFormState {
   return {
     localId: buildLocalId("tier"),
@@ -173,6 +179,47 @@ function emptyTier(sortOrder = 0): TierFormState {
     sortOrder: String(sortOrder),
     isActive: true,
     isHidden: false,
+  }
+}
+
+function testEventTemplate(): EventFormState {
+  const start = new Date()
+  start.setDate(start.getDate() + 1)
+  start.setHours(19, 0, 0, 0)
+
+  const suffix = Date.now().toString(36)
+
+  return {
+    id: `test-event-${suffix}`,
+    title: "Test Event",
+    startsAt: dateToDateTimeLocal(start),
+    venue: "Test Venue",
+    address: "Toronto, ON",
+    hostedBy: "TEEZ",
+    image: "/placeholder.svg",
+    previewDescription: "Internal test event for checkout, vouchers, tickets, and admin operations.",
+    description:
+      "This event is hidden from public event listings and public event detail pages. Use the direct checkout link from admin for testing.",
+    category: "UPCOMING",
+    eventKind: "SOCIAL",
+    ticketPriceCad: "1.00",
+    capacity: "20",
+    checkoutEnabled: true,
+    maxTicketsPerOrder: "4",
+    ticketNote: "Internal test event. Not shown on public-facing event pages.",
+    featured: false,
+    isActive: false,
+    ticketTiers: [
+      {
+        ...emptyTier(0),
+        name: "Test General Admission",
+        description: "Low-value ticket tier for Stripe test checkout.",
+        priceCad: "1.00",
+        quantityLimit: "20",
+        maxPerOrder: "4",
+      },
+    ],
+    vouchers: [],
   }
 }
 
@@ -447,6 +494,26 @@ function EventEditorCard({
                 </span>
               </Button>
             </div>
+          )}
+
+          {mode === "create" && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-primary text-primary"
+              onClick={() => {
+                setForm(testEventTemplate())
+                setError("")
+                setStatus("Test event template loaded. Save it to create a hidden admin-only test event.")
+              }}
+              disabled={isSubmitting}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Sparkles size={14} />
+                Create Test Event
+              </span>
+            </Button>
           )}
         </div>
 
@@ -1123,7 +1190,7 @@ function EventEditorCard({
               },
               {
                 id: `${mode}-active`,
-                label: "Publicly active",
+                label: "Show publicly",
                 checked: form.isActive,
                 onCheckedChange: (checked: boolean) => setForm((current) => ({ ...current, isActive: checked })),
               },
@@ -1144,7 +1211,7 @@ function EventEditorCard({
             ))}
 
             <div className="rounded-2xl border border-primary/15 bg-primary/10 px-4 py-3 text-sm text-muted-foreground">
-              Lowering capacity below sold or reserved inventory is blocked automatically. Deleting a catalog-backed or sold event archives it instead.
+              Turn off public visibility for test events. Hidden managed events stay out of public event pages, but direct checkout links still work for internal testing.
             </div>
           </div>
 

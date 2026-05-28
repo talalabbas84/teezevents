@@ -170,9 +170,14 @@ export default async function AdminDashboardPage() {
                           <div className="mt-1 text-xl font-serif font-bold">{formatPercent(event.checkInRate)}</div>
                         </div>
                       </div>
-                      <Button asChild className="w-full bg-primary text-primary-foreground hover:bg-accent">
-                        <Link href={`/admin/events/${event.id}`}>Open Event</Link>
-                      </Button>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
+                          <Link href={`/admin/events/${event.id}`}>Open Event</Link>
+                        </Button>
+                        <Button asChild variant="outline" className="border-primary text-primary">
+                          <Link href="/admin/events">Edit / Delete</Link>
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}

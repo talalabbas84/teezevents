@@ -4,12 +4,20 @@ import { notFound } from "next/navigation"
 import {
   ArrowLeft,
   Calendar,
+  CalendarPlus,
   Camera,
   CheckCircle2,
   Clock,
   CreditCard,
+  ExternalLink,
+  HelpCircle,
+  Info,
   MapPin,
+  MessageCircle,
   Sparkles,
+  Share2,
+  ShieldCheck,
+  Star,
   Ticket,
   UserCheck,
   Users,
@@ -17,7 +25,10 @@ import {
 
 import { Footer } from "@/components/footer"
 import { Navigation } from "@/components/navigation"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import {
   allEvents,
   getEventPrimaryTicketHref,
@@ -72,6 +83,81 @@ function StatBlock({
   )
 }
 
+function toCalendarDate(value: Date) {
+  return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")
+}
+
+function getEventEndDate(start: Date) {
+  const end = new Date(start)
+  end.setHours(end.getHours() + 4)
+  return end
+}
+
+function getGoogleCalendarHref(event: {
+  title: string
+  startsAtIso?: string
+  description: string
+  venue?: string
+  location: string
+  address?: string
+}) {
+  if (!event.startsAtIso) {
+    return null
+  }
+
+  const start = new Date(event.startsAtIso)
+  const end = getEventEndDate(start)
+  const location = event.address || event.venue || event.location
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: event.title,
+    dates: `${toCalendarDate(start)}/${toCalendarDate(end)}`,
+    details: event.description,
+    location,
+  })
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`
+}
+
+function getMapsHref(event: { address?: string; venue?: string; location: string }) {
+  const query = event.address || event.venue || event.location
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+}
+
+function MiniActionLink({
+  href,
+  label,
+  icon,
+}: {
+  href: string
+  label: string
+  icon: ReactNode
+}) {
+  return (
+    <Button variant="outline" className="justify-start border-2 border-primary/30 bg-background/70" asChild>
+      <Link href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+        {icon}
+        {label}
+      </Link>
+    </Button>
+  )
+}
+
+function GuestCluster({ going }: { going: number }) {
+  const initials = ["AT", "MR", "SG", "DF", "JT"]
+
+  return (
+    <div className="flex items-center">
+      {initials.map((initial, index) => (
+        <Avatar key={initial} className="-ml-2 size-9 border-2 border-card first:ml-0">
+          <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">{initial}</AvatarFallback>
+        </Avatar>
+      ))}
+      <div className="ml-3 text-sm text-muted-foreground">{`${going} going so far`}</div>
+    </div>
+  )
+}
+
 export function generateStaticParams() {
   return allEvents.map((event) => ({ id: event.id }))
 }
@@ -90,6 +176,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const checkoutIssue = inventory ? null : event.category === "Upcoming Event" ? getCheckoutSetupIssue(null) : null
   const heroImage = event.gallery[0] || event.image || "/placeholder.svg"
   const gallery = event.gallery.length > 0 ? event.gallery : [event.image || "/placeholder.svg"]
+  const usedCapacity = event.capacity && typeof event.spotsLeft === "number" ? event.capacity - event.spotsLeft : null
+  const capacityPercent =
+    event.capacity && usedCapacity !== null ? Math.min(Math.max((usedCapacity / event.capacity) * 100, 0), 100) : null
+  const calendarHref = getGoogleCalendarHref(event)
+  const mapsHref = getMapsHref(event)
+  const shareUrl = `/events/${event.id}`
+  const shareText = event.shareText || `Join me at ${event.title} by TEEZ.`
+  const smsHref = `sms:?&body=${encodeURIComponent(`${shareText} ${shareUrl}`)}`
+  const mailHref = `mailto:?subject=${encodeURIComponent(event.title)}&body=${encodeURIComponent(`${shareText}\n\n${shareUrl}`)}`
 
   return (
     <main className="min-h-screen bg-background">
@@ -154,6 +249,31 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   <StatBlock value={event.gallery.length.toString()} label="Gallery moments" />
                   <StatBlock value={event.category === "Past Event" ? "5.0" : `${event.spotsLeft ?? "Limited"}`} label={event.category === "Past Event" ? "Guest energy" : "Spots left"} />
                 </div>
+
+                {event.category === "Upcoming Event" && (
+                  <div className="mt-8 flex flex-wrap gap-3">
+                    {calendarHref && (
+                      <Button className="bg-white text-[#1C2431] hover:bg-[#EADFCB]" asChild>
+                        <Link href={calendarHref} target="_blank" rel="noreferrer">
+                          <CalendarPlus className="mr-2" size={18} />
+                          {"Add to Calendar"}
+                        </Link>
+                      </Button>
+                    )}
+                    <Button variant="outline" className="border-white/35 bg-white/10 text-white hover:bg-white hover:text-[#1C2431]" asChild>
+                      <Link href={mapsHref} target="_blank" rel="noreferrer">
+                        <MapPin className="mr-2" size={18} />
+                        {"Open Map"}
+                      </Link>
+                    </Button>
+                    <Button variant="outline" className="border-white/35 bg-white/10 text-white hover:bg-white hover:text-[#1C2431]" asChild>
+                      <Link href={smsHref}>
+                        <Share2 className="mr-2" size={18} />
+                        {"Share"}
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -181,6 +301,62 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     </div>
                   ))}
                 </div>
+
+                {event.category === "Upcoming Event" && (
+                  <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+                    {(event.perks || [
+                      {
+                        title: "Fast checkout",
+                        description: "Reserve tickets online and receive confirmation after payment.",
+                      },
+                      {
+                        title: "Live capacity",
+                        description: "Availability updates as orders are placed.",
+                      },
+                      {
+                        title: "Guest details",
+                        description: "Arrival notes are shared before the event.",
+                      },
+                      {
+                        title: "Door-ready tickets",
+                        description: "Digital tickets are built for quick check-in.",
+                      },
+                    ]).map((perk) => (
+                      <article key={perk.title} className="rounded-lg border border-border bg-card p-5 shadow-sm">
+                        <Star size={18} className="text-primary" />
+                        <h3 className="mt-3 font-serif text-xl font-bold">{perk.title}</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{perk.description}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+
+                {event.timeline && event.timeline.length > 0 && (
+                  <div className="space-y-6">
+                    <div>
+                      <div className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Run of Show</div>
+                      <h2 className="mt-3 text-3xl font-serif font-bold">What happens when</h2>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+                      <div className="space-y-6">
+                        {event.timeline.map((item, index) => (
+                          <div key={`${item.time}-${item.title}`} className="grid gap-4 md:grid-cols-[120px_1fr]">
+                            <div className="font-serif text-2xl font-bold text-primary">{item.time}</div>
+                            <div className="border-l border-border pl-5">
+                              <div className="flex items-center gap-3">
+                                <span className="flex size-7 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                                  {index + 1}
+                                </span>
+                                <h3 className="text-xl font-serif font-bold">{item.title}</h3>
+                              </div>
+                              <p className="mt-2 leading-relaxed text-muted-foreground">{item.description}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {event.sections && event.sections.length > 0 && (
                   <div className="space-y-6">
@@ -214,6 +390,28 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                     <p className="leading-relaxed text-muted-foreground">{event.kindNote}</p>
                   </div>
                 )}
+
+                {event.faqs && event.faqs.length > 0 && (
+                  <div className="space-y-5">
+                    <div>
+                      <div className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Guest Questions</div>
+                      <h2 className="mt-3 text-3xl font-serif font-bold">Before you RSVP</h2>
+                    </div>
+                    <Accordion type="single" collapsible className="rounded-lg border border-border bg-card px-6 shadow-sm">
+                      {event.faqs.map((faq) => (
+                        <AccordionItem key={faq.question} value={faq.question}>
+                          <AccordionTrigger className="text-base font-semibold">
+                            <span className="flex items-center gap-3">
+                              <HelpCircle size={18} className="text-primary" />
+                              {faq.question}
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent className="leading-relaxed text-muted-foreground">{faq.answer}</AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  </div>
+                )}
               </div>
 
               <aside>
@@ -234,7 +432,29 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                             <span className="font-semibold">{event.hostedBy}</span>
                           </div>
                         )}
+                        {event.capacity && (
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm text-muted-foreground">{"Capacity"}</span>
+                            <span className="font-semibold">{event.capacity}</span>
+                          </div>
+                        )}
                       </div>
+                      {capacityPercent !== null && (
+                        <div className="mt-5 rounded-lg bg-background/80 p-4">
+                          <div className="mb-3 flex items-center justify-between gap-4">
+                            <span className="text-sm font-medium">{"Live availability"}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {`${event.spotsLeft ?? 0} left`}
+                            </span>
+                          </div>
+                          <Progress value={capacityPercent} />
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            {usedCapacity && usedCapacity > 0
+                              ? `${usedCapacity} spots are already held or confirmed.`
+                              : "Tickets are still early in release."}
+                          </p>
+                        </div>
+                      )}
                       <p className="mt-5 leading-relaxed text-muted-foreground">
                         {event.ticketNote || "Secure your spot for this upcoming event."}
                       </p>
@@ -307,6 +527,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                         <UserCheck size={20} className="text-primary" />
                         <h3 className="text-xl font-serif font-bold">{"Guest List"}</h3>
                       </div>
+                      <GuestCluster going={event.guestStats.going} />
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-4">
                           <span className="text-muted-foreground">{"Mutuals"}</span>
@@ -320,6 +541,59 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                           <span className="text-muted-foreground">{"Interested"}</span>
                           <span className="font-semibold">{event.guestStats.interested}</span>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {event.category === "Upcoming Event" && (
+                    <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+                      <div className="mb-4 flex items-center gap-3">
+                        <Share2 size={20} className="text-primary" />
+                        <h3 className="text-xl font-serif font-bold">{"Share & Save"}</h3>
+                      </div>
+                      <div className="grid gap-3">
+                        {calendarHref && (
+                          <MiniActionLink
+                            href={calendarHref}
+                            label="Add to Google Calendar"
+                            icon={<CalendarPlus className="mr-2" size={16} />}
+                          />
+                        )}
+                        <MiniActionLink
+                          href={mapsHref}
+                          label="Open in Maps"
+                          icon={<ExternalLink className="mr-2" size={16} />}
+                        />
+                        <MiniActionLink
+                          href={smsHref}
+                          label="Text a Friend"
+                          icon={<MessageCircle className="mr-2" size={16} />}
+                        />
+                        <MiniActionLink
+                          href={mailHref}
+                          label="Email Invite"
+                          icon={<Share2 className="mr-2" size={16} />}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {event.policies && event.policies.length > 0 && (
+                    <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+                      <div className="mb-4 flex items-center gap-3">
+                        <ShieldCheck size={20} className="text-primary" />
+                        <h3 className="text-xl font-serif font-bold">{"Ticket Policies"}</h3>
+                      </div>
+                      <div className="space-y-4">
+                        {event.policies.map((policy) => (
+                          <div key={policy.title}>
+                            <div className="flex items-center gap-2 font-semibold">
+                              <Info size={16} className="text-primary" />
+                              {policy.title}
+                            </div>
+                            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{policy.body}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

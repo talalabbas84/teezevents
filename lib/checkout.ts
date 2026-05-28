@@ -3,7 +3,7 @@ import "server-only"
 import type { Prisma } from "@prisma/client"
 
 import { eventsById, supportsCheckout, type EventData } from "@/lib/events"
-import { getPublicEventById } from "@/lib/public-events"
+import { getCheckoutEventById } from "@/lib/public-events"
 import { getPrismaClient } from "@/lib/prisma"
 import { getStripeClient } from "@/lib/stripe-server"
 
@@ -391,7 +391,7 @@ export function normalizeTicketCodeInput(rawInput: string) {
 }
 
 export async function getCheckoutEvent(eventId: string) {
-  const event = await getPublicEventById(eventId)
+  const event = await getCheckoutEventById(eventId)
 
   if (!event || !supportsCheckout(event) || !event.ticketPriceCents || !event.currency || !event.capacity) {
     return null
@@ -468,6 +468,27 @@ export function formatCurrency(amountInCents: number, currency = "cad") {
 
 function normalizeVoucherCode(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, "")
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function getAssignedVoucherEmail(voucher: Pick<VoucherRecord, "description">) {
+  const match = voucher.description?.match(/\[assigned-email:([^\]]+)\]/i)
+  return match?.[1] ? normalizeEmail(match[1]) : null
+}
+
+function assertVoucherEmailAllowed(voucher: VoucherRecord, customerEmail?: string) {
+  const assignedEmail = getAssignedVoucherEmail(voucher)
+
+  if (!assignedEmail || !customerEmail?.trim()) {
+    return
+  }
+
+  if (normalizeEmail(customerEmail) !== assignedEmail) {
+    throw new Error("This voucher is assigned to a different email address.")
+  }
 }
 
 function getTierAvailableInventory(
@@ -688,11 +709,13 @@ export async function getCheckoutQuote({
   quantity,
   ticketTierId,
   voucherCode,
+  customerEmail,
 }: {
   eventId: string
   quantity: number
   ticketTierId?: string
   voucherCode?: string
+  customerEmail?: string
 }): Promise<CheckoutQuote> {
   const prisma = getPrismaClient()
   const checkoutEvent = await getCheckoutEvent(eventId)
@@ -775,6 +798,8 @@ export async function getCheckoutQuote({
     if (voucher.minimumQuantity && quantity < voucher.minimumQuantity) {
       throw new Error(`This voucher requires at least ${voucher.minimumQuantity} ticket(s).`)
     }
+
+    assertVoucherEmailAllowed(voucher, customerEmail)
 
     if (voucher.maxRedemptions) {
       const redemptionCount = await prisma.ticketOrder.count({
@@ -875,7 +900,6 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
           maxTicketsPerOrder: resolveMaxTicketsPerOrder(checkoutEvent.maxTicketsPerOrder, checkoutEventCapacity),
           ticketNote: checkoutEvent.ticketNote || null,
           featured: Boolean(checkoutEvent.featured),
-          isActive: true,
         },
         create: buildDbEventData(checkoutEvent),
       })) as DbEventRecord
@@ -993,6 +1017,8 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
         if (voucher.minimumQuantity && input.quantity < voucher.minimumQuantity) {
           throw new Error(`This voucher requires at least ${voucher.minimumQuantity} ticket(s).`)
         }
+
+        assertVoucherEmailAllowed(voucher, input.customerEmail)
 
         if (voucher.maxRedemptions) {
           const redemptionCount = await tx.ticketOrder.count({
@@ -1183,7 +1209,6 @@ export async function createComplimentaryOrder(input: ComplimentaryOrderRequest)
         maxTicketsPerOrder: resolveMaxTicketsPerOrder(checkoutEvent.maxTicketsPerOrder, checkoutEventCapacity),
         ticketNote: checkoutEvent.ticketNote || null,
         featured: Boolean(checkoutEvent.featured),
-        isActive: true,
       },
       create: buildDbEventData(checkoutEvent),
     })) as DbEventRecord

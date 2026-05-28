@@ -62,6 +62,7 @@ export function CheckoutForm({
   maxTicketsPerOrder,
   ticketTiers = [],
   defaultTierId = null,
+  initialVoucherCode = "",
 }: {
   eventId: string
   eventTitle: string
@@ -71,6 +72,7 @@ export function CheckoutForm({
   maxTicketsPerOrder?: number
   ticketTiers?: CheckoutTierView[]
   defaultTierId?: string | null
+  initialVoucherCode?: string
 }) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -79,8 +81,10 @@ export function CheckoutForm({
   const [quantity, setQuantity] = useState(1)
   const [quantityInput, setQuantityInput] = useState("1")
   const [selectedTierId, setSelectedTierId] = useState(defaultTierId || ticketTiers[0]?.id || "")
-  const [voucherInput, setVoucherInput] = useState("")
-  const [appliedVoucherCode, setAppliedVoucherCode] = useState<string | null>(null)
+  const [voucherInput, setVoucherInput] = useState(initialVoucherCode)
+  const [appliedVoucherCode, setAppliedVoucherCode] = useState<string | null>(
+    initialVoucherCode.trim() ? initialVoucherCode.trim().toUpperCase() : null,
+  )
   const [appliedQuote, setAppliedQuote] = useState<QuoteResponse | null>(null)
   const [voucherMessage, setVoucherMessage] = useState("")
   const [error, setError] = useState("")
@@ -143,6 +147,7 @@ export function CheckoutForm({
           quantity,
           ticketTierId: selectedTierId || undefined,
           voucherCode: appliedVoucherCode,
+          customerEmail: email || undefined,
         }),
       }).catch(() => null)
 
@@ -181,7 +186,7 @@ export function CheckoutForm({
     return () => {
       cancelled = true
     }
-  }, [appliedVoucherCode, eventId, quantity, selectedTierId])
+  }, [appliedVoucherCode, email, eventId, quantity, selectedTierId])
 
   async function applyVoucherCode() {
     if (!voucherInput.trim()) {
@@ -205,6 +210,7 @@ export function CheckoutForm({
         quantity,
         ticketTierId: selectedTierId || undefined,
         voucherCode: voucherInput,
+        customerEmail: email || undefined,
       }),
     }).catch(() => null)
 

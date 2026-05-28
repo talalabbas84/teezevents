@@ -13,6 +13,27 @@ export type EventGuestStats = {
   interested: number
 }
 
+export type EventTimelineItem = {
+  time: string
+  title: string
+  description: string
+}
+
+export type EventPerk = {
+  title: string
+  description: string
+}
+
+export type EventFaq = {
+  question: string
+  answer: string
+}
+
+export type EventPolicy = {
+  title: string
+  body: string
+}
+
 export type EventData = {
   id: string
   title: string
@@ -44,6 +65,11 @@ export type EventData = {
   capacity?: number
   sections?: EventSection[]
   guestStats?: EventGuestStats
+  timeline?: EventTimelineItem[]
+  perks?: EventPerk[]
+  faqs?: EventFaq[]
+  policies?: EventPolicy[]
+  shareText?: string
   kindNote?: string
   featured?: boolean
 }
@@ -149,6 +175,70 @@ const events: EventData[] = [
       going: 5,
       interested: 1,
     },
+    timeline: [
+      {
+        time: "6:00 PM",
+        title: "Guest arrival",
+        description: "Check in, grab a bite, and settle into the room before the night opens up.",
+      },
+      {
+        time: "7:00 PM",
+        title: "Social hour",
+        description: "Music, finger foods, photos, and easy introductions across the guest list.",
+      },
+      {
+        time: "8:30 PM",
+        title: "Dance floor energy",
+        description: "The playlist gets warmer and the room shifts from mingling into movement.",
+      },
+    ],
+    perks: [
+      {
+        title: "Digital ticket",
+        description: "Confirmation and ticket access are delivered after checkout.",
+      },
+      {
+        title: "Finger foods included",
+        description: "Light bites are available throughout the evening.",
+      },
+      {
+        title: "Private venue details",
+        description: "Exact arrival information is shared only with confirmed guests.",
+      },
+      {
+        title: "Photo moments",
+        description: "A polished spring setup designed for group and solo photos.",
+      },
+    ],
+    faqs: [
+      {
+        question: "Can I bring a plus-one?",
+        answer: "Yes, if tickets are still available. Please make sure every guest has their own confirmed ticket.",
+      },
+      {
+        question: "When will I get the exact address?",
+        answer: "Confirmed guests receive the final arrival details after payment or RSVP confirmation.",
+      },
+      {
+        question: "What should I wear?",
+        answer: "Pastels and soft spring tones. Keep it semi-casual, polished, and comfortable enough to move.",
+      },
+    ],
+    policies: [
+      {
+        title: "Entry",
+        body: "Tickets are checked at the door. Please bring your confirmation and a valid name on the order.",
+      },
+      {
+        title: "Transfers",
+        body: "If your plans change, contact TEEZ before the event so the guest name can be updated.",
+      },
+      {
+        title: "Refunds",
+        body: "All sales are final unless the event is cancelled or materially changed by TEEZ.",
+      },
+    ],
+    shareText: "I’m going to BLOSSOM by TEEZ. Come through if you have an invite.",
     kindNote:
       "By attending, you agree to be photographed and filmed for TEEZ marketing and promotional materials. Please be mindful with alcohol consumption. There’s no space for tenting or extended setup, and we encourage planning a safe ride home. To keep the atmosphere enjoyable for everyone, we ask all guests to help maintain a respectful, positive vibe throughout the night.",
     featured: true,
@@ -245,6 +335,70 @@ const events: EventData[] = [
         ],
       },
     ],
+    timeline: [
+      {
+        time: "8:00 PM",
+        title: "Doors open",
+        description: "Costumes, check-in, and first photo moments as the room fills.",
+      },
+      {
+        time: "9:30 PM",
+        title: "Main room",
+        description: "DJ-led dance floor, social pockets, and Halloween visuals in full effect.",
+      },
+      {
+        time: "11:00 PM",
+        title: "Costume spotlight",
+        description: "A short room-wide moment for the strongest looks of the night.",
+      },
+    ],
+    perks: [
+      {
+        title: "First-access RSVP",
+        description: "Join the list before ticket release and get early notice when sales open.",
+      },
+      {
+        title: "Secret venue release",
+        description: "Confirmed guests receive the exact Toronto location closer to the event.",
+      },
+      {
+        title: "Costume culture",
+        description: "A room designed around expressive outfits and photo-ready details.",
+      },
+      {
+        title: "Limited capacity",
+        description: "Guest count is capped so the night feels energetic without overcrowding.",
+      },
+    ],
+    faqs: [
+      {
+        question: "Are costumes required?",
+        answer: "They are strongly encouraged. The night is built around costume culture and elevated Halloween looks.",
+      },
+      {
+        question: "When do tickets go live?",
+        answer: "Ticket timing will be announced closer to the event. RSVP interest gets first access.",
+      },
+      {
+        question: "Can I share the event with friends?",
+        answer: "Yes. Final entry still depends on ticket availability and confirmed guest details.",
+      },
+    ],
+    policies: [
+      {
+        title: "Guest list",
+        body: "Entry is limited to confirmed guests. Ticket or RSVP details must match the person arriving.",
+      },
+      {
+        title: "Costume safety",
+        body: "Avoid props, masks, or outfits that block movement, visibility, or venue operations.",
+      },
+      {
+        title: "Media",
+        body: "Photography and video may be captured for TEEZ marketing and event recaps.",
+      },
+    ],
+    shareText: "TEEZ is planning a Halloween Night in Toronto. I’m joining the RSVP list.",
     kindNote:
       "By attending, guests agree to be photographed and filmed for TEEZ marketing and promotional materials. Costumes should be expressive without creating safety issues or blocking movement in the venue.",
     featured: true,

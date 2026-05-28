@@ -10,6 +10,7 @@ const checkoutQuoteSchema = z.object({
   quantity: z.number().int().min(1).max(10),
   ticketTierId: z.string().trim().min(1).optional(),
   voucherCode: z.string().trim().max(40).optional(),
+  customerEmail: z.string().trim().email().max(190).optional(),
 })
 
 export async function POST(request: Request) {
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
       quantity: parsed.data.quantity,
       ticketTierId: parsed.data.ticketTierId || undefined,
       voucherCode: parsed.data.voucherCode || undefined,
+      customerEmail: parsed.data.customerEmail || undefined,
     })
 
     return NextResponse.json({
