@@ -2,7 +2,13 @@ import "server-only"
 
 import { unstable_noStore as noStore } from "next/cache"
 
-import { allEvents, eventsById, type EventData, type EventType } from "@/lib/events"
+import {
+  allEvents,
+  eventsById,
+  type EventData,
+  type EventSection,
+  type EventType,
+} from "@/lib/events"
 import { getPrismaClient } from "@/lib/prisma"
 
 type DbEventRecord = {
@@ -13,8 +19,10 @@ type DbEventRecord = {
   address: string | null
   hostedBy: string | null
   image: string | null
+  gallery?: unknown
   previewDescription: string | null
   description: string | null
+  contentSections?: unknown
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   currency: string
@@ -110,6 +118,37 @@ function buildFallbackHighlights(dbEvent: DbEventRecord) {
   return highlights.filter(Boolean) as string[]
 }
 
+function parseGallery(value: unknown) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 24)
+}
+
+function parseSections(value: unknown): EventSection[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null
+      }
+
+      const section = item as { title?: unknown; body?: unknown }
+      const title = typeof section.title === "string" ? section.title.trim() : ""
+      const body = Array.isArray(section.body)
+        ? section.body.filter((paragraph): paragraph is string => typeof paragraph === "string" && paragraph.trim().length > 0)
+        : []
+
+      return title && body.length > 0 ? { title, body } : null
+    })
+    .filter((section): section is EventSection => Boolean(section))
+    .slice(0, 12)
+}
+
 function mergeEventRecord(
   catalogEvent: EventData | null,
   dbEvent: DbEventRecord | null,
@@ -142,6 +181,8 @@ function mergeEventRecord(
   const capacity = dbEvent.capacity || base?.capacity || 0
   const ticketPriceCents = dbEvent.ticketPriceCents ?? base?.ticketPriceCents ?? 0
   const currency = (dbEvent.currency || base?.currency || "cad").toLowerCase()
+  const dbGallery = parseGallery(dbEvent.gallery)
+  const dbSections = parseSections(dbEvent.contentSections)
 
   return {
     id: dbEvent.id,
@@ -167,7 +208,7 @@ function mergeEventRecord(
     category: mapCategory(dbEvent.category),
     type: mapEventType(dbEvent.eventKind),
     highlights: base?.highlights?.length ? base.highlights : buildFallbackHighlights(dbEvent),
-    gallery: base?.gallery?.length ? base.gallery : [dbEvent.image || "/placeholder.svg"],
+    gallery: dbGallery.length ? dbGallery : base?.gallery?.length ? base.gallery : [dbEvent.image || "/placeholder.svg"],
     videoUrl: base?.videoUrl || null,
     ticketsUrl: base?.ticketsUrl || `/contact?event=${dbEvent.id}&intent=rsvp`,
     ticketPrice: formatPrice(ticketPriceCents, currency),
@@ -181,7 +222,7 @@ function mergeEventRecord(
       "Checkout and inventory are managed live. Ticket holds expire automatically if payment is not completed.",
     spotsLeft: spotsLeft ?? base?.spotsLeft ?? capacity,
     capacity,
-    sections: base?.sections,
+    sections: dbSections.length ? dbSections : base?.sections,
     guestStats: base?.guestStats,
     timeline: base?.timeline,
     perks: base?.perks,

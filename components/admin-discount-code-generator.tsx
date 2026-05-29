@@ -26,6 +26,8 @@ export function AdminDiscountCodeGenerator({ eventId }: { eventId: string }) {
   const [discountType, setDiscountType] = useState<"PERCENT" | "FIXED">("PERCENT")
   const [amountValue, setAmountValue] = useState("20")
   const [expiresAt, setExpiresAt] = useState("")
+  const [useEventGuests, setUseEventGuests] = useState(false)
+  const [sourceEventId, setSourceEventId] = useState(eventId)
   const [isGenerating, setIsGenerating] = useState(false)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
@@ -48,6 +50,8 @@ export function AdminDiscountCodeGenerator({ eventId }: { eventId: string }) {
         discountType,
         amountValue: Number(amountValue) || 0,
         expiresAt: expiresAt || undefined,
+        useEventGuests,
+        sourceEventId: useEventGuests ? sourceEventId || eventId : undefined,
       }),
     }).catch(() => null)
 
@@ -75,7 +79,7 @@ export function AdminDiscountCodeGenerator({ eventId }: { eventId: string }) {
     URL.revokeObjectURL(url)
 
     setIsGenerating(false)
-    setStatus(`Generated ${countEmails(emails)} unique one-use code(s).`)
+    setStatus(`Generated ${response.headers.get("X-Generated-Code-Count") || countEmails(emails)} unique one-use code(s).`)
   }
 
   return (
@@ -140,6 +144,33 @@ export function AdminDiscountCodeGenerator({ eventId }: { eventId: string }) {
 
       <div className="space-y-2">
         <Label htmlFor="discount-emails">Guest Emails</Label>
+        <label className="mb-3 flex items-center justify-between gap-4 rounded-2xl border border-border bg-muted/20 px-4 py-3">
+          <span>
+            <span className="block text-sm font-medium">Use paid guest emails from an event</span>
+            <span className="block text-xs text-muted-foreground">
+              Imports paid buyer and ticket-holder emails, then adds any emails pasted below.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={useEventGuests}
+            onChange={(event) => setUseEventGuests(event.target.checked)}
+            disabled={isGenerating}
+            className="h-5 w-5 accent-primary"
+          />
+        </label>
+        {useEventGuests && (
+          <div className="mb-3 space-y-2">
+            <Label htmlFor="discount-source-event">Source Event ID</Label>
+            <Input
+              id="discount-source-event"
+              value={sourceEventId}
+              onChange={(event) => setSourceEventId(event.target.value)}
+              placeholder="blossom"
+              disabled={isGenerating}
+            />
+          </div>
+        )}
         <Textarea
           id="discount-emails"
           value={emails}

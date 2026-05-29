@@ -32,6 +32,11 @@ const voucherSchema = z.object({
   isActive: z.boolean(),
 })
 
+const contentSectionSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  body: z.array(z.string().trim().min(1).max(1200)).min(1).max(8),
+})
+
 const managedEventSchema = z.object({
   id: z.string().trim().min(2).max(80),
   title: z.string().trim().min(2).max(140),
@@ -40,8 +45,10 @@ const managedEventSchema = z.object({
   address: z.string().trim().max(180).optional(),
   hostedBy: z.string().trim().max(80).optional(),
   image: z.string().trim().max(500).optional(),
+  gallery: z.array(z.string().trim().max(500)).max(24).default([]),
   previewDescription: z.string().trim().max(240).optional(),
   description: z.string().trim().max(5000).optional(),
+  contentSections: z.array(contentSectionSchema).max(12).default([]),
   category: z.enum(["UPCOMING", "PAST"]),
   eventKind: z.enum(["THEMED", "SIGNATURE", "CORPORATE", "SOCIAL"]),
   ticketPriceCad: z.number().min(0).max(10000),
@@ -77,8 +84,10 @@ export async function POST(request: Request) {
       address: parsed.data.address || undefined,
       hostedBy: parsed.data.hostedBy || undefined,
       image: parsed.data.image || undefined,
+      gallery: parsed.data.gallery.filter(Boolean),
       previewDescription: parsed.data.previewDescription || undefined,
       description: parsed.data.description || undefined,
+      contentSections: parsed.data.contentSections,
       ticketPriceCents: Math.round(parsed.data.ticketPriceCad * 100),
       ticketNote: parsed.data.ticketNote || undefined,
       ticketTiers: parsed.data.ticketTiers.map((tier) => ({

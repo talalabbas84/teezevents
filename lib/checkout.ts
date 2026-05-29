@@ -1714,7 +1714,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }),
   ])
 
-  const typedEvents = events as Array<
+  const typedEvents = events as unknown as Array<
     DbEventRecord & {
       orders: OrderWithEvent[]
       tickets: TicketRecord[]

@@ -4,7 +4,20 @@ import type { FormEvent } from "react"
 
 import Link from "next/link"
 import { useState } from "react"
-import { CalendarDays, Loader2, Plus, Sparkles, Tags, TicketPercent, Trash2 } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  CalendarDays,
+  GripVertical,
+  ImagePlus,
+  Loader2,
+  Plus,
+  Sparkles,
+  Tags,
+  TicketPercent,
+  Trash2,
+  UploadCloud,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -53,8 +66,13 @@ type AdminManagedEventView = {
   address: string | null
   hostedBy: string | null
   image: string | null
+  gallery: string[]
   previewDescription: string | null
   description: string | null
+  contentSections: Array<{
+    title: string
+    body: string[]
+  }>
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   ticketPriceCents: number
@@ -107,6 +125,12 @@ type VoucherFormState = {
   discountCents?: number
 }
 
+type ContentSectionFormState = {
+  localId: string
+  title: string
+  body: string
+}
+
 type EventFormState = {
   id: string
   title: string
@@ -115,8 +139,10 @@ type EventFormState = {
   address: string
   hostedBy: string
   image: string
+  gallery: string[]
   previewDescription: string
   description: string
+  contentSections: ContentSectionFormState[]
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   ticketPriceCad: string
@@ -168,6 +194,24 @@ function dateToDateTimeLocal(date: Date) {
   return local.toISOString().slice(0, 16)
 }
 
+function formatStudioDate(value: string | null) {
+  if (!value) {
+    return "Date TBA"
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date TBA"
+  }
+
+  return date.toLocaleDateString("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
 function emptyTier(sortOrder = 0): TierFormState {
   return {
     localId: buildLocalId("tier"),
@@ -180,6 +224,28 @@ function emptyTier(sortOrder = 0): TierFormState {
     isActive: true,
     isHidden: false,
   }
+}
+
+function emptyContentSection(): ContentSectionFormState {
+  return {
+    localId: buildLocalId("section"),
+    title: "",
+    body: "",
+  }
+}
+
+function splitSectionBody(value: string) {
+  return value
+    .split(/\n{2,}|\n/g)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+}
+
+function moveItem<T>(items: T[], fromIndex: number, toIndex: number) {
+  const next = [...items]
+  const [item] = next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, item)
+  return next
 }
 
 function testEventTemplate(): EventFormState {
@@ -197,9 +263,11 @@ function testEventTemplate(): EventFormState {
     address: "Toronto, ON",
     hostedBy: "TEEZ",
     image: "/placeholder.svg",
+    gallery: [],
     previewDescription: "Internal test event for checkout, vouchers, tickets, and admin operations.",
     description:
       "This event is hidden from public event listings and public event detail pages. Use the direct checkout link from admin for testing.",
+    contentSections: [],
     category: "UPCOMING",
     eventKind: "SOCIAL",
     ticketPriceCad: "1.00",
@@ -266,8 +334,15 @@ function fromEvent(event?: AdminManagedEventView | null): EventFormState {
     address: event?.address || "",
     hostedBy: event?.hostedBy || "",
     image: event?.image || "",
+    gallery: event?.gallery || [],
     previewDescription: event?.previewDescription || "",
     description: event?.description || "",
+    contentSections:
+      event?.contentSections.map((section) => ({
+        localId: buildLocalId("section"),
+        title: section.title,
+        body: section.body.join("\n"),
+      })) || [],
     category: event?.category || "UPCOMING",
     eventKind: event?.eventKind || "SOCIAL",
     ticketPriceCad: ((event?.ticketPriceCents || 0) / 100).toFixed(2),
@@ -326,8 +401,93 @@ function EventEditorCard({
   const [form, setForm] = useState<EventFormState>(fromEvent(initialEvent))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
+
+  async function uploadImages(files: FileList | File[], target: "hero" | "gallery") {
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+    const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/")).slice(0, target === "hero" ? 1 : 10)
+
+    if (imageFiles.length === 0) {
+      return
+    }
+
+    if (!cloudName || !uploadPreset) {
+      setError("Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET for drag-and-drop uploads.")
+      return
+    }
+
+    setError("")
+    setStatus("")
+    setIsUploading(true)
+
+    try {
+      const uploadedUrls: string[] = []
+
+      for (const file of imageFiles) {
+        const body = new FormData()
+        body.append("file", file)
+        body.append("upload_preset", uploadPreset)
+        body.append("folder", `teez-events/${form.id || "draft"}`)
+
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+          method: "POST",
+          body,
+        })
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || typeof payload?.secure_url !== "string") {
+          throw new Error(payload?.error?.message || "Cloudinary upload failed.")
+        }
+
+        uploadedUrls.push(payload.secure_url)
+      }
+
+      setForm((current) => {
+        if (target === "hero") {
+          return {
+            ...current,
+            image: uploadedUrls[0] || current.image,
+            gallery: [...new Set([uploadedUrls[0], ...current.gallery].filter(Boolean))],
+          }
+        }
+
+        return {
+          ...current,
+          gallery: [...new Set([...current.gallery, ...uploadedUrls])],
+        }
+      })
+      setStatus(`Uploaded ${uploadedUrls.length} image${uploadedUrls.length === 1 ? "" : "s"} to Cloudinary.`)
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload image.")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  function handleSectionDrop(targetId: string) {
+    if (!draggedSectionId || draggedSectionId === targetId) {
+      return
+    }
+
+    setForm((current) => {
+      const fromIndex = current.contentSections.findIndex((section) => section.localId === draggedSectionId)
+      const toIndex = current.contentSections.findIndex((section) => section.localId === targetId)
+
+      if (fromIndex < 0 || toIndex < 0) {
+        return current
+      }
+
+      return {
+        ...current,
+        contentSections: moveItem(current.contentSections, fromIndex, toIndex),
+      }
+    })
+    setDraggedSectionId(null)
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -348,8 +508,15 @@ function EventEditorCard({
         address: form.address || undefined,
         hostedBy: form.hostedBy || undefined,
         image: form.image || undefined,
+        gallery: form.gallery.filter(Boolean),
         previewDescription: form.previewDescription || undefined,
         description: form.description || undefined,
+        contentSections: form.contentSections
+          .map((section) => ({
+            title: section.title,
+            body: splitSectionBody(section.body),
+          }))
+          .filter((section) => section.title.trim() && section.body.length > 0),
         category: form.category,
         eventKind: form.eventKind,
         ticketPriceCad: Number(form.ticketPriceCad) || 0,
@@ -472,6 +639,9 @@ function EventEditorCard({
 
           {mode === "edit" && form.id && (
             <div className="flex flex-wrap gap-3">
+              <Button asChild size="sm" variant="outline" className="border-primary text-primary">
+                <Link href={`/admin/events/${form.id}`}>Operations</Link>
+              </Button>
               <Button asChild size="sm" variant="outline" className="border-primary text-primary">
                 <Link href={`/events/${form.id}`}>View Event</Link>
               </Button>
@@ -630,7 +800,113 @@ function EventEditorCard({
                 value={form.image}
                 onChange={(event) => setForm((current) => ({ ...current, image: event.target.value }))}
                 placeholder="/images/event-hero.jpg"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isUploading}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+            <div
+              className="rounded-3xl border border-dashed border-primary/40 bg-primary/5 p-5"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault()
+                void uploadImages(event.dataTransfer.files, "hero")
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                  <UploadCloud size={20} />
+                </div>
+                <div className="space-y-2">
+                  <div className="font-semibold">Drop Hero Image</div>
+                  <p className="text-sm text-muted-foreground">
+                    Uploads to Cloudinary and sets the hero image. The uploaded image is also added to the gallery.
+                  </p>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      if (event.target.files) {
+                        void uploadImages(event.target.files, "hero")
+                      }
+                    }}
+                    disabled={isSubmitting || isUploading}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="rounded-3xl border border-dashed border-border bg-muted/20 p-5"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault()
+                void uploadImages(event.dataTransfer.files, "gallery")
+              }}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 font-semibold">
+                    <ImagePlus size={16} className="text-primary" />
+                    Gallery Images
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">Drop multiple images or paste URLs below.</p>
+                </div>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="max-w-xs"
+                  onChange={(event) => {
+                    if (event.target.files) {
+                      void uploadImages(event.target.files, "gallery")
+                    }
+                  }}
+                  disabled={isSubmitting || isUploading}
+                />
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {form.gallery.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No gallery images yet.</div>
+                ) : (
+                  form.gallery.map((image) => (
+                    <div key={image} className="flex max-w-full items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs">
+                      <span className="max-w-[220px] truncate">{image}</span>
+                      <button
+                        type="button"
+                        className="font-semibold text-destructive"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            gallery: current.gallery.filter((item) => item !== image),
+                          }))
+                        }
+                        disabled={isSubmitting || isUploading}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <Textarea
+                className="mt-4"
+                value={form.gallery.join("\n")}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    gallery: event.target.value
+                      .split(/\n|,/)
+                      .map((value) => value.trim())
+                      .filter(Boolean),
+                  }))
+                }
+                placeholder="Paste gallery image URLs, one per line."
+                rows={3}
+                disabled={isSubmitting || isUploading}
               />
             </div>
           </div>
@@ -657,6 +933,149 @@ function EventEditorCard({
               rows={5}
               disabled={isSubmitting}
             />
+          </div>
+
+          <div className="space-y-4 rounded-3xl border border-border bg-background/80 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-primary">
+                  <GripVertical size={16} />
+                  <span className="text-sm font-semibold uppercase tracking-[0.18em]">Event Page Sections</span>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Add reusable detail blocks for dress code, music, venue notes, sponsor copy, or VIP instructions. Drag sections to reorder them.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-primary text-primary"
+                onClick={() =>
+                  setForm((current) => ({
+                    ...current,
+                    contentSections: [...current.contentSections, emptyContentSection()],
+                  }))
+                }
+                disabled={isSubmitting}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Plus size={14} />
+                  Add Section
+                </span>
+              </Button>
+            </div>
+
+            {form.contentSections.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                No custom sections yet. The event detail page will use the description, gallery, ticket panel, and any catalog defaults.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {form.contentSections.map((section, index) => (
+                  <div
+                    key={section.localId}
+                    draggable
+                    onDragStart={() => setDraggedSectionId(section.localId)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={() => handleSectionDrop(section.localId)}
+                    className="rounded-2xl border border-border bg-muted/20 p-4"
+                  >
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <GripVertical size={16} className="text-muted-foreground" />
+                        {section.title || `Section ${index + 1}`}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-primary text-primary"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              contentSections:
+                                index > 0 ? moveItem(current.contentSections, index, index - 1) : current.contentSections,
+                            }))
+                          }
+                          disabled={isSubmitting || index === 0}
+                        >
+                          <ArrowUp size={14} />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-primary text-primary"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              contentSections:
+                                index < current.contentSections.length - 1
+                                  ? moveItem(current.contentSections, index, index + 1)
+                                  : current.contentSections,
+                            }))
+                          }
+                          disabled={isSubmitting || index === form.contentSections.length - 1}
+                        >
+                          <ArrowDown size={14} />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-destructive text-destructive"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              contentSections: current.contentSections.filter((item) => item.localId !== section.localId),
+                            }))
+                          }
+                          disabled={isSubmitting}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+                      <div className="space-y-2">
+                        <Label>{`Section Title`}</Label>
+                        <Input
+                          value={section.title}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              contentSections: current.contentSections.map((item) =>
+                                item.localId === section.localId ? { ...item, title: event.target.value } : item,
+                              ),
+                            }))
+                          }
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{`Body`}</Label>
+                        <Textarea
+                          value={section.body}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              contentSections: current.contentSections.map((item) =>
+                                item.localId === section.localId ? { ...item, body: event.target.value } : item,
+                              ),
+                            }))
+                          }
+                          placeholder="Use one paragraph per line."
+                          rows={4}
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -1231,25 +1650,90 @@ function EventEditorCard({
 }
 
 export function AdminEventStudio({ events }: { events: AdminManagedEventView[] }) {
+  const createEventId = "__create__"
+  const [selectedEventId, setSelectedEventId] = useState(events[0]?.id || createEventId)
+  const selectedEvent = events.find((event) => event.id === selectedEventId) || null
+  const isCreating = selectedEventId === createEventId || !selectedEvent
+
   return (
     <div className="space-y-8">
-      <div className="rounded-3xl border border-primary/15 bg-primary/10 p-5 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2 font-semibold text-foreground">
-          <Sparkles size={16} className="text-primary" />
-          Dynamic event operations
-        </div>
-        <div className="mt-2">
-          Pricing, tiering, voucher campaigns, visibility, and event retirement all route through the database from here.
-        </div>
-      </div>
+      <Card className="border border-border shadow-xl">
+        <CardContent className="space-y-5 p-6 lg:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.22em] text-primary">
+                <Sparkles size={16} />
+                Event Workspace
+              </div>
+              <h2 className="mt-2 text-3xl font-serif font-bold">
+                {isCreating ? "Create one event" : selectedEvent.title}
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Pick an event from the dropdown. Only that event opens below.
+              </p>
+            </div>
 
-      <EventEditorCard mode="create" />
+            <Button
+              type="button"
+              variant={isCreating ? "default" : "outline"}
+              className={isCreating ? "bg-primary text-primary-foreground hover:bg-accent" : "border-primary text-primary"}
+              onClick={() => setSelectedEventId(createEventId)}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Plus size={16} />
+                New Event
+              </span>
+            </Button>
+          </div>
 
-      <div className="grid gap-8">
-        {events.map((event) => (
-          <EventEditorCard key={event.id} initialEvent={event} mode="edit" />
-        ))}
-      </div>
+          <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
+            <div className="space-y-2">
+              <Label htmlFor="event-studio-selected-event">Current Event</Label>
+              <select
+                id="event-studio-selected-event"
+                value={isCreating ? createEventId : selectedEvent.id}
+                onChange={(event) => setSelectedEventId(event.target.value)}
+                className="w-full rounded-md border-2 border-input bg-background px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value={createEventId}>Create a new event</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {`${event.title} - ${formatStudioDate(event.startsAt)} - ${event.isActive ? "Public" : "Hidden"}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {!isCreating && selectedEvent ? (
+              <div className="grid min-w-[280px] grid-cols-3 gap-3 rounded-2xl border border-border bg-muted/20 p-4 text-sm">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Issued</div>
+                  <div className="mt-1 text-xl font-serif font-bold">{selectedEvent.ticketsIssued}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Left</div>
+                  <div className="mt-1 text-xl font-serif font-bold">{selectedEvent.spotsLeft}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Revenue</div>
+                  <div className="mt-1 text-xl font-serif font-bold">{formatCurrency(selectedEvent.revenueCents)}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-primary/15 bg-primary/10 p-4 text-sm text-muted-foreground">
+                Start with the required fields, then add ticket tiers, page sections, and images.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {isCreating ? (
+        <EventEditorCard key="create-event" mode="create" />
+      ) : (
+        <EventEditorCard key={selectedEvent.id} initialEvent={selectedEvent} mode="edit" />
+      )}
+
     </div>
   )
 }

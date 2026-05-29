@@ -43,6 +43,30 @@ enum DiscountType {
   PERCENT
 }
 
+enum MarketingCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum MarketingPlatform {
+  INSTAGRAM
+  TIKTOK
+  FACEBOOK
+  X
+  LINKEDIN
+  WHATSAPP
+  EMAIL
+}
+
+enum MarketingPostStatus {
+  DRAFT
+  READY
+  PUBLISHED
+  FAILED
+}
+
 model Event {
   id                 String        @id
   title              String
@@ -51,8 +75,15 @@ model Event {
   address            String?
   hostedBy           String?
   image              String?
+  gallery            Json?
   previewDescription String?
   description        String?
+  contentSections    Json?
+  timeline           Json?
+  perks              Json?
+  faqs               Json?
+  policies           Json?
+  shareText          String?
   category           EventCategory @default(UPCOMING)
   eventKind          EventKind     @default(SOCIAL)
   currency           String        @default("cad")
@@ -69,6 +100,7 @@ model Event {
   tickets            Ticket[]
   ticketTiers        TicketTier[]
   vouchers           Voucher[]
+  marketingCampaigns MarketingCampaign[]
 }
 
 model TicketOrder {
@@ -172,4 +204,43 @@ model Voucher {
   orders         TicketOrder[]
 
   @@index([eventId, isActive])
+}
+
+model MarketingCampaign {
+  id          String                  @id @default(cuid())
+  eventId     String
+  event       Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  objective   String?
+  audience    String?
+  budgetCents Int?
+  utmCampaign String
+  status      MarketingCampaignStatus @default(DRAFT)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  posts       MarketingPost[]
+
+  @@index([eventId, status])
+}
+
+model MarketingPost {
+  id          String              @id @default(cuid())
+  campaignId  String
+  campaign    MarketingCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  platform    MarketingPlatform
+  caption     String
+  targetUrl   String
+  mediaUrls   Json?
+  status      MarketingPostStatus @default(DRAFT)
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  externalId  String?
+  externalUrl String?
+  errorMessage String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([campaignId, platform, status])
 }

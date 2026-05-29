@@ -1,7 +1,6 @@
 import "server-only"
 
-import nodemailer from "nodemailer"
-
+import { getEmailServiceSetupIssue, sendEmail } from "@/lib/email-service"
 import { getOrderTicketPdfFilename, renderOrderTicketPackPdf } from "@/lib/ticket-pdf"
 import { getPublicTicketUrl, getPublicTicketWalletUrl } from "@/lib/ticket-qr"
 
@@ -36,30 +35,6 @@ type TicketEmailOrder = {
   }>
 }
 
-function getEmailConfig() {
-  const host = process.env.SMTP_HOST
-  const port = Number(process.env.SMTP_PORT || "587")
-  const secure = process.env.SMTP_SECURE === "true" || port === 465
-  const user = process.env.SMTP_USER
-  const password = process.env.SMTP_PASSWORD
-  const fromEmail = process.env.SMTP_FROM_EMAIL
-  const fromName = process.env.SMTP_FROM_NAME || "TEEZ Events"
-
-  if (!host || !port || !fromEmail) {
-    throw new Error("Missing SMTP_HOST, SMTP_PORT, or SMTP_FROM_EMAIL.")
-  }
-
-  return {
-    host,
-    port,
-    secure,
-    user,
-    password,
-    fromEmail,
-    fromName,
-  }
-}
-
 function formatEventDate(order: TicketEmailOrder) {
   if (order.eventDateSnapshot) {
     return order.eventDateSnapshot
@@ -87,23 +62,7 @@ function escapeHtml(value: string) {
 }
 
 export function getTicketEmailSetupIssue() {
-  try {
-    getEmailConfig()
-    return null
-  } catch (error) {
-    return error instanceof Error ? error.message : "Ticket email delivery is not configured."
-  }
-}
-
-function createTransport() {
-  const config = getEmailConfig()
-
-  return nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: config.user && config.password ? { user: config.user, pass: config.password } : undefined,
-  })
+  return getEmailServiceSetupIssue()
 }
 
 function buildTicketEmailHtml(order: TicketEmailOrder, recipientEmail: string) {
@@ -166,12 +125,9 @@ export async function sendTicketOrderEmail({
   order: TicketEmailOrder
   recipientEmail: string
 }) {
-  const config = getEmailConfig()
-  const transport = createTransport()
   const packPdf = await renderOrderTicketPackPdf(order)
 
-  await transport.sendMail({
-    from: `"${config.fromName}" <${config.fromEmail}>`,
+  await sendEmail({
     to: recipientEmail,
     subject: `${order.eventTitleSnapshot} Tickets • ${order.orderNumber}`,
     html: buildTicketEmailHtml(order, recipientEmail),

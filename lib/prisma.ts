@@ -4,8 +4,16 @@ const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient
 }
 
+function hasCurrentGeneratedDelegates(client: PrismaClient) {
+  return Boolean(client.marketingCampaign && client.marketingPost)
+}
+
 export function getPrismaClient() {
-  if (!globalForPrisma.prisma) {
+  if (!globalForPrisma.prisma || !hasCurrentGeneratedDelegates(globalForPrisma.prisma)) {
+    if (globalForPrisma.prisma) {
+      void globalForPrisma.prisma.$disconnect().catch(() => undefined)
+    }
+
     globalForPrisma.prisma = new PrismaClient()
   }
 

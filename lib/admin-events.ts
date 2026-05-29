@@ -11,8 +11,10 @@ type ManagedEventRecord = {
   address: string | null
   hostedBy: string | null
   image: string | null
+  gallery?: unknown
   previewDescription: string | null
   description: string | null
+  contentSections?: unknown
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   currency: string
@@ -106,8 +108,13 @@ export type UpsertManagedEventInput = {
   address?: string
   hostedBy?: string
   image?: string
+  gallery: string[]
   previewDescription?: string
   description?: string
+  contentSections: Array<{
+    title: string
+    body: string[]
+  }>
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   ticketPriceCents: number
@@ -153,6 +160,20 @@ function normalizeEventId(value: string) {
 
 function normalizeVoucherCode(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, "")
+}
+
+function normalizeUrlList(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].slice(0, 24)
+}
+
+function normalizeContentSections(sections: UpsertManagedEventInput["contentSections"]) {
+  return sections
+    .map((section) => ({
+      title: section.title.trim(),
+      body: section.body.map((paragraph) => paragraph.trim()).filter(Boolean).slice(0, 8),
+    }))
+    .filter((section) => section.title && section.body.length > 0)
+    .slice(0, 12)
 }
 
 function getReservedTicketCount(orders: ManagedOrderRecord[]) {
@@ -417,6 +438,8 @@ export async function upsertAdminEvent(input: UpsertManagedEventInput) {
 
   const ticketTiers = buildTierWriteData(input)
   const vouchers = buildVoucherWriteData(input)
+  const gallery = normalizeUrlList(input.gallery)
+  const contentSections = normalizeContentSections(input.contentSections)
   const activeTierPrices = ticketTiers.filter((tier) => tier.isActive).map((tier) => tier.priceCents)
   const effectiveTicketPriceCents =
     activeTierPrices.length > 0 ? Math.min(...activeTierPrices) : Math.round(input.ticketPriceCents)
@@ -451,29 +474,35 @@ export async function upsertAdminEvent(input: UpsertManagedEventInput) {
     throw new Error(`Capacity cannot be reduced below ${reservedTickets} reserved ticket(s).`)
   }
 
+  const eventWriteData = {
+    title: input.title,
+    startsAt: input.startsAt ? new Date(input.startsAt) : null,
+    venue: input.venue || null,
+    address: input.address || null,
+    hostedBy: input.hostedBy || null,
+    image: input.image || null,
+    gallery: gallery.length > 0 ? gallery : undefined,
+    previewDescription: input.previewDescription || null,
+    description: input.description || null,
+    contentSections: contentSections.length > 0 ? contentSections : undefined,
+    category: input.category,
+    eventKind: input.eventKind,
+    currency: "cad",
+    ticketPriceCents: effectiveTicketPriceCents,
+    capacity: input.capacity,
+    checkoutEnabled: input.checkoutEnabled,
+    maxTicketsPerOrder: input.maxTicketsPerOrder,
+    ticketNote: input.ticketNote || null,
+    featured: input.featured,
+    isActive: input.isActive,
+  }
+
   return prisma.event.upsert({
     where: {
       id: normalizedId,
     },
     update: {
-      title: input.title,
-      startsAt: input.startsAt ? new Date(input.startsAt) : null,
-      venue: input.venue || null,
-      address: input.address || null,
-      hostedBy: input.hostedBy || null,
-      image: input.image || null,
-      previewDescription: input.previewDescription || null,
-      description: input.description || null,
-      category: input.category,
-      eventKind: input.eventKind,
-      currency: "cad",
-      ticketPriceCents: effectiveTicketPriceCents,
-      capacity: input.capacity,
-      checkoutEnabled: input.checkoutEnabled,
-      maxTicketsPerOrder: input.maxTicketsPerOrder,
-      ticketNote: input.ticketNote || null,
-      featured: input.featured,
-      isActive: input.isActive,
+      ...(eventWriteData as Record<string, unknown>),
       ticketTiers: {
         deleteMany: {},
         create: ticketTiers,
@@ -485,24 +514,7 @@ export async function upsertAdminEvent(input: UpsertManagedEventInput) {
     },
     create: {
       id: normalizedId,
-      title: input.title,
-      startsAt: input.startsAt ? new Date(input.startsAt) : null,
-      venue: input.venue || null,
-      address: input.address || null,
-      hostedBy: input.hostedBy || null,
-      image: input.image || null,
-      previewDescription: input.previewDescription || null,
-      description: input.description || null,
-      category: input.category,
-      eventKind: input.eventKind,
-      currency: "cad",
-      ticketPriceCents: effectiveTicketPriceCents,
-      capacity: input.capacity,
-      checkoutEnabled: input.checkoutEnabled,
-      maxTicketsPerOrder: input.maxTicketsPerOrder,
-      ticketNote: input.ticketNote || null,
-      featured: input.featured,
-      isActive: input.isActive,
+      ...(eventWriteData as Record<string, unknown>),
       ticketTiers: {
         create: ticketTiers,
       },
@@ -510,7 +522,7 @@ export async function upsertAdminEvent(input: UpsertManagedEventInput) {
         create: vouchers,
       },
     },
-  })
+  } as Parameters<typeof prisma.event.upsert>[0])
 }
 
 export async function deleteAdminEvent(eventId: string) {

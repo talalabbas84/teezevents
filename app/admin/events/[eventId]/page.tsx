@@ -16,6 +16,8 @@ import {
 import { AdminCompOrderForm } from "@/components/admin-comp-order-form"
 import { AdminDiscountCodeGenerator } from "@/components/admin-discount-code-generator"
 import { AdminEventEmailActions } from "@/components/admin-event-email-actions"
+import { AdminEventEmailCampaignComposer } from "@/components/admin-event-email-campaign-composer"
+import { AdminEventMarketingKit } from "@/components/admin-event-marketing-kit"
 import { AdminOrderActions } from "@/components/admin-order-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -190,6 +192,8 @@ export default async function AdminEventOperationsPage({
         <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-border bg-background p-2 shadow-sm">
           {[
             ["Overview", "#overview"],
+            ["Marketing", "#marketing"],
+            ["Emails", "#email-campaigns"],
             ["Orders", "#orders"],
             ["Tickets", "#tickets"],
             ["Promotions", "#promotions"],
@@ -280,6 +284,38 @@ export default async function AdminEventOperationsPage({
               </div>
             </CardContent>
           </Card>
+        </section>
+
+        <section id="marketing">
+          <AdminEventMarketingKit
+            event={{
+              id: event.id,
+              title: event.title,
+              startsAt: event.startsAt?.toISOString() || null,
+              venue: event.venue,
+              address: event.address,
+              image: event.image,
+              previewDescription: event.previewDescription,
+              description: event.description,
+              checkoutEnabled: event.checkoutEnabled,
+              ticketPriceCents: event.ticketPriceCents,
+              currency: event.currency,
+            }}
+          />
+        </section>
+
+        <section id="email-campaigns">
+          <AdminEventEmailCampaignComposer
+            event={{
+              id: event.id,
+              title: event.title,
+              startsAt: event.startsAt?.toISOString() || null,
+              venue: event.venue,
+              address: event.address,
+              checkoutEnabled: event.checkoutEnabled,
+              currency: event.currency,
+            }}
+          />
         </section>
 
         <section id="orders" className="rounded-3xl border border-border bg-background shadow-xl">

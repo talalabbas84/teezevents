@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CalendarDays, DoorOpen, Download, LogOut, Settings2, Ticket, Wallet } from "lucide-react"
+import { ArrowRight, CalendarDays, DoorOpen, Download, LogOut, Settings2, Ticket, Wallet } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -49,7 +49,7 @@ export default async function AdminDashboardPage() {
               <Link href="/admin/events">
                 <span className="inline-flex items-center gap-2">
                   <Settings2 size={16} />
-                  Create or Edit Events
+                  Event Studio
                 </span>
               </Link>
             </Button>
@@ -135,32 +135,41 @@ export default async function AdminDashboardPage() {
             </section>
 
             <section className="rounded-3xl border border-border bg-background shadow-xl">
-              <div className="border-b border-border p-6">
-                <div className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Event Command Centers</div>
-                <h2 className="mt-2 text-3xl font-serif font-bold">Manage one event at a time</h2>
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border p-6">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">Event Command Centers</div>
+                  <h2 className="mt-2 text-3xl font-serif font-bold">Recent events</h2>
+                </div>
+                <Button asChild variant="outline" className="border-primary text-primary">
+                  <Link href="/admin/events">
+                    <span className="inline-flex items-center gap-2">
+                      View All Events
+                      <ArrowRight size={16} />
+                    </span>
+                  </Link>
+                </Button>
               </div>
 
-              <div className="divide-y divide-border">
-                {dashboard.events.map((event) => (
-                  <div key={event.id} className="grid gap-5 p-6 lg:grid-cols-[1fr_360px]">
-                    <div>
+              <div className="grid gap-4 p-6 lg:grid-cols-3">
+                {dashboard.events.slice(0, 6).map((event) => (
+                  <Card key={event.id} className="border border-border bg-muted/10 shadow-sm">
+                    <CardContent className="flex h-full flex-col gap-5 p-5">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="outline">{formatEventDate(event.startsAt)}</Badge>
                         <Badge variant={event.remainingCapacity > 0 ? "secondary" : "destructive"}>
-                          {event.remainingCapacity > 0 ? `${event.remainingCapacity} spots left` : "Sold out"}
+                          {event.remainingCapacity > 0 ? `${event.remainingCapacity} left` : "Sold out"}
                         </Badge>
                       </div>
-                      <h3 className="mt-3 text-2xl font-serif font-bold">{event.title}</h3>
-                      <div className="mt-4 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 xl:grid-cols-4">
-                        <div>{`${event.paidOrders} orders`}</div>
-                        <div>{`${event.ticketsIssued} tickets`}</div>
-                        <div>{`${event.checkedInCount} checked in`}</div>
-                        <div>{formatCurrency(event.revenueCents, "cad")}</div>
+                      <div>
+                        <h3 className="text-2xl font-serif font-bold">{event.title}</h3>
+                        <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-muted-foreground">
+                          <div>{`${event.paidOrders} orders`}</div>
+                          <div>{`${event.ticketsIssued} tickets`}</div>
+                          <div>{`${event.checkedInCount} checked in`}</div>
+                          <div>{formatCurrency(event.revenueCents, "cad")}</div>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="flex flex-col justify-between gap-4 rounded-2xl border border-border bg-muted/20 p-4">
-                      <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="mt-auto grid grid-cols-2 gap-3 rounded-2xl border border-border bg-background/70 p-3 text-sm">
                         <div>
                           <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Sell Through</div>
                           <div className="mt-1 text-xl font-serif font-bold">{formatPercent(event.sellThroughRate)}</div>
@@ -172,14 +181,14 @@ export default async function AdminDashboardPage() {
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
                         <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
-                          <Link href={`/admin/events/${event.id}`}>Open Event</Link>
+                          <Link href={`/admin/events/${event.id}`}>Open</Link>
                         </Button>
                         <Button asChild variant="outline" className="border-primary text-primary">
-                          <Link href="/admin/events">Edit / Delete</Link>
+                          <Link href="/admin/events">Edit</Link>
                         </Button>
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </section>

@@ -93,7 +93,7 @@ export function AdminEventEmailActions({
           Email All
         </Button>
       </div>
-      {!emailEnabled && <div className="text-xs text-muted-foreground">SMTP not configured</div>}
+      {!emailEnabled && <div className="text-xs text-muted-foreground">Email provider not configured</div>}
       {status && <div className="text-xs text-muted-foreground">{status}</div>}
     </div>
   )

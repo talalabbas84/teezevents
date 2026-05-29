@@ -10,7 +10,9 @@ export const runtime = "nodejs"
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
 
 const discountCodeSchema = z.object({
-  emails: z.string().trim().min(3).max(100000),
+  emails: z.string().trim().max(100000).optional(),
+  useEventGuests: z.boolean().optional(),
+  sourceEventId: z.string().trim().max(80).optional(),
   campaignName: z.string().trim().max(80).optional(),
   codePrefix: z.string().trim().max(16).optional(),
   discountType: z.enum(["FIXED", "PERCENT"]),
@@ -35,6 +37,37 @@ function normalizeEmail(value: string) {
 function parseEmails(value: string) {
   const matches = value.match(emailPattern) || []
   return [...new Set(matches.map(normalizeEmail).filter((email) => email.length <= 190))]
+}
+
+async function getPaidGuestEmails(eventId: string) {
+  const prisma = getPrismaClient()
+  const [orders, tickets] = await Promise.all([
+    prisma.ticketOrder.findMany({
+      where: {
+        eventId,
+        status: "PAID",
+      },
+      select: {
+        customerEmail: true,
+      },
+    }),
+    prisma.ticket.findMany({
+      where: {
+        eventId,
+        order: {
+          status: "PAID",
+        },
+      },
+      select: {
+        holderEmail: true,
+      },
+    }),
+  ])
+
+  return [
+    ...orders.map((order) => order.customerEmail),
+    ...tickets.map((ticket) => ticket.holderEmail),
+  ]
 }
 
 function buildCode(prefix: string) {
@@ -74,10 +107,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     return NextResponse.json({ error: "Invalid discount-code request." }, { status: 400 })
   }
 
-  const emails = parseEmails(parsed.data.emails)
+  const sourceEventId = parsed.data.sourceEventId || eventId
+  const guestEmails = parsed.data.useEventGuests ? await getPaidGuestEmails(sourceEventId) : []
+  const emails = [...new Set([...parseEmails(parsed.data.emails || ""), ...guestEmails.map(normalizeEmail)])]
 
   if (emails.length === 0) {
-    return NextResponse.json({ error: "Paste at least one valid guest email." }, { status: 400 })
+    return NextResponse.json({ error: "Paste at least one valid guest email or enable event guest email import." }, { status: 400 })
   }
 
   if (emails.length > 5000) {
@@ -190,6 +225,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="${event.id}-guest-discount-codes.csv"`,
+        "X-Generated-Code-Count": String(rows.length),
       },
     })
   } catch (error) {

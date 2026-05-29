@@ -325,7 +325,7 @@ export function AdminOrderActions({
           </Button>
         )}
       </div>
-      {!emailEnabled && <div className="text-xs text-muted-foreground">SMTP not configured</div>}
+      {!emailEnabled && <div className="text-xs text-muted-foreground">Email provider not configured</div>}
       {status && <div className="max-w-[220px] text-right text-xs text-muted-foreground">{status}</div>}
     </div>
   )

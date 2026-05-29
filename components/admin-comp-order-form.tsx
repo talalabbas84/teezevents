@@ -227,7 +227,7 @@ export function AdminCompOrderForm({
               <span className="block font-medium text-foreground">Email tickets after creation</span>
               {ticketEmailConfigured
                 ? "Send the wallet and attached ticket pack to the guest automatically."
-                : "SMTP is not configured yet, so complimentary tickets will be created without email delivery."}
+                : "Email delivery is not configured yet, so complimentary tickets will be created without email delivery."}
             </span>
           </label>
 
