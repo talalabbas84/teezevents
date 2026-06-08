@@ -132,6 +132,7 @@ function serializeResendAttachment(attachment: EmailAttachment) {
   return {
     filename: attachment.filename,
     content,
+    content_type: attachment.contentType,
   }
 }
 

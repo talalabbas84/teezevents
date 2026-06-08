@@ -30,6 +30,14 @@ type SendMarketingEmailInput = {
 }
 
 type RecipientSource = "EVENT_GUESTS" | "PASTED_EMAILS" | "BOTH"
+type EmailFormat = "BRANDED" | "CUSTOM_HTML"
+
+type MarketingEmailAttachment = {
+  filename: string
+  contentType?: string
+  size?: number
+  content: string
+}
 
 type SendTemplatedMarketingEmailInput = {
   eventId: string
@@ -40,7 +48,12 @@ type SendTemplatedMarketingEmailInput = {
   campaignName: string
   utmCampaign: string
   subject: string
+  preheader?: string
+  replyTo?: string
+  ctaLabel?: string
+  emailFormat?: EmailFormat
   bodyTemplate: string
+  attachments?: MarketingEmailAttachment[]
   includeDiscountCodes: boolean
   codePrefix?: string
   discountType?: "FIXED" | "PERCENT"
@@ -57,6 +70,9 @@ type DirectPublishInput = {
 }
 
 const emailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
+const maxEmailAttachments = 5
+const maxEmailAttachmentBytes = 5 * 1024 * 1024
+const maxEmailAttachmentTotalBytes = 15 * 1024 * 1024
 
 function getMarketingPrismaClient() {
   const prisma = getPrismaClient()
@@ -82,6 +98,23 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;")
 }
 
+function stripHtml(value: string) {
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function buildHiddenPreheader(value?: string) {
+  if (!value?.trim()) {
+    return ""
+  }
+
+  return `<div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">${escapeHtml(value.trim())}</div>`
+}
+
 function isConfigured(keys: string[]) {
   return keys.every((key) => Boolean(process.env[key]?.trim()))
 }
@@ -92,6 +125,49 @@ function normalizeEmail(value: string) {
 
 function parseEmails(value = "") {
   return [...new Set((value.match(emailPattern) || []).map(normalizeEmail).filter((email) => email.length <= 190))]
+}
+
+function buildEmailAttachments(attachments: MarketingEmailAttachment[] | undefined) {
+  if (!attachments?.length) {
+    return undefined
+  }
+
+  if (attachments.length > maxEmailAttachments) {
+    throw new Error(`Attach up to ${maxEmailAttachments} files per campaign.`)
+  }
+
+  let totalBytes = 0
+
+  return attachments.map((attachment) => {
+    const filename = attachment.filename.trim()
+
+    if (!filename) {
+      throw new Error("Attachment filename is required.")
+    }
+
+    const content = Buffer.from(attachment.content, "base64")
+    const declaredSize = typeof attachment.size === "number" ? attachment.size : content.byteLength
+
+    if (content.byteLength === 0) {
+      throw new Error(`${filename} is empty.`)
+    }
+
+    if (declaredSize > maxEmailAttachmentBytes || content.byteLength > maxEmailAttachmentBytes) {
+      throw new Error(`${filename} is over the 5 MB file limit.`)
+    }
+
+    totalBytes += content.byteLength
+
+    if (totalBytes > maxEmailAttachmentTotalBytes) {
+      throw new Error("Attachments can total up to 15 MB per campaign.")
+    }
+
+    return {
+      filename,
+      content,
+      contentType: attachment.contentType?.trim() || undefined,
+    }
+  })
 }
 
 function normalizeCodePrefix(value?: string) {
@@ -783,21 +859,31 @@ function buildMarketingEmailHtml(input: {
   title: string
   body: string
   targetUrl: string
+  preheader?: string
+  ctaLabel?: string
 }) {
   return `
     <div style="font-family: Helvetica Neue, Arial, sans-serif; background: #f7eddb; padding: 32px 16px; color: #2b2b2b;">
+      ${buildHiddenPreheader(input.preheader)}
       <div style="max-width: 680px; margin: 0 auto; background: #fffaf2; border: 1px solid rgba(197,122,58,0.22); border-radius: 24px; overflow: hidden;">
         <div style="padding: 32px;">
           <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #c57a3a;">TEEZ Events</div>
           <h1 style="font-family: Georgia, serif; font-size: 36px; margin: 12px 0 16px;">${escapeHtml(input.title)}</h1>
           <div style="line-height: 1.7; color: #6d5f51; white-space: pre-line;">${escapeHtml(input.body)}</div>
           <p style="margin: 28px 0 0;">
-            <a href="${input.targetUrl}" style="display: inline-block; background: #c57a3a; color: #fffaf2; text-decoration: none; padding: 14px 20px; border-radius: 999px; font-weight: 700;">Open event</a>
+            <a href="${escapeHtml(input.targetUrl)}" style="display: inline-block; background: #c57a3a; color: #fffaf2; text-decoration: none; padding: 14px 20px; border-radius: 999px; font-weight: 700;">${escapeHtml(input.ctaLabel || "Open event")}</a>
           </p>
         </div>
       </div>
     </div>
   `
+}
+
+function buildCustomMarketingEmailHtml(input: {
+  html: string
+  preheader?: string
+}) {
+  return `${buildHiddenPreheader(input.preheader)}${input.html}`
 }
 
 export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMarketingEmailInput) {
@@ -831,6 +917,7 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
   }
 
   const codesByEmail = await createAssignedDiscountCodes(input, recipients)
+  const attachments = buildEmailAttachments(input.attachments)
   const eventUrl = buildPublicUrl(input.baseUrl, `/events/${encodeURIComponent(event.id)}`)
   const baseCheckoutUrl = buildPublicUrl(input.baseUrl, `/checkout/${encodeURIComponent(event.id)}`)
   const campaign = await createMarketingCampaign({
@@ -863,16 +950,29 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
     }
     const subject = renderTemplate(input.subject, variables)
     const body = renderTemplate(input.bodyTemplate, variables)
+    const preheader = renderTemplate(input.preheader || "", variables)
+    const html =
+      input.emailFormat === "CUSTOM_HTML"
+        ? buildCustomMarketingEmailHtml({
+            html: body,
+            preheader,
+          })
+        : buildMarketingEmailHtml({
+            title: event.title,
+            body,
+            targetUrl: checkoutUrl,
+            preheader,
+            ctaLabel: input.ctaLabel,
+          })
 
     try {
       await sendEmail({
         to: recipient.email,
         subject,
-        html: buildMarketingEmailHtml({
-          title: event.title,
-          body,
-          targetUrl: checkoutUrl,
-        }),
+        html,
+        text: input.emailFormat === "CUSTOM_HTML" ? stripHtml(body) : body,
+        replyTo: input.replyTo,
+        attachments,
       })
       sent.push(recipient.email)
     } catch (error) {

@@ -22,6 +22,7 @@ import { AdminOrderActions } from "@/components/admin-order-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireAdminSession } from "@/lib/admin-auth"
 import { formatCurrency, getAdminEventOperationsData, getCheckoutSetupIssue } from "@/lib/checkout"
@@ -189,135 +190,133 @@ export default async function AdminEventOperationsPage({
           </div>
         </section>
 
-        <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-border bg-background p-2 shadow-sm">
-          {[
-            ["Overview", "#overview"],
-            ["Marketing", "#marketing"],
-            ["Emails", "#email-campaigns"],
-            ["Orders", "#orders"],
-            ["Tickets", "#tickets"],
-            ["Promotions", "#promotions"],
-            ["Guest List", "#guest-list"],
-          ].map(([label, href]) => (
-            <Button key={href} asChild variant="ghost" size="sm">
-              <a href={href}>{label}</a>
-            </Button>
-          ))}
-        </nav>
+        <Tabs defaultValue="overview" className="space-y-6">
+          <div className="overflow-x-auto rounded-2xl border border-border bg-background p-2 shadow-sm">
+            <TabsList className="h-auto w-max min-w-full justify-start gap-1 bg-transparent p-0 md:min-w-0">
+              <TabsTrigger value="overview" className="px-4 py-2">Overview</TabsTrigger>
+              <TabsTrigger value="email" className="px-4 py-2">Email</TabsTrigger>
+              <TabsTrigger value="marketing" className="px-4 py-2">Marketing</TabsTrigger>
+              <TabsTrigger value="orders" className="px-4 py-2">{`Orders (${orders.length})`}</TabsTrigger>
+              <TabsTrigger value="tickets" className="px-4 py-2">{`Tickets (${tickets.length})`}</TabsTrigger>
+              <TabsTrigger value="promotions" className="px-4 py-2">Promotions</TabsTrigger>
+              <TabsTrigger value="guest-list" className="px-4 py-2">Guest List</TabsTrigger>
+            </TabsList>
+          </div>
 
-        <section id="overview" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="border border-border shadow-lg">
-            <CardContent className="space-y-3 p-5">
-              <Wallet className="text-primary" />
-              <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Net Sales</div>
-              <div className="text-3xl font-serif font-bold">{formatCurrency(summary.revenueCents, event.currency)}</div>
-            </CardContent>
-          </Card>
-          <Card className="border border-border shadow-lg">
-            <CardContent className="space-y-3 p-5">
-              <ReceiptText className="text-primary" />
-              <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Orders</div>
-              <div className="text-3xl font-serif font-bold">{summary.paidOrders}</div>
-            </CardContent>
-          </Card>
-          <Card className="border border-border shadow-lg">
-            <CardContent className="space-y-3 p-5">
-              <Mail className="text-primary" />
-              <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Delivery</div>
-              <div className="text-3xl font-serif font-bold">{formatPercent(summary.ticketDeliveryRate)}</div>
-            </CardContent>
-          </Card>
-          <Card className="border border-border shadow-lg">
-            <CardContent className="space-y-3 p-5">
-              <TicketPercent className="text-primary" />
-              <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Refunded</div>
-              <div className="text-3xl font-serif font-bold">{formatCurrency(summary.refundedCents, event.currency)}</div>
-            </CardContent>
-          </Card>
-        </section>
+          <TabsContent value="overview" className="space-y-6">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <Wallet className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Net Sales</div>
+                  <div className="text-3xl font-serif font-bold">{formatCurrency(summary.revenueCents, event.currency)}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <ReceiptText className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Orders</div>
+                  <div className="text-3xl font-serif font-bold">{summary.paidOrders}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <Mail className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Delivery</div>
+                  <div className="text-3xl font-serif font-bold">{formatPercent(summary.ticketDeliveryRate)}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <TicketPercent className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Refunded</div>
+                  <div className="text-3xl font-serif font-bold">{formatCurrency(summary.refundedCents, event.currency)}</div>
+                </CardContent>
+              </Card>
+            </section>
 
-        <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-          <Card className="border border-border shadow-xl">
-            <CardContent className="space-y-5 p-6">
-              <div>
-                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Mass Email</div>
-                <h2 className="mt-2 text-2xl font-serif font-bold">Send ticket packs for this event</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Send unsent ticket emails before the event, or resend every paid order when plans change.
-                </p>
-              </div>
-              <AdminEventEmailActions eventId={event.id} emailEnabled={!ticketDeliveryIssue} />
-            </CardContent>
-          </Card>
+            <Card className="border border-border shadow-xl">
+              <CardContent className="space-y-4 p-6">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Operations</div>
+                  <h2 className="mt-2 text-2xl font-serif font-bold">Exports and live tools</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild variant="outline" className="border-primary text-primary">
+                    <a href="/api/admin/exports/orders">
+                      <span className="inline-flex items-center gap-2">
+                        <Download size={16} />
+                        Export Orders
+                      </span>
+                    </a>
+                  </Button>
+                  <Button asChild variant="outline" className="border-primary text-primary">
+                    <a href="/api/admin/exports/tickets">
+                      <span className="inline-flex items-center gap-2">
+                        <Download size={16} />
+                        Export Attendees
+                      </span>
+                    </a>
+                  </Button>
+                  <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
+                    <Link href="/admin/check-in">
+                      <span className="inline-flex items-center gap-2">
+                        <DoorOpen size={16} />
+                        Open Check-In
+                      </span>
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          <Card className="border border-border shadow-xl">
-            <CardContent className="space-y-4 p-6">
-              <div>
-                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Operations</div>
-                <h2 className="mt-2 text-2xl font-serif font-bold">Exports and live tools</h2>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button asChild variant="outline" className="border-primary text-primary">
-                  <a href="/api/admin/exports/orders">
-                    <span className="inline-flex items-center gap-2">
-                      <Download size={16} />
-                      Export Orders
-                    </span>
-                  </a>
-                </Button>
-                <Button asChild variant="outline" className="border-primary text-primary">
-                  <a href="/api/admin/exports/tickets">
-                    <span className="inline-flex items-center gap-2">
-                      <Download size={16} />
-                      Export Attendees
-                    </span>
-                  </a>
-                </Button>
-                <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
-                  <Link href="/admin/check-in">
-                    <span className="inline-flex items-center gap-2">
-                      <DoorOpen size={16} />
-                      Open Check-In
-                    </span>
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+          <TabsContent value="email" className="space-y-6">
+            <Card className="border border-border shadow-xl">
+              <CardContent className="space-y-5 p-6">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Ticket Delivery</div>
+                  <h2 className="mt-2 text-2xl font-serif font-bold">Mass send ticket packs</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Send unsent ticket emails before the event, or resend every paid order when plans change.
+                  </p>
+                </div>
+                <AdminEventEmailActions eventId={event.id} emailEnabled={!ticketDeliveryIssue} />
+              </CardContent>
+            </Card>
 
-        <section id="marketing">
-          <AdminEventMarketingKit
-            event={{
-              id: event.id,
-              title: event.title,
-              startsAt: event.startsAt?.toISOString() || null,
-              venue: event.venue,
-              address: event.address,
-              image: event.image,
-              previewDescription: event.previewDescription,
-              description: event.description,
-              checkoutEnabled: event.checkoutEnabled,
-              ticketPriceCents: event.ticketPriceCents,
-              currency: event.currency,
-            }}
-          />
-        </section>
+            <AdminEventEmailCampaignComposer
+              event={{
+                id: event.id,
+                title: event.title,
+                startsAt: event.startsAt?.toISOString() || null,
+                venue: event.venue,
+                address: event.address,
+                checkoutEnabled: event.checkoutEnabled,
+                currency: event.currency,
+              }}
+            />
+          </TabsContent>
 
-        <section id="email-campaigns">
-          <AdminEventEmailCampaignComposer
-            event={{
-              id: event.id,
-              title: event.title,
-              startsAt: event.startsAt?.toISOString() || null,
-              venue: event.venue,
-              address: event.address,
-              checkoutEnabled: event.checkoutEnabled,
-              currency: event.currency,
-            }}
-          />
-        </section>
+          <TabsContent value="marketing">
+            <AdminEventMarketingKit
+              event={{
+                id: event.id,
+                title: event.title,
+                startsAt: event.startsAt?.toISOString() || null,
+                venue: event.venue,
+                address: event.address,
+                image: event.image,
+                previewDescription: event.previewDescription,
+                description: event.description,
+                checkoutEnabled: event.checkoutEnabled,
+                ticketPriceCents: event.ticketPriceCents,
+                currency: event.currency,
+              }}
+            />
+          </TabsContent>
 
+          <TabsContent value="orders">
         <section id="orders" className="rounded-3xl border border-border bg-background shadow-xl">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
             <div>
@@ -406,7 +405,9 @@ export default async function AdminEventOperationsPage({
             </Table>
           </div>
         </section>
+          </TabsContent>
 
+          <TabsContent value="guest-list">
         <section id="guest-list">
           <AdminCompOrderForm
             events={[
@@ -419,7 +420,9 @@ export default async function AdminEventOperationsPage({
             ticketEmailConfigured={!ticketDeliveryIssue}
           />
         </section>
+          </TabsContent>
 
+          <TabsContent value="promotions">
         <section id="promotions" className="grid gap-6 xl:grid-cols-2">
           <Card className="border border-border shadow-xl xl:col-span-2">
             <CardContent className="space-y-5 p-6">
@@ -506,7 +509,9 @@ export default async function AdminEventOperationsPage({
             </CardContent>
           </Card>
         </section>
+          </TabsContent>
 
+          <TabsContent value="tickets">
         <section id="tickets" className="rounded-3xl border border-border bg-background shadow-xl">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
             <div>
@@ -565,6 +570,8 @@ export default async function AdminEventOperationsPage({
             </Table>
           </div>
         </section>
+          </TabsContent>
+        </Tabs>
       </div>
     </main>
   )

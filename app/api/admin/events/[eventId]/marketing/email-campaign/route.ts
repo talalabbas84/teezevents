@@ -25,7 +25,22 @@ const emailCampaignSchema = z.object({
   campaignName: z.string().trim().min(1).max(120),
   utmCampaign: z.string().trim().min(1).max(120),
   subject: z.string().trim().min(1).max(180),
+  preheader: optionalText(220),
+  replyTo: optionalEmail,
+  ctaLabel: optionalText(80),
+  emailFormat: z.enum(["BRANDED", "CUSTOM_HTML"]).default("BRANDED"),
   bodyTemplate: z.string().trim().min(1).max(12000),
+  attachments: z
+    .array(
+      z.object({
+        filename: z.string().trim().min(1).max(180),
+        contentType: optionalText(120),
+        size: z.coerce.number().int().min(0).max(5 * 1024 * 1024),
+        content: z.string().min(1).max(7 * 1024 * 1024),
+      }),
+    )
+    .max(5)
+    .optional(),
   includeDiscountCodes: z.boolean().default(false),
   codePrefix: optionalText(16),
   discountType: z.enum(["FIXED", "PERCENT"]).default("PERCENT"),
@@ -59,7 +74,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
       campaignName: parsed.data.campaignName,
       utmCampaign: parsed.data.utmCampaign,
       subject: parsed.data.subject,
+      preheader: parsed.data.preheader,
+      replyTo: parsed.data.replyTo,
+      ctaLabel: parsed.data.ctaLabel,
+      emailFormat: parsed.data.emailFormat,
       bodyTemplate: parsed.data.bodyTemplate,
+      attachments: parsed.data.attachments,
       includeDiscountCodes: parsed.data.includeDiscountCodes,
       codePrefix: parsed.data.codePrefix,
       discountType: parsed.data.discountType,
