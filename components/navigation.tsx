@@ -9,6 +9,7 @@ import Image from "next/image"
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
+  const [cmsNavItems, setCmsNavItems] = useState<Array<{ href: string; label: string }>>([])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -18,12 +19,32 @@ export function Navigation() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
-  const navItems = [
+  useEffect(() => {
+    let mounted = true
+
+    fetch("/api/cms/navigation")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!mounted || !Array.isArray(payload?.pages)) {
+          return
+        }
+
+        setCmsNavItems(payload.pages.slice(0, 6))
+      })
+      .catch(() => undefined)
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const baseNavItems = [
     { href: "/", label: "Home" },
     { href: "/about", label: "About Us" },
     { href: "/events", label: "Events" },
     { href: "/contact", label: "Contact" },
   ]
+  const navItems = [...baseNavItems, ...cmsNavItems.filter((item) => !baseNavItems.some((baseItem) => baseItem.href === item.href))]
 
   return (
     <nav

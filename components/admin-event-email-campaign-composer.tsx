@@ -1,12 +1,35 @@
 "use client"
 
 import { useMemo, useState, type ChangeEvent } from "react"
-import { CheckCircle2, Code2, Eye, FileText, Mail, Paperclip, Send, Sparkles, TicketPercent, Type, X } from "lucide-react"
+import {
+  CheckCircle2,
+  ClipboardList,
+  Code2,
+  Copy,
+  Eye,
+  FileText,
+  LayoutTemplate,
+  Link2,
+  Mail,
+  Monitor,
+  Paperclip,
+  Send,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Target,
+  TicketPercent,
+  Type,
+  Users,
+  X,
+} from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 
 type EmailCampaignEvent = {
@@ -22,6 +45,20 @@ type EmailCampaignEvent = {
 type RecipientSource = "EVENT_GUESTS" | "PASTED_EMAILS" | "BOTH"
 type DiscountType = "PERCENT" | "FIXED"
 type EmailFormat = "BRANDED" | "CUSTOM_HTML"
+type CtaDestination = "EVENT_PAGE" | "CHECKOUT" | "CUSTOM"
+type PreviewMode = "DESKTOP" | "MOBILE"
+
+type AudienceEvent = {
+  id: string
+  title: string
+  startsAt: string | null
+  venue: string | null
+  address: string | null
+  paidOrders: number
+  ticketsIssued: number
+  uniqueRecipients: number
+  revenueCents: number
+}
 
 type SendResult = {
   total: number
@@ -54,7 +91,19 @@ const templateVariables = [
   "{{checkoutUrl}}",
   "{{discountCode}}",
   "{{discountValue}}",
+  "{{sourceEventTitle}}",
+  "{{sourceEventDate}}",
+  "{{sourceEventVenue}}",
 ]
+
+const contentBlocks = [
+  { id: "headline", label: "Headline", icon: Type },
+  { id: "event-details", label: "Event Details", icon: ClipboardList },
+  { id: "past-guest", label: "Past Guest", icon: Users },
+  { id: "discount", label: "Discount", icon: TicketPercent },
+  { id: "cta", label: "CTA", icon: Link2 },
+  { id: "divider", label: "Divider", icon: LayoutTemplate },
+] as const
 
 function slugify(value: string) {
   return value
@@ -108,6 +157,32 @@ function toTimeLabel(value: string | null) {
   })
 }
 
+function toShortDateLabel(value: string | null) {
+  if (!value) {
+    return "TBA"
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return "TBA"
+  }
+
+  return date.toLocaleDateString("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
+function formatCurrency(amountInCents: number, currency = "cad") {
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    maximumFractionDigits: 0,
+  }).format(amountInCents / 100)
+}
+
 function buildEventDetailsTemplate(event: EmailCampaignEvent) {
   const venue = event.venue || event.address || "Venue to be announced"
 
@@ -136,6 +211,47 @@ Use it here:
 {{checkoutUrl}}`
 }
 
+function buildReminderTemplate(event: EmailCampaignEvent) {
+  const venue = event.venue || event.address || "Venue to be announced"
+
+  return `Hi {{firstName}},
+
+{{eventTitle}} is coming up soon, and we wanted to make sure you have the key details ready.
+
+Date: {{eventDate}}
+Time: {{eventTime}}
+Venue: ${venue}
+
+Open your event page:
+{{eventUrl}}`
+}
+
+function buildLastCallTemplate() {
+  return `Hi {{firstName}},
+
+We are opening a final window for {{eventTitle}}.
+
+If you were at {{sourceEventTitle}}, this is a good follow-up night for the same community. Spots are limited, and the current event page has the latest ticket availability.
+
+Reserve here:
+{{checkoutUrl}}`
+}
+
+function buildPastGuestTemplate() {
+  return `Hi {{firstName}},
+
+Thank you for joining us at {{sourceEventTitle}}.
+
+We would love to see you again at {{eventTitle}}:
+
+Date: {{eventDate}}
+Time: {{eventTime}}
+Venue: {{venue}}
+
+Open the invite:
+{{eventUrl}}`
+}
+
 function buildCustomHtmlTemplate() {
   return `<div style="font-family: Arial, sans-serif; color: #25211d; line-height: 1.6;">
   <h1>{{eventTitle}}</h1>
@@ -148,7 +264,41 @@ function buildCustomHtmlTemplate() {
 </div>`
 }
 
-function previewTemplate(value: string, event: EmailCampaignEvent) {
+function buildContentBlock(blockId: (typeof contentBlocks)[number]["id"], format: EmailFormat) {
+  if (format === "CUSTOM_HTML") {
+    const htmlBlocks: Record<(typeof contentBlocks)[number]["id"], string> = {
+      headline: `<h2 style="font-size: 28px; line-height: 1.2; margin: 28px 0 12px;">{{eventTitle}}</h2>`,
+      "event-details": `<table role="presentation" style="width:100%; border-collapse: collapse; margin: 20px 0;">
+  <tr><td style="padding: 6px 0; font-weight: 700;">Date</td><td style="padding: 6px 0;">{{eventDate}}</td></tr>
+  <tr><td style="padding: 6px 0; font-weight: 700;">Time</td><td style="padding: 6px 0;">{{eventTime}}</td></tr>
+  <tr><td style="padding: 6px 0; font-weight: 700;">Venue</td><td style="padding: 6px 0;">{{venue}}</td></tr>
+</table>`,
+      "past-guest": `<p style="margin: 18px 0;">Thanks for being part of {{sourceEventTitle}}. We are inviting that attendee list first for {{eventTitle}}.</p>`,
+      discount: `<p style="margin: 18px 0;"><strong>Your code:</strong> {{discountCode}}<br><strong>Value:</strong> {{discountValue}}</p>`,
+      cta: `<p style="margin: 28px 0;"><a href="{{checkoutUrl}}" style="display:inline-block; background:#c57a3a; color:#fffaf2; padding:14px 20px; border-radius:999px; text-decoration:none; font-weight:700;">Reserve now</a></p>`,
+      divider: `<hr style="border:0; border-top:1px solid #e8d7c1; margin: 28px 0;">`,
+    }
+
+    return htmlBlocks[blockId]
+  }
+
+  const textBlocks: Record<(typeof contentBlocks)[number]["id"], string> = {
+    headline: `{{eventTitle}}`,
+    "event-details": `Date: {{eventDate}}
+Time: {{eventTime}}
+Venue: {{venue}}`,
+    "past-guest": `Thanks for being part of {{sourceEventTitle}}. We are inviting that attendee list first for {{eventTitle}}.`,
+    discount: `Your code: {{discountCode}}
+Value: {{discountValue}}`,
+    cta: `Reserve here:
+{{checkoutUrl}}`,
+    divider: `---`,
+  }
+
+  return textBlocks[blockId]
+}
+
+function previewTemplate(value: string, event: EmailCampaignEvent, sourceEvent?: AudienceEvent) {
   const replacements: Record<string, string> = {
     firstName: "Alex",
     name: "Alex Guest",
@@ -161,6 +311,9 @@ function previewTemplate(value: string, event: EmailCampaignEvent) {
     checkoutUrl: `/checkout/${event.id}?voucher=TEEZ-SAMPLE123`,
     discountCode: "TEEZ-SAMPLE123",
     discountValue: "20%",
+    sourceEventTitle: sourceEvent?.title || event.title,
+    sourceEventDate: toDateLabel(sourceEvent?.startsAt || event.startsAt),
+    sourceEventVenue: sourceEvent?.venue || sourceEvent?.address || event.venue || event.address || "Venue to be announced",
   }
 
   return value.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key: string) => replacements[key] ?? "")
@@ -200,17 +353,46 @@ function readFileAsBase64(file: File) {
   })
 }
 
-export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaignEvent }) {
+export function AdminEventEmailCampaignComposer({
+  event,
+  audienceEvents = [],
+}: {
+  event: EmailCampaignEvent
+  audienceEvents?: AudienceEvent[]
+}) {
   const defaultCampaignName = `${slugify(event.title) || event.id}-email`
+  const audienceOptions = useMemo(() => {
+    const hasCurrentEvent = audienceEvents.some((audienceEvent) => audienceEvent.id === event.id)
+
+    return hasCurrentEvent
+      ? audienceEvents
+      : [
+          {
+            id: event.id,
+            title: event.title,
+            startsAt: event.startsAt,
+            venue: event.venue,
+            address: event.address,
+            paidOrders: 0,
+            ticketsIssued: 0,
+            uniqueRecipients: 0,
+            revenueCents: 0,
+          },
+          ...audienceEvents,
+        ]
+  }, [audienceEvents, event])
   const [campaignName, setCampaignName] = useState(defaultCampaignName)
   const [utmCampaign, setUtmCampaign] = useState(defaultCampaignName)
   const [recipientSource, setRecipientSource] = useState<RecipientSource>("EVENT_GUESTS")
   const [sourceEventId, setSourceEventId] = useState(event.id)
+  const [excludeCurrentEventGuests, setExcludeCurrentEventGuests] = useState(false)
   const [pastedEmails, setPastedEmails] = useState("")
   const [subject, setSubject] = useState(`${event.title} details`)
   const [preheader, setPreheader] = useState(`Important details for ${event.title}.`)
   const [replyTo, setReplyTo] = useState("")
   const [ctaLabel, setCtaLabel] = useState("Open event")
+  const [ctaDestination, setCtaDestination] = useState<CtaDestination>("EVENT_PAGE")
+  const [customCtaUrl, setCustomCtaUrl] = useState("")
   const [emailFormat, setEmailFormat] = useState<EmailFormat>("BRANDED")
   const [bodyTemplate, setBodyTemplate] = useState(buildEventDetailsTemplate(event))
   const [testRecipient, setTestRecipient] = useState("")
@@ -223,18 +405,62 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
   const [loadingMode, setLoadingMode] = useState<"test" | "campaign" | null>(null)
   const [error, setError] = useState("")
   const [result, setResult] = useState<SendResult | null>(null)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>("DESKTOP")
 
+  const selectedAudienceEvent = useMemo(
+    () => audienceOptions.find((audienceEvent) => audienceEvent.id === sourceEventId) || audienceOptions[0],
+    [audienceOptions, sourceEventId],
+  )
   const pastedEmailCount = useMemo(() => countUniqueEmails(pastedEmails), [pastedEmails])
-  const previewSubject = useMemo(() => previewTemplate(subject, event), [event, subject])
-  const previewPreheader = useMemo(() => previewTemplate(preheader, event), [event, preheader])
-  const previewBody = useMemo(() => previewTemplate(bodyTemplate, event), [bodyTemplate, event])
+  const previewSubject = useMemo(() => previewTemplate(subject, event, selectedAudienceEvent), [event, selectedAudienceEvent, subject])
+  const previewPreheader = useMemo(() => previewTemplate(preheader, event, selectedAudienceEvent), [event, preheader, selectedAudienceEvent])
+  const previewBody = useMemo(() => previewTemplate(bodyTemplate, event, selectedAudienceEvent), [bodyTemplate, event, selectedAudienceEvent])
   const attachmentTotal = useMemo(() => attachments.reduce((total, attachment) => total + attachment.size, 0), [attachments])
+  const selectedEventRecipientCount =
+    selectedAudienceEvent && excludeCurrentEventGuests && selectedAudienceEvent.id === event.id ? 0 : selectedAudienceEvent?.uniqueRecipients || 0
+  const estimatedRecipientCount =
+    recipientSource === "EVENT_GUESTS"
+      ? selectedEventRecipientCount
+      : recipientSource === "PASTED_EMAILS"
+        ? pastedEmailCount
+        : selectedEventRecipientCount + pastedEmailCount
+  const selectedAudienceLabel = selectedAudienceEvent?.title || sourceEventId
   const recipientLabel =
     recipientSource === "EVENT_GUESTS"
-      ? "paid guests from the selected event"
+      ? `paid attendees from ${selectedAudienceLabel}`
       : recipientSource === "PASTED_EMAILS"
         ? "the pasted email list"
-        : "paid guests plus pasted emails"
+        : `${selectedAudienceLabel} attendees plus pasted emails`
+  const ctaUrlTemplate =
+    ctaDestination === "EVENT_PAGE" ? "{{eventUrl}}" : ctaDestination === "CHECKOUT" ? "{{checkoutUrl}}" : customCtaUrl
+  const previewCtaUrl = previewTemplate(ctaUrlTemplate, event, selectedAudienceEvent)
+  const qualityChecks = [
+    {
+      label: "Subject length",
+      passed: previewSubject.length >= 8 && previewSubject.length <= 78,
+      detail: `${previewSubject.length} characters`,
+    },
+    {
+      label: "Preheader",
+      passed: previewPreheader.length >= 20 && previewPreheader.length <= 140,
+      detail: previewPreheader ? `${previewPreheader.length} characters` : "Missing",
+    },
+    {
+      label: "Audience",
+      passed: estimatedRecipientCount > 0 || Boolean(testRecipient.trim()),
+      detail: `${estimatedRecipientCount} estimated recipient(s)`,
+    },
+    {
+      label: "CTA",
+      passed: emailFormat === "CUSTOM_HTML" || Boolean(ctaLabel.trim() && ctaUrlTemplate.trim()),
+      detail: emailFormat === "CUSTOM_HTML" ? "Managed in HTML" : ctaDestination.toLowerCase().replace("_", " "),
+    },
+    {
+      label: "Attachments",
+      passed: attachmentTotal <= maxTotalAttachmentSize,
+      detail: `${attachments.length} file(s)`,
+    },
+  ]
 
   function applyEventDetailsPreset() {
     setIncludeDiscountCodes(false)
@@ -242,6 +468,7 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
     setSubject(`${event.title} details`)
     setPreheader(`Date, time, venue, and event link for ${event.title}.`)
     setCtaLabel("Open event")
+    setCtaDestination("EVENT_PAGE")
     setBodyTemplate(buildEventDetailsTemplate(event))
   }
 
@@ -251,7 +478,38 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
     setSubject("Your {{eventTitle}} discount code")
     setPreheader("Your private event discount code is inside.")
     setCtaLabel("Use code")
+    setCtaDestination("CHECKOUT")
     setBodyTemplate(buildDiscountTemplate())
+  }
+
+  function applyReminderPreset() {
+    setIncludeDiscountCodes(false)
+    setEmailFormat("BRANDED")
+    setSubject("Reminder: {{eventTitle}}")
+    setPreheader("Everything you need before arrival.")
+    setCtaLabel("View details")
+    setCtaDestination("EVENT_PAGE")
+    setBodyTemplate(buildReminderTemplate(event))
+  }
+
+  function applyLastCallPreset() {
+    setIncludeDiscountCodes(false)
+    setEmailFormat("BRANDED")
+    setSubject("Final call for {{eventTitle}}")
+    setPreheader("A limited number of spots are still available.")
+    setCtaLabel("Reserve now")
+    setCtaDestination("CHECKOUT")
+    setBodyTemplate(buildLastCallTemplate())
+  }
+
+  function applyPastGuestPreset() {
+    setIncludeDiscountCodes(false)
+    setEmailFormat("BRANDED")
+    setSubject("An invite for {{sourceEventTitle}} guests")
+    setPreheader("You are on the early invite list for our next TEEZ event.")
+    setCtaLabel("Open invite")
+    setCtaDestination("EVENT_PAGE")
+    setBodyTemplate(buildPastGuestTemplate())
   }
 
   function applyHtmlPreset() {
@@ -263,6 +521,22 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
 
   function appendVariable(variable: string) {
     setBodyTemplate((current) => `${current}${current.endsWith("\n") ? "" : "\n"}${variable}`)
+  }
+
+  function appendContentBlock(blockId: (typeof contentBlocks)[number]["id"]) {
+    const block = buildContentBlock(blockId, emailFormat)
+
+    setBodyTemplate((current) => `${current}${current.endsWith("\n") || current.length === 0 ? "" : "\n\n"}${block}`)
+  }
+
+  async function copyTemplate() {
+    if (!navigator.clipboard) {
+      setError("Clipboard access is not available in this browser.")
+      return
+    }
+
+    await navigator.clipboard.writeText(bodyTemplate)
+    setError("")
   }
 
   async function handleAttachmentChange(inputEvent: ChangeEvent<HTMLInputElement>) {
@@ -333,6 +607,16 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
       return
     }
 
+    if ((recipientSource === "EVENT_GUESTS" || recipientSource === "BOTH") && !sourceEventId.trim()) {
+      setError("Select the event audience for this campaign.")
+      return
+    }
+
+    if (emailFormat === "BRANDED" && ctaDestination === "CUSTOM" && !customCtaUrl.trim()) {
+      setError("Add a custom CTA URL or choose event page or checkout.")
+      return
+    }
+
     if (includeDiscountCodes) {
       const amount = Number(amountValue)
 
@@ -374,6 +658,7 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
           preheader,
           replyTo,
           ctaLabel,
+          ctaUrl: ctaUrlTemplate,
           emailFormat,
           bodyTemplate,
           attachments: attachments.map(({ filename, contentType, size, content }) => ({
@@ -382,6 +667,8 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
             size,
             content,
           })),
+          excludeCurrentEventGuests,
+          audienceLabel: selectedAudienceLabel,
           includeDiscountCodes,
           codePrefix,
           discountType,
@@ -436,6 +723,24 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
                 Discount Codes
               </span>
             </Button>
+            <Button type="button" variant="outline" className="border-primary text-primary" onClick={applyReminderPreset}>
+              <span className="inline-flex items-center gap-2">
+                <ShieldCheck size={16} />
+                Reminder
+              </span>
+            </Button>
+            <Button type="button" variant="outline" className="border-primary text-primary" onClick={applyLastCallPreset}>
+              <span className="inline-flex items-center gap-2">
+                <Target size={16} />
+                Last Call
+              </span>
+            </Button>
+            <Button type="button" variant="outline" className="border-primary text-primary" onClick={applyPastGuestPreset}>
+              <span className="inline-flex items-center gap-2">
+                <Users size={16} />
+                Past Guests
+              </span>
+            </Button>
             <Button type="button" variant="outline" className="border-primary text-primary" onClick={applyHtmlPreset}>
               <span className="inline-flex items-center gap-2">
                 <Code2 size={16} />
@@ -482,11 +787,17 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
               onChange={(inputEvent) => setPreheader(inputEvent.target.value)}
               placeholder="Short inbox preview text"
             />
+            <div className="text-xs text-muted-foreground">{`${previewPreheader.length} characters`}</div>
           </div>
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[300px_1fr]">
           <div className="space-y-4 rounded-2xl border border-border bg-muted/20 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">Audience</div>
+              <Badge variant="outline">{`${estimatedRecipientCount} est.`}</Badge>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email-recipient-source">Recipients</Label>
               <select
@@ -502,30 +813,90 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
             </div>
 
             {(recipientSource === "EVENT_GUESTS" || recipientSource === "BOTH") && (
-              <div className="space-y-2">
-                <Label htmlFor="email-source-event">Guest List Event ID</Label>
-                <Input
-                  id="email-source-event"
-                  value={sourceEventId}
-                  onChange={(inputEvent) => setSourceEventId(inputEvent.target.value)}
-                />
-                <Button type="button" size="sm" variant="ghost" onClick={() => setSourceEventId(event.id)}>
-                  Use this event
-                </Button>
+              <div className="space-y-3 rounded-2xl border border-border bg-background/70 p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="email-source-event">Attendee Source Event</Label>
+                  <select
+                    id="email-source-event"
+                    value={sourceEventId}
+                    onChange={(inputEvent) => setSourceEventId(inputEvent.target.value)}
+                    className="w-full rounded-md border-2 border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {audienceOptions.map((audienceEvent) => (
+                      <option key={audienceEvent.id} value={audienceEvent.id}>
+                        {`${audienceEvent.title} - ${toShortDateLabel(audienceEvent.startsAt)} - ${audienceEvent.uniqueRecipients} recipients`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedAudienceEvent && (
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-xl border border-border bg-muted/20 p-2">
+                      <div className="text-muted-foreground">Recipients</div>
+                      <div className="mt-1 text-lg font-serif font-bold">{selectedAudienceEvent.uniqueRecipients}</div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/20 p-2">
+                      <div className="text-muted-foreground">Orders</div>
+                      <div className="mt-1 text-lg font-serif font-bold">{selectedAudienceEvent.paidOrders}</div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/20 p-2">
+                      <div className="text-muted-foreground">Tickets</div>
+                      <div className="mt-1 text-lg font-serif font-bold">{selectedAudienceEvent.ticketsIssued}</div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-muted/20 p-2">
+                      <div className="text-muted-foreground">Revenue</div>
+                      <div className="mt-1 text-lg font-serif font-bold">{formatCurrency(selectedAudienceEvent.revenueCents, event.currency)}</div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setSourceEventId(event.id)}>
+                    Use this event
+                  </Button>
+                  {audienceOptions.find((audienceEvent) => audienceEvent.id !== event.id && audienceEvent.uniqueRecipients > 0) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        const previousEvent = audienceOptions.find((audienceEvent) => audienceEvent.id !== event.id && audienceEvent.uniqueRecipients > 0)
+
+                        if (previousEvent) {
+                          setSourceEventId(previousEvent.id)
+                          setExcludeCurrentEventGuests(true)
+                        }
+                      }}
+                    >
+                      Use latest previous
+                    </Button>
+                  )}
+                </div>
+
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 p-3">
+                  <span>
+                    <span className="block text-sm font-medium">Exclude current-event attendees</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">Removes emails that already bought or hold tickets for this event.</span>
+                  </span>
+                  <Switch checked={excludeCurrentEventGuests} onCheckedChange={setExcludeCurrentEventGuests} />
+                </label>
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="email-pasted-list">Pasted Emails or CSV</Label>
-              <Textarea
-                id="email-pasted-list"
-                value={pastedEmails}
-                onChange={(inputEvent) => setPastedEmails(inputEvent.target.value)}
-                rows={8}
-                placeholder="Paste emails, ticket exports, or orders CSV rows."
-              />
-              <div className="text-xs text-muted-foreground">{`${pastedEmailCount} unique pasted email(s) detected.`}</div>
-            </div>
+            {(recipientSource === "PASTED_EMAILS" || recipientSource === "BOTH") && (
+              <div className="space-y-2">
+                <Label htmlFor="email-pasted-list">Pasted Emails or CSV</Label>
+                <Textarea
+                  id="email-pasted-list"
+                  value={pastedEmails}
+                  onChange={(inputEvent) => setPastedEmails(inputEvent.target.value)}
+                  rows={8}
+                  placeholder="Paste emails, ticket exports, or orders CSV rows."
+                />
+                <div className="text-xs text-muted-foreground">{`${pastedEmailCount} unique pasted email(s) detected.`}</div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-4 rounded-2xl border border-border bg-muted/20 p-4">
@@ -560,12 +931,39 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
             <div className="space-y-2">
               <Label htmlFor="email-subject">Subject</Label>
               <Input id="email-subject" value={subject} onChange={(inputEvent) => setSubject(inputEvent.target.value)} />
+              <div className="text-xs text-muted-foreground">{`${previewSubject.length} characters`}</div>
             </div>
 
             {emailFormat === "BRANDED" && (
-              <div className="space-y-2">
-                <Label htmlFor="email-cta-label">CTA Label</Label>
-                <Input id="email-cta-label" value={ctaLabel} onChange={(inputEvent) => setCtaLabel(inputEvent.target.value)} />
+              <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+                <div className="space-y-2">
+                  <Label htmlFor="email-cta-label">CTA Label</Label>
+                  <Input id="email-cta-label" value={ctaLabel} onChange={(inputEvent) => setCtaLabel(inputEvent.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email-cta-destination">CTA Destination</Label>
+                  <select
+                    id="email-cta-destination"
+                    value={ctaDestination}
+                    onChange={(inputEvent) => setCtaDestination(inputEvent.target.value as CtaDestination)}
+                    className="w-full rounded-md border-2 border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="EVENT_PAGE">Event page</option>
+                    <option value="CHECKOUT">Checkout</option>
+                    <option value="CUSTOM">Custom URL</option>
+                  </select>
+                </div>
+                {ctaDestination === "CUSTOM" && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="email-custom-cta-url">Custom CTA URL</Label>
+                    <Input
+                      id="email-custom-cta-url"
+                      value={customCtaUrl}
+                      onChange={(inputEvent) => setCustomCtaUrl(inputEvent.target.value)}
+                      placeholder="https://example.com/campaign-link"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -578,6 +976,36 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
                 rows={emailFormat === "CUSTOM_HTML" ? 16 : 12}
                 className={emailFormat === "CUSTOM_HTML" ? "font-mono text-sm" : undefined}
               />
+              <div className="text-xs text-muted-foreground">{`${bodyTemplate.length} of 40,000 characters`}</div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background/70 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <LayoutTemplate size={16} className="text-primary" />
+                  Content Blocks
+                </div>
+                <Button type="button" size="sm" variant="ghost" onClick={() => void copyTemplate()}>
+                  <span className="inline-flex items-center gap-2">
+                    <Copy size={14} />
+                    Copy
+                  </span>
+                </Button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {contentBlocks.map((block) => {
+                  const Icon = block.icon
+
+                  return (
+                    <Button key={block.id} type="button" size="sm" variant="outline" onClick={() => appendContentBlock(block.id)}>
+                      <span className="inline-flex items-center gap-2">
+                        <Icon size={14} />
+                        {block.label}
+                      </span>
+                    </Button>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -687,11 +1115,37 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
 
         <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-2xl border border-border bg-muted/20 p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-              <Eye size={16} />
-              Preview
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+                <Eye size={16} />
+                Preview
+              </div>
+              <div className="flex rounded-md border border-border bg-background p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={previewMode === "DESKTOP" ? "default" : "ghost"}
+                  onClick={() => setPreviewMode("DESKTOP")}
+                  aria-label="Desktop preview"
+                >
+                  <Monitor size={14} />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={previewMode === "MOBILE" ? "default" : "ghost"}
+                  onClick={() => setPreviewMode("MOBILE")}
+                  aria-label="Mobile preview"
+                >
+                  <Smartphone size={14} />
+                </Button>
+              </div>
             </div>
-            <div className="mt-3 rounded-2xl border border-border bg-background p-4">
+            <div
+              className={`mt-3 rounded-2xl border border-border bg-background p-4 transition-all ${
+                previewMode === "MOBILE" ? "mx-auto max-w-[390px]" : "w-full"
+              }`}
+            >
               <div className="text-lg font-semibold">{previewSubject}</div>
               {previewPreheader && <div className="mt-1 text-sm text-muted-foreground">{previewPreheader}</div>}
               {emailFormat === "CUSTOM_HTML" ? (
@@ -702,7 +1156,16 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
                   className="mt-4 h-80 w-full rounded-xl border border-border bg-white"
                 />
               ) : (
-                <div className="mt-4 whitespace-pre-line text-sm leading-6 text-muted-foreground">{previewBody}</div>
+                <div className="mt-4 rounded-2xl border border-border bg-[#fffaf2] p-5">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">TEEZ Events</div>
+                  <div className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">{previewBody}</div>
+                  <div className="mt-5">
+                    <span className="inline-flex rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+                      {ctaLabel || "Open event"}
+                    </span>
+                  </div>
+                  <div className="mt-2 break-all text-xs text-muted-foreground">{previewCtaUrl}</div>
+                </div>
               )}
             </div>
           </div>
@@ -714,6 +1177,23 @@ export function AdminEventEmailCampaignComposer({ event }: { event: EmailCampaig
             </div>
             <div className="mt-3 text-sm text-muted-foreground">
               The campaign will send to {recipientLabel}. Test sends include the current subject, body, reply-to, and attachments.
+            </div>
+            <div className="mt-4 rounded-xl border border-border bg-background/70 p-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <ShieldCheck size={16} className="text-primary" />
+                Campaign Checks
+              </div>
+              <div className="space-y-2">
+                {qualityChecks.map((check) => (
+                  <div key={check.label} className="flex items-center justify-between gap-3 text-sm">
+                    <div>
+                      <div className="font-medium">{check.label}</div>
+                      <div className="text-xs text-muted-foreground">{check.detail}</div>
+                    </div>
+                    <Badge variant={check.passed ? "secondary" : "outline"}>{check.passed ? "Ready" : "Review"}</Badge>
+                  </div>
+                ))}
+              </div>
             </div>
             {error && <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
             {result && (

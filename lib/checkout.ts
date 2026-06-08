@@ -173,6 +173,18 @@ type AdminTimelinePoint = {
   checkedInCount?: number
 }
 
+type AdminAudienceEvent = {
+  id: string
+  title: string
+  startsAt: Date | null
+  venue: string | null
+  address: string | null
+  paidOrders: number
+  ticketsIssued: number
+  uniqueRecipients: number
+  revenueCents: number
+}
+
 type AdminDashboardData = {
   summary: {
     paidOrders: number
@@ -230,6 +242,7 @@ export type AdminEventOperationsData = {
   }
   orders: OrderWithEvent[]
   tickets: TicketWithRelations[]
+  audienceEvents: AdminAudienceEvent[]
   ticketTiers: Array<TicketTierRecord & { soldCount: number; revenueCents: number }>
   vouchers: Array<VoucherRecord & { redemptionCount: number; discountCents: number }>
 }
@@ -1870,32 +1883,65 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 export async function getAdminEventOperationsData(eventId: string): Promise<AdminEventOperationsData | null> {
   const prisma = getPrismaClient()
   const now = new Date()
-  const event = await prisma.event.findUnique({
-    where: {
-      id: eventId,
-    },
-    include: {
-      orders: {
-        orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-        include: withOrderIncludes(),
+  const [event, audienceEventRecords] = await Promise.all([
+    prisma.event.findUnique({
+      where: {
+        id: eventId,
       },
-      tickets: {
-        orderBy: [{ checkedInAt: "desc" }, { createdAt: "desc" }],
-        include: {
-          event: true,
-          order: {
-            include: withOrderIncludes(),
+      include: {
+        orders: {
+          orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+          include: withOrderIncludes(),
+        },
+        tickets: {
+          orderBy: [{ checkedInAt: "desc" }, { createdAt: "desc" }],
+          include: {
+            event: true,
+            order: {
+              include: withOrderIncludes(),
+            },
+          },
+        },
+        ticketTiers: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        },
+        vouchers: {
+          orderBy: [{ createdAt: "desc" }, { code: "asc" }],
+        },
+      },
+    }),
+    prisma.event.findMany({
+      orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+      take: 60,
+      select: {
+        id: true,
+        title: true,
+        startsAt: true,
+        venue: true,
+        address: true,
+        orders: {
+          where: {
+            status: "PAID",
+          },
+          select: {
+            customerEmail: true,
+            quantity: true,
+            totalPriceCents: true,
+          },
+        },
+        tickets: {
+          where: {
+            order: {
+              status: "PAID",
+            },
+          },
+          select: {
+            holderEmail: true,
           },
         },
       },
-      ticketTiers: {
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      },
-      vouchers: {
-        orderBy: [{ createdAt: "desc" }, { code: "asc" }],
-      },
-    },
-  })
+    }),
+  ])
 
   if (!event) {
     return null
@@ -1916,6 +1962,37 @@ export async function getAdminEventOperationsData(eventId: string): Promise<Admi
   const refundedCents = refundedOrders.reduce((total, order) => total + order.totalPriceCents, 0)
   const discountAmountCents = paidOrders.reduce((total, order) => total + order.discountAmountCents, 0)
   const deliveredOrders = paidOrders.filter((order) => order.ticketEmailSendCount > 0)
+  const audienceEvents = audienceEventRecords.map((audienceEvent) => {
+    const uniqueRecipients = new Set<string>()
+
+    audienceEvent.orders.forEach((order) => {
+      const email = normalizeEmail(order.customerEmail)
+
+      if (email) {
+        uniqueRecipients.add(email)
+      }
+    })
+
+    audienceEvent.tickets.forEach((ticket) => {
+      const email = normalizeEmail(ticket.holderEmail)
+
+      if (email) {
+        uniqueRecipients.add(email)
+      }
+    })
+
+    return {
+      id: audienceEvent.id,
+      title: audienceEvent.title,
+      startsAt: audienceEvent.startsAt,
+      venue: audienceEvent.venue,
+      address: audienceEvent.address,
+      paidOrders: audienceEvent.orders.length,
+      ticketsIssued: audienceEvent.orders.reduce((total, order) => total + order.quantity, 0),
+      uniqueRecipients: uniqueRecipients.size,
+      revenueCents: audienceEvent.orders.reduce((total, order) => total + order.totalPriceCents, 0),
+    }
+  })
 
   return {
     event: event as DbEventRecord,
@@ -1937,6 +2014,7 @@ export async function getAdminEventOperationsData(eventId: string): Promise<Admi
     },
     orders,
     tickets,
+    audienceEvents,
     ticketTiers: ticketTiers.map((tier) => {
       const tierOrders = paidOrders.filter((order) => order.ticketTierId === tier.id)
 

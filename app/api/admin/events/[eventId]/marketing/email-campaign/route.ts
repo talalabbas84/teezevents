@@ -28,8 +28,9 @@ const emailCampaignSchema = z.object({
   preheader: optionalText(220),
   replyTo: optionalEmail,
   ctaLabel: optionalText(80),
+  ctaUrl: optionalText(500),
   emailFormat: z.enum(["BRANDED", "CUSTOM_HTML"]).default("BRANDED"),
-  bodyTemplate: z.string().trim().min(1).max(12000),
+  bodyTemplate: z.string().trim().min(1).max(40000),
   attachments: z
     .array(
       z.object({
@@ -41,6 +42,8 @@ const emailCampaignSchema = z.object({
     )
     .max(5)
     .optional(),
+  excludeCurrentEventGuests: z.boolean().default(false),
+  audienceLabel: optionalText(160),
   includeDiscountCodes: z.boolean().default(false),
   codePrefix: optionalText(16),
   discountType: z.enum(["FIXED", "PERCENT"]).default("PERCENT"),
@@ -77,9 +80,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
       preheader: parsed.data.preheader,
       replyTo: parsed.data.replyTo,
       ctaLabel: parsed.data.ctaLabel,
+      ctaUrl: parsed.data.ctaUrl,
       emailFormat: parsed.data.emailFormat,
       bodyTemplate: parsed.data.bodyTemplate,
       attachments: parsed.data.attachments,
+      excludeCurrentEventGuests: parsed.data.excludeCurrentEventGuests,
+      audienceLabel: parsed.data.audienceLabel,
       includeDiscountCodes: parsed.data.includeDiscountCodes,
       codePrefix: parsed.data.codePrefix,
       discountType: parsed.data.discountType,

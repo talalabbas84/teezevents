@@ -51,9 +51,12 @@ type SendTemplatedMarketingEmailInput = {
   preheader?: string
   replyTo?: string
   ctaLabel?: string
+  ctaUrl?: string
   emailFormat?: EmailFormat
   bodyTemplate: string
   attachments?: MarketingEmailAttachment[]
+  excludeCurrentEventGuests?: boolean
+  audienceLabel?: string
   includeDiscountCodes: boolean
   codePrefix?: string
   discountType?: "FIXED" | "PERCENT"
@@ -729,6 +732,14 @@ async function getTemplatedEmailRecipients(input: SendTemplatedMarketingEmailInp
     })
   }
 
+  if (input.excludeCurrentEventGuests) {
+    const currentEventRecipients = await getEventMarketingRecipients(input.eventId)
+
+    currentEventRecipients.forEach((recipient) => {
+      recipients.delete(recipient.email)
+    })
+  }
+
   return [...recipients.values()]
 }
 
@@ -888,19 +899,35 @@ function buildCustomMarketingEmailHtml(input: {
 
 export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMarketingEmailInput) {
   const prisma = getPrismaClient()
-  const event = await prisma.event.findUnique({
-    where: {
-      id: input.eventId,
-    },
-    select: {
-      id: true,
-      title: true,
-      startsAt: true,
-      venue: true,
-      address: true,
-      checkoutEnabled: true,
-    },
-  })
+  const [event, sourceEvent] = await Promise.all([
+    prisma.event.findUnique({
+      where: {
+        id: input.eventId,
+      },
+      select: {
+        id: true,
+        title: true,
+        startsAt: true,
+        venue: true,
+        address: true,
+        checkoutEnabled: true,
+      },
+    }),
+    input.sourceEventId
+      ? prisma.event.findUnique({
+          where: {
+            id: input.sourceEventId,
+          },
+          select: {
+            id: true,
+            title: true,
+            startsAt: true,
+            venue: true,
+            address: true,
+          },
+        })
+      : Promise.resolve(null),
+  ])
 
   if (!event) {
     throw new Error("Event not found.")
@@ -925,7 +952,7 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
     name: input.campaignName,
     utmCampaign: input.utmCampaign,
     objective: input.includeDiscountCodes ? "Discount email campaign" : "Event email campaign",
-    audience: input.testRecipient ? "Test recipient" : input.recipientSource,
+    audience: input.testRecipient ? "Test recipient" : input.audienceLabel || input.recipientSource,
   })
 
   const sent: string[] = []
@@ -947,10 +974,14 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
       checkoutUrl,
       discountCode,
       discountValue: formatDiscountValue(input),
+      sourceEventTitle: sourceEvent?.title || event.title,
+      sourceEventDate: formatMarketingEventDate(sourceEvent?.startsAt || event.startsAt),
+      sourceEventVenue: sourceEvent?.venue || sourceEvent?.address || event.venue || event.address || "Venue to be announced",
     }
     const subject = renderTemplate(input.subject, variables)
     const body = renderTemplate(input.bodyTemplate, variables)
     const preheader = renderTemplate(input.preheader || "", variables)
+    const ctaUrl = renderTemplate(input.ctaUrl || "", variables).trim()
     const html =
       input.emailFormat === "CUSTOM_HTML"
         ? buildCustomMarketingEmailHtml({
@@ -960,7 +991,7 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
         : buildMarketingEmailHtml({
             title: event.title,
             body,
-            targetUrl: checkoutUrl,
+            targetUrl: ctaUrl || checkoutUrl,
             preheader,
             ctaLabel: input.ctaLabel,
           })

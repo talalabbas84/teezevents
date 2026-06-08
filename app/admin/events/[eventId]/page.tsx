@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import {
   ArrowLeft,
   CalendarDays,
+  Clock,
   DoorOpen,
   Download,
   Mail,
@@ -10,6 +11,7 @@ import {
   Settings2,
   Ticket,
   TicketPercent,
+  Users,
   Wallet,
 } from "lucide-react"
 
@@ -109,8 +111,11 @@ export default async function AdminEventOperationsPage({
     )
   }
 
-  const { event, summary, orders, tickets, ticketTiers, vouchers } = data
+  const { event, summary, orders, tickets, audienceEvents, ticketTiers, vouchers } = data
   const dateLabel = formatEventDate(event.startsAt)
+  const uniqueAudiencePool = audienceEvents.reduce((total, audienceEvent) => total + audienceEvent.uniqueRecipients, 0)
+  const unsentPaidOrders = Math.max(summary.paidOrders - summary.deliveredOrders, 0)
+  const averageOrderValueCents = summary.paidOrders > 0 ? Math.round(summary.revenueCents / summary.paidOrders) : 0
 
   return (
     <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
@@ -233,6 +238,34 @@ export default async function AdminEventOperationsPage({
                   <div className="text-3xl font-serif font-bold">{formatCurrency(summary.refundedCents, event.currency)}</div>
                 </CardContent>
               </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <Clock className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Pending Holds</div>
+                  <div className="text-3xl font-serif font-bold">{summary.pendingTickets}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <Users className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Audience Pool</div>
+                  <div className="text-3xl font-serif font-bold">{uniqueAudiencePool}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <Mail className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Ticket Emails Due</div>
+                  <div className="text-3xl font-serif font-bold">{unsentPaidOrders}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <ReceiptText className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Avg Order</div>
+                  <div className="text-3xl font-serif font-bold">{formatCurrency(averageOrderValueCents, event.currency)}</div>
+                </CardContent>
+              </Card>
             </section>
 
             <Card className="border border-border shadow-xl">
@@ -295,6 +328,17 @@ export default async function AdminEventOperationsPage({
                 checkoutEnabled: event.checkoutEnabled,
                 currency: event.currency,
               }}
+              audienceEvents={audienceEvents.map((audienceEvent) => ({
+                id: audienceEvent.id,
+                title: audienceEvent.title,
+                startsAt: audienceEvent.startsAt?.toISOString() || null,
+                venue: audienceEvent.venue,
+                address: audienceEvent.address,
+                paidOrders: audienceEvent.paidOrders,
+                ticketsIssued: audienceEvent.ticketsIssued,
+                uniqueRecipients: audienceEvent.uniqueRecipients,
+                revenueCents: audienceEvent.revenueCents,
+              }))}
             />
           </TabsContent>
 

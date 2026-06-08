@@ -67,6 +67,14 @@ enum MarketingPostStatus {
   FAILED
 }
 
+enum WebsitePageStatus {
+  DRAFT
+  REVIEW
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
 model Event {
   id                 String        @id
   title              String
@@ -243,4 +251,44 @@ model MarketingPost {
   updatedAt   DateTime            @updatedAt
 
   @@index([campaignId, platform, status])
+}
+
+model WebsitePage {
+  id                  String            @id @default(cuid())
+  slug                String            @unique
+  title               String
+  status              WebsitePageStatus @default(DRAFT)
+  seoTitle            String?
+  seoDescription      String?
+  heroEyebrow         String?
+  heroTitle           String
+  heroBody            String?
+  heroImage           String?
+  heroCtaLabel        String?
+  heroCtaHref         String?
+  sections            Json?
+  showInNavigation    Boolean           @default(false)
+  navigationLabel     String?
+  navigationSortOrder Int               @default(100)
+  publishedAt         DateTime?
+  scheduledAt         DateTime?
+  createdByAdminEmail String?
+  updatedByAdminEmail String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  revisions           WebsitePageRevision[]
+
+  @@index([status, publishedAt])
+  @@index([showInNavigation, navigationSortOrder])
+}
+
+model WebsitePageRevision {
+  id          String      @id @default(cuid())
+  pageId      String
+  page        WebsitePage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  snapshot    Json
+  editorEmail String?
+  createdAt   DateTime    @default(now())
+
+  @@index([pageId, createdAt])
 }

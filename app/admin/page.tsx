@@ -1,6 +1,7 @@
 import Link from "next/link"
-import { ArrowRight, CalendarDays, DoorOpen, Download, LogOut, Settings2, Ticket, Wallet } from "lucide-react"
+import { ArrowRight, CalendarDays, DoorOpen, Download, Globe2, LogOut, Settings2, Ticket, Wallet } from "lucide-react"
 
+import { AdminInsightsDashboard } from "@/components/admin-insights-dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -50,6 +51,14 @@ export default async function AdminDashboardPage() {
                 <span className="inline-flex items-center gap-2">
                   <Settings2 size={16} />
                   Event Studio
+                </span>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="border-2 border-primary text-primary">
+              <Link href="/admin/cms">
+                <span className="inline-flex items-center gap-2">
+                  <Globe2 size={16} />
+                  Website CMS
                 </span>
               </Link>
             </Button>
@@ -133,6 +142,32 @@ export default async function AdminDashboardPage() {
                 </CardContent>
               </Card>
             </section>
+
+            <AdminInsightsDashboard
+              summary={{
+                sellThroughRate: dashboard.summary.sellThroughRate,
+                checkInRate: dashboard.summary.checkInRate,
+                averageOrderValueCents: dashboard.summary.averageOrderValueCents,
+                remainingCapacity: dashboard.summary.remainingCapacity,
+                compOrders: dashboard.summary.compOrders,
+                pendingTickets: dashboard.summary.pendingTickets,
+                ticketDeliveryRate: dashboard.summary.ticketDeliveryRate,
+                discountAmountCents: dashboard.summary.discountAmountCents,
+              }}
+              events={dashboard.events}
+              salesTimeline={dashboard.salesTimeline.map((point) => ({
+                label: point.label,
+                orders: point.orders || 0,
+                tickets: point.tickets || 0,
+                revenueCents: point.revenueCents || 0,
+              }))}
+              checkInTimeline={dashboard.checkInTimeline.map((point) => ({
+                label: point.label,
+                checkedInCount: point.checkedInCount || 0,
+              }))}
+              topTicketTiers={dashboard.topTicketTiers}
+              voucherUsage={dashboard.voucherUsage}
+            />
 
             <section className="rounded-3xl border border-border bg-background shadow-xl">
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border p-6">
