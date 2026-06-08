@@ -99,7 +99,7 @@ export default function AboutPage() {
 
         <section className="py-24 lg:py-40 dark-section">
           <div className="container mx-auto px-4 lg:px-8">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-16">
+            {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-16">
               {stats.map((stat, index) => (
                 <div key={index} className={`text-center animate-scale-in stagger-${index + 1}`}>
                   <div
@@ -117,7 +117,7 @@ export default function AboutPage() {
                   </div>
                 </div>
               ))}
-            </div>
+            </div> */}
           </div>
         </section>
       </div>
