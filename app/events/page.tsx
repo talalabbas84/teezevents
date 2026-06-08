@@ -95,7 +95,7 @@ export default async function EventsPage() {
           </div>
         </section>
 
-        <section className="py-24 lg:py-40 dark-section">
+        {/* <section className="py-24 lg:py-40 dark-section">
           <div className="container mx-auto px-4 lg:px-8">
             <div className="mb-20 text-center">
               <h2
@@ -162,7 +162,7 @@ export default async function EventsPage() {
               ))}
             </div>
           </div>
-        </section>
+        </section> */}
       </div>
       <Footer />
     </main>

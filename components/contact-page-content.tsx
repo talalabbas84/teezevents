@@ -87,8 +87,8 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
     {
       icon: Mail,
       title: "Email Us",
-      details: "info@teasevents.ca",
-      link: "mailto:info@teasevents.ca",
+      details: "info@teezevents.ca",
+      link: "mailto:info@teezevents.ca",
     },
     {
       icon: MessageCircle,
