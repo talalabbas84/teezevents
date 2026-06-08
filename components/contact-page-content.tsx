@@ -94,26 +94,26 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
       icon: MessageCircle,
       title: "WhatsApp",
       details: "Chat with us on WhatsApp",
-      link: "https://wa.me/1234567890",
+      link: "https://wa.me/+14169086459",
     },
     {
       icon: Instagram,
       title: "Instagram DM",
       details: "Send us a DM on Instagram",
-      link: "https://instagram.com",
+      link: "https://instagram.com/teez.events",
     },
-    {
-      icon: MapPin,
-      title: "Visit Us",
-      details: "Toronto",
-      link: "https://maps.google.com",
-    },
-    {
-      icon: Clock,
-      title: "Office Hours",
-      details: "Mon-Fri: 9AM-6PM, Sat: 10AM-4PM",
-      link: null,
-    },
+    // {
+    //   icon: MapPin,
+    //   title: "Visit Us",
+    //   details: "Toronto",
+    //   link: "https://maps.google.com",
+    // },
+    // {
+    //   icon: Clock,
+    //   title: "Office Hours",
+    //   details: "Mon-Fri: 9AM-6PM, Sat: 10AM-4PM",
+    //   link: null,
+    // },
   ]
 
   return (
@@ -303,7 +303,7 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                 </form>
               </div>
 
-              <div className="space-y-8">
+              {/* <div className="space-y-8">
                 <div>
                   <h2 className="mb-6 text-3xl font-serif font-bold md:text-4xl">Visit Our Office</h2>
                   <p className="mb-6 text-lg text-muted-foreground">
@@ -345,7 +345,7 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+              </div> */}
             </div>
           </div>
         </section>

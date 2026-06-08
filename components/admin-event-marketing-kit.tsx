@@ -251,7 +251,7 @@ function buildPlatformPlans(event: MarketingEvent, campaign: string, destination
                 ? `mailto:?subject=${encodeURIComponent(event.title)}&body=${encodeURIComponent(text)}`
                 : plan.id === "tiktok"
                   ? "https://www.tiktok.com/upload"
-                  : "https://www.instagram.com/"
+                  : "https://www.instagram.com/teez.events/"
 
     return {
       ...plan,

@@ -85,13 +85,13 @@ export default function AboutPage() {
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div
+                {/* <div
                   className="absolute -bottom-10 -left-10 p-12 rounded-2xl shadow-2xl max-w-sm animate-float"
                   style={{ backgroundColor: "#C57A3A", color: "white" }}
                 >
                   <div className="text-7xl font-bold mb-4">{"10+ Years"}</div>
                   <div className="text-xl opacity-90">{"Creating unforgettable celebrations"}</div>
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
