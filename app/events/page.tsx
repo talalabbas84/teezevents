@@ -1,168 +1,120 @@
-import { Navigation } from "@/components/navigation"
-import { Footer } from "@/components/footer"
 import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
+import { Archive, Calendar, MapPin, Music, Ticket } from "lucide-react"
+
+import { Footer } from "@/components/footer"
+import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, CreditCard, MapPin, Ticket, Users } from "lucide-react"
-import { getEventPrimaryTicketHref, getEventPrimaryTicketLabel, supportsCheckout } from "@/lib/events"
-import { listPublicEvents } from "@/lib/public-events"
+import { Card, CardContent } from "@/components/ui/card"
 
-export default async function EventsPage() {
-  const events = await listPublicEvents()
-  const pastEvents = events.filter((event) => event.category === "Past Event")
-  const upcomingEvents = events.filter((event) => event.category === "Upcoming Event")
+const summerPulseTicketHref = "/checkout/summer-pulse"
 
+const archiveEvents = [
+  {
+    title: "The Roaring 20s Winter Holiday Ball",
+    date: "December 2025",
+    vibe:
+      "A completely sold-out, high-energy take on classic elegance. Dressed-to-the-nines crowd, a packed floor, and a midnight countdown.",
+    href: "/events/roaring-20s",
+    image: "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904276/teez-events/roaring20s/Punta_Cana-134_besxou.jpg",
+  },
+  {
+    title: "The Blossom Party",
+    date: "April 2026",
+    vibe: "Our exclusive, invite-only VVIP gathering. High hospitality, deep curation, and pure insider energy.",
+    href: "/events/blossom",
+    image: "/vibrant-dance-party-with-colorful-lights.jpg",
+  },
+  {
+    title: "The Inaugural Halloween Party",
+    date: "October 2025",
+    vibe:
+      "The legendary night that started it all. Massive turnout, heavy dance floor energy, and the birth of the Teez vision.",
+    href: "/events/halloween-2024",
+    image:
+      "https://res.cloudinary.com/ddue2t3ue/image/upload/v1777904526/teez-events/HAlloween/fa265eb2-2191-4aa1-857a-ec49a564a46f.png",
+  },
+]
+
+export default function EventsPage() {
   return (
     <main className="min-h-screen">
       <Navigation />
       <div className="pt-20">
-        <section className="py-24 lg:py-40" style={{ backgroundColor: "#EADFCB" }}>
+        <section className="py-20 lg:py-28" style={{ backgroundColor: "#EADFCB" }}>
           <div className="container mx-auto px-4 lg:px-8">
-            <div className="mb-20 text-center">
-              <h2 className="text-6xl md:text-7xl font-serif font-bold mb-6 text-gradient animate-fade-in">
-                {"Upcoming Events"}
-              </h2>
+            <div className="mb-10">
+              <div className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">{"NEXT UP"}</div>
+              <h1 className="mt-4 text-5xl font-serif font-bold text-gradient md:text-7xl">{"Summer Pulse"}</h1>
             </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
-              {upcomingEvents.map((event, index) => (
-                <Card
-                  key={event.id}
-                  className={`group overflow-hidden border-3 hover-lift h-full transition-all duration-500 bg-white shadow-xl animate-fade-in-up stagger-${index + 1}`}
-                >
-                  <Link href={`/events/${event.id}`} className="block">
-                    <div className="relative overflow-hidden aspect-[4/3]">
-                      <img
-                        src={event.image || "/placeholder.svg"}
-                        alt={event.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-125 group-hover:rotate-3"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      {event.ticketPrice && (
-                        <div className="absolute left-6 top-6 rounded-full bg-black/65 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
-                          {event.ticketPrice}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                  <CardContent className="flex h-full flex-col p-10">
-                    <Link href={`/events/${event.id}`} className="block">
-                      <h3
-                        className="text-3xl md:text-4xl font-serif font-bold mb-6 group-hover:text-gradient transition-all duration-300"
-                        style={{ color: "#B86A2E" }}
-                      >
-                        {event.title}
-                      </h3>
-                      <div className="space-y-4 mb-6">
-                        <div className="flex items-center gap-4 text-lg" style={{ color: "#2B2B2B" }}>
-                          <Calendar size={20} style={{ color: "#D88C4A" }} />
-                          <span className="font-semibold">{event.shortDate}</span>
-                        </div>
-                        {event.time && (
-                          <div className="flex items-center gap-4 text-lg" style={{ color: "#2B2B2B" }}>
-                            <Clock size={20} style={{ color: "#D88C4A" }} />
-                            <span className="font-semibold">{event.time}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-4 text-lg" style={{ color: "#2B2B2B" }}>
-                          <MapPin size={20} style={{ color: "#D88C4A" }} />
-                          <span className="font-semibold">{event.location}</span>
-                        </div>
-                      </div>
-                      <p className="leading-relaxed text-xl" style={{ color: "#6B4423" }}>
-                        {event.previewDescription}
-                      </p>
-                    </Link>
 
-                    <div className="mt-8 flex flex-wrap gap-3">
-                      <Button size="sm" className="bg-primary text-primary-foreground hover:bg-accent" asChild>
-                        <Link href={`/events/${event.id}`}>{"Event Details"}</Link>
-                      </Button>
-                      <Button size="sm" variant="outline" className="border-2 border-primary text-primary" asChild>
-                        <Link href={getEventPrimaryTicketHref(event)}>
-                          {supportsCheckout(event) ? (
-                            <CreditCard className="mr-2" size={16} />
-                          ) : (
-                            <Ticket className="mr-2" size={16} />
-                          )}
-                          {getEventPrimaryTicketLabel(event)}
-                        </Link>
-                      </Button>
+            <Card className="overflow-hidden border-2 border-primary/20 bg-white shadow-xl">
+              <div className="grid lg:grid-cols-[1fr_1.05fr]">
+                <div className="relative min-h-[360px]">
+                  <img
+                    src="/outdoor-salsa-dancing-party-summer-evening.jpg"
+                    alt="Summer Pulse party"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                </div>
+                <CardContent className="p-8 lg:p-12">
+                  <div className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">{"Featured Event"}</div>
+                  <h2 className="mt-3 text-4xl font-serif font-bold md:text-5xl">{"Summer Pulse"}</h2>
+                  <div className="mt-7 grid gap-4 text-lg text-muted-foreground sm:grid-cols-2">
+                    <div className="flex items-center gap-3">
+                      <Calendar size={20} className="text-primary" />
+                      <span>{"Saturday, August 15, 2026"}</span>
                     </div>
+                    <div className="flex items-center gap-3">
+                      <MapPin size={20} className="text-primary" />
+                      <span>{"Toronto, ON"}</span>
+                    </div>
+                  </div>
+                  <p className="mt-7 text-xl leading-relaxed text-muted-foreground">
+                    {
+                      "The ultimate mid-summer fusion party. Sandwiching a heavy Latin vibe of reggaeton, salsa, and bachata between house, hip-hop, and global Afrobeats."
+                    }
+                  </p>
+                  <Button className="mt-9 bg-primary text-primary-foreground hover:bg-accent" size="lg" asChild>
+                    <Link href={summerPulseTicketHref}>
+                      <Ticket className="mr-2" size={20} />
+                      {"Get Tickets Now"}
+                    </Link>
+                  </Button>
+                </CardContent>
+              </div>
+            </Card>
+          </div>
+        </section>
+
+        <section className="bg-[#1C2431] py-20 text-white lg:py-28">
+          <div className="container mx-auto px-4 lg:px-8">
+            <div className="mb-10 flex items-center gap-3">
+              <Archive className="text-[#D88C4A]" size={26} />
+              <h2 className="text-4xl font-serif font-bold md:text-5xl">{"PAST SEGMENTS (The Archive)"}</h2>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {archiveEvents.map((event) => (
+                <Card key={event.title} className="overflow-hidden border-white/10 bg-white/10 text-white shadow-xl">
+                  <div className="relative aspect-[4/3]">
+                    <img src={event.image} alt={event.title} className="absolute inset-0 h-full w-full object-cover" />
+                  </div>
+                  <CardContent className="p-6">
+                    <div className="text-sm font-semibold uppercase tracking-[0.22em] text-[#D88C4A]">{event.date}</div>
+                    <h3 className="mt-3 text-2xl font-serif font-bold">{event.title}</h3>
+                    <div className="mt-5 flex items-start gap-3 text-white/78">
+                      <Music className="mt-1 shrink-0 text-[#D88C4A]" size={18} />
+                      <p className="leading-relaxed">{event.vibe}</p>
+                    </div>
+                    <Button variant="outline" className="mt-6 border-white/40 bg-transparent text-white hover:bg-white/20" asChild>
+                      <Link href={event.href}>{"View Gallery"}</Link>
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
             </div>
           </div>
         </section>
-
-        {/* <section className="py-24 lg:py-40 dark-section">
-          <div className="container mx-auto px-4 lg:px-8">
-            <div className="mb-20 text-center">
-              <h2
-                className="text-6xl md:text-7xl font-serif font-bold mb-6 animate-fade-in"
-                style={{ color: "#EADFCB" }}
-              >
-                {"Past Events"}
-              </h2>
-              <p className="text-2xl animate-fade-in stagger-1" style={{ color: "#EADFCB" }}>
-                {"Relive the magic of our previous celebrations"}
-              </p>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
-              {pastEvents.map((event, index) => (
-                <Link
-                  key={event.id}
-                  href={`/events/${event.id}`}
-                  className={`group animate-fade-in-up stagger-${index + 1}`}
-                >
-                  <Card className="overflow-hidden border-3 hover-lift h-full transition-all duration-500 glass-dark shadow-2xl">
-                    <div className="relative overflow-hidden aspect-[4/3]">
-                      <img
-                        src={event.image || "/placeholder.svg"}
-                        alt={event.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-125 group-hover:rotate-3"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      <div className="absolute top-6 right-6">
-                        <span
-                          className="inline-block px-5 py-3 text-white text-base font-bold rounded-full shadow-xl"
-                          style={{ backgroundColor: "#C57A3A" }}
-                        >
-                          {"Ended"}
-                        </span>
-                      </div>
-                    </div>
-                    <CardContent className="p-10">
-                      <h3
-                        className="text-3xl md:text-4xl font-serif font-bold mb-6 transition-all duration-300"
-                        style={{ color: "#D88C4A" }}
-                      >
-                        {event.title}
-                      </h3>
-                      <div className="space-y-4 mb-6">
-                        <div className="flex items-center gap-4 text-lg" style={{ color: "#EADFCB" }}>
-                          <Calendar size={20} style={{ color: "#D88C4A" }} />
-                          <span className="font-semibold">{event.shortDate}</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-lg" style={{ color: "#EADFCB" }}>
-                          <MapPin size={20} style={{ color: "#D88C4A" }} />
-                          <span className="font-semibold">{event.location}</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-lg" style={{ color: "#EADFCB" }}>
-                          <Users size={20} style={{ color: "#D88C4A" }} />
-                          <span className="font-semibold">{event.attendees} Attendees</span>
-                        </div>
-                      </div>
-                      <p className="leading-relaxed text-xl" style={{ color: "#EADFCB" }}>
-                        {event.previewDescription}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section> */}
       </div>
       <Footer />
     </main>

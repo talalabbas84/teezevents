@@ -14,15 +14,15 @@ export default function TeamPage() {
               <h2 className="text-4xl md:text-5xl font-serif font-bold mb-6">{"Join Our Team"}</h2>
               <p className="text-xl text-muted-foreground leading-relaxed mb-8">
                 {
-                  "We're always looking for passionate, creative individuals who share our love for creating unforgettable experiences. If you're interested in joining the Teez Events family, we'd love to hear from you."
+                  "We're always looking for passionate, creative individuals who share our love for creating unforgettable experiences. If you're interested in joining the Teez Events Co. family, we'd love to hear from you."
                 }
               </p>
               <a
-                href="mailto:info@teasevents.com"
+                href="mailto:info@teezevents.ca"
                 className="inline-flex items-center gap-2 text-lg font-medium text-primary hover:text-accent transition-colors"
               >
                 <Mail size={20} />
-                {"info@teasevents.com"}
+                {"info@teezevents.ca"}
               </a>
             </div>
           </div>

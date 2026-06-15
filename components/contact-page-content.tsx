@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useEffect, useState } from "react"
-import { Mail, MapPin, Clock, Send, MessageCircle, Instagram } from "lucide-react"
+import { Instagram, Mail, MessageCircle, Send } from "lucide-react"
 
 import { Footer } from "@/components/footer"
 import { Navigation } from "@/components/navigation"
@@ -94,7 +94,7 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
       icon: MessageCircle,
       title: "WhatsApp",
       details: "Chat with us on WhatsApp",
-      link: "https://wa.me/+14169086459",
+      link: "https://wa.me/14169086459",
     },
     {
       icon: Instagram,
@@ -138,7 +138,7 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
 
         <section className="py-16 lg:py-24">
           <div className="container mx-auto px-4 lg:px-8">
-            <div className="mb-16 grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+            <div className="mb-16 grid gap-6 md:grid-cols-3">
               {contactInfo.map((info, index) => (
                 <Card
                   key={index}

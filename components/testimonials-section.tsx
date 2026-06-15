@@ -11,7 +11,7 @@ const testimonials = [
     company: "Tech Solutions Inc.",
     image: "/testimonial-jennifer-martinez.jpg",
     rating: 5,
-    text: "Teez Events transformed our company anniversary into an unforgettable celebration. The live entertainment was a huge hit with our team, and the attention to detail was impeccable. Highly recommend!",
+    text: "Teez Events Co. transformed our company anniversary into an unforgettable celebration. The live entertainment was a huge hit with our team, and the attention to detail was impeccable. Highly recommend!",
   },
   {
     name: "Michael Chen",
@@ -19,7 +19,7 @@ const testimonials = [
     company: "Wedding Reception",
     image: "/testimonial-michael-chen.jpg",
     rating: 5,
-    text: "Our wedding reception was beyond our wildest dreams! The team at Teez Events brought our vision to life with stunning decor, amazing food, and entertainment that kept everyone dancing all night. Thank you for making our special day perfect!",
+    text: "Our wedding reception was beyond our wildest dreams! The team at Teez Events Co. brought our vision to life with stunning decor, amazing food, and entertainment that kept everyone dancing all night. Thank you for making our special day perfect!",
   },
   {
     name: "Sophia Rodriguez",
@@ -27,7 +27,7 @@ const testimonials = [
     company: "Community Arts Center",
     image: "/testimonial-sophia-rodriguez.jpg",
     rating: 5,
-    text: "We've worked with Teez Events on multiple community celebrations, and they never disappoint. Their passion for creating memorable celebrations and expertise in event planning shines through in every detail. True professionals!",
+    text: "We've worked with Teez Events Co. on multiple community celebrations, and they never disappoint. Their passion for creating memorable celebrations and expertise in event planning shines through in every detail. True professionals!",
   },
   {
     name: "David Thompson",
@@ -35,7 +35,7 @@ const testimonials = [
     company: "Thompson & Associates",
     image: "/testimonial-david-thompson.jpg",
     rating: 5,
-    text: "From the initial consultation to the final moment of our corporate gala, Teez Events exceeded our expectations. Professional, creative, and incredibly organized. Our clients were impressed!",
+    text: "From the initial consultation to the final moment of our corporate gala, Teez Events Co. exceeded our expectations. Professional, creative, and incredibly organized. Our clients were impressed!",
   },
   {
     name: "Maria Gonzalez",
@@ -51,7 +51,7 @@ const testimonials = [
     company: "National Retail Group",
     image: "/testimonial-robert-williams.jpg",
     rating: 5,
-    text: "Teez Events handled our year-end celebration for 500+ employees flawlessly. The logistics were complex, but they made it look easy. Outstanding service and truly memorable experience for everyone.",
+    text: "Teez Events Co. handled our year-end celebration for 500+ employees flawlessly. The logistics were complex, but they made it look easy. Outstanding service and truly memorable experience for everyone.",
   },
 ]
 
@@ -80,7 +80,7 @@ export function TestimonialsSection() {
           </div>
           <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4 text-balance">{"What Our Clients Say"}</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {"Don't just take our word for it. Here's what our clients have to say about their Teez Events experience."}
+            {"Don't just take our word for it. Here's what our clients have to say about their Teez Events Co. experience."}
           </p>
         </div>
 

@@ -1,54 +1,11 @@
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
-import Image from "next/image"
 
 export default function AboutPage() {
-  const stats = [
-    { number: "500+", label: "Events Hosted" },
-    { number: "50K+", label: "Happy Guests" },
-    { number: "10+", label: "Years Experience" },
-    { number: "98%", label: "Client Satisfaction" },
-  ]
-
   return (
     <main className="min-h-screen">
       <Navigation />
       <div className="pt-20">
-        <section className="relative py-32 lg:py-48 overflow-hidden dark-section">
-          <div className="container mx-auto px-4 lg:px-8 relative z-10">
-            <div className="max-w-5xl mx-auto text-center">
-              <div className="inline-block mb-10">
-                <div className="relative w-32 h-32">
-                  <Image
-                    src="/images/screenshot-202026-01-10-20at-2012.png"
-                    alt="Teez Events"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-              </div>
-              <h1
-                className="text-7xl md:text-9xl font-serif font-bold mb-10 text-balance animate-scale-in"
-                style={{ color: "#EADFCB" }}
-              >
-                {"About Teez Events"}
-              </h1>
-              <div
-                className="h-1.5 w-40 mx-auto mb-10 rounded-full animate-pulse"
-                style={{ background: "linear-gradient(90deg, #C57A3A, #D88C4A, #B86A2E)" }}
-              />
-              <p
-                className="text-2xl md:text-3xl leading-relaxed animate-fade-in-up stagger-2"
-                style={{ color: "#EADFCB" }}
-              >
-                {
-                  "We're not just event planners – we're experience creators, culture celebrators, and memory makers dedicated to bringing the vibrant spirit of celebration to life."
-                }
-              </p>
-            </div>
-          </div>
-        </section>
-
         <section className="py-24 lg:py-40" style={{ backgroundColor: "#EADFCB" }}>
           <div className="container mx-auto px-4 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-20 items-center">
@@ -57,22 +14,17 @@ export default function AboutPage() {
                 <div className="space-y-8 text-xl leading-relaxed" style={{ color: "#2B2B2B" }}>
                   <p>
                     {
-                      "Founded over a decade ago, Teez Events was born from a simple passion: to share the joy of celebration with our community. What started as intimate gatherings has blossomed into one of the region's premier event management companies."
+                      "Teez Events Co. didn't start in a boardroom. We were founded in October 2025, born directly from the energy and connection of the Latin dance floor."
                     }
                   </p>
                   <p>
                     {
-                      "We specialize in creating immersive experiences that capture energy, warmth, and authenticity. From salsa nights under the stars to elegant corporate galas with signature flair, every event we host is infused with the same dedication to excellence and genuine authenticity."
+                      "What started as a group of us taking dance lessons evolved into hosting a massive Halloween party. The night was a huge success, but the real magic happened that November when we met up to celebrate. We were tossing around ideas, trying to figure out who we were, when someone asked, \"What are we?\" The answer? \"We’re the HOTTEEZ.\" It felt corny at first, prompting an Instagram post captioned with #🔥TEEZ—because it was fire, a nod to the energy we brought to the community. Later, during a late-night WhatsApp brainstorm, that hashtag resurfaced, and the vision clicked: Teez Events Co. Since then, we’ve been throwing events that people actually talk about—from our Roaring 20s Winter Holiday Ball to our exclusive, invite-only Blossom Party for our VVIPs."
                     }
                   </p>
                   <p>
                     {
-                      "Our team brings together diverse talents – event designers, cultural consultants, entertainment coordinators, and hospitality professionals – all united by a shared mission: to create unforgettable moments that bring people together in celebration."
-                    }
-                  </p>
-                  <p>
-                    {
-                      "Our mission is to create transformative event experiences that celebrate community, foster genuine connections, and leave lasting impressions on every guest who walks through our doors."
+                      "We don't do template events or generic corporate fluff. We build packed, high-energy spaces where music, movement, and good vibes happen naturally. Welcome to the party."
                     }
                   </p>
                 </div>
@@ -81,7 +33,7 @@ export default function AboutPage() {
                 <div className="aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl hover-lift">
                   <img
                     src="/team-celebrating-successful-event.jpg"
-                    alt="Teez Events team"
+                    alt="Teez Events Co. team"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -94,30 +46,6 @@ export default function AboutPage() {
                 </div> */}
               </div>
             </div>
-          </div>
-        </section>
-
-        <section className="py-24 lg:py-40 dark-section">
-          <div className="container mx-auto px-4 lg:px-8">
-            {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-16">
-              {stats.map((stat, index) => (
-                <div key={index} className={`text-center animate-scale-in stagger-${index + 1}`}>
-                  <div
-                    className="text-7xl md:text-8xl font-bold mb-6"
-                    style={{
-                      background: "linear-gradient(135deg, #D88C4A, #C57A3A)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                    }}
-                  >
-                    {stat.number}
-                  </div>
-                  <div className="text-2xl font-semibold" style={{ color: "#EADFCB" }}>
-                    {stat.label}
-                  </div>
-                </div>
-              ))}
-            </div> */}
           </div>
         </section>
       </div>

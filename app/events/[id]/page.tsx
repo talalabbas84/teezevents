@@ -38,6 +38,9 @@ import {
 import { getCheckoutSetupIssue, getEventInventorySnapshot } from "@/lib/checkout"
 import { getPublicEventById } from "@/lib/public-events"
 
+const eventPlanningHref =
+  "mailto:info@teezevents.ca?subject=Plan%20an%20event%20with%20Teez%20Events%20Co."
+
 function ActionButton({
   href,
   label,
@@ -605,7 +608,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                       {"Tell us the mood, the crowd, and the moment. We’ll build the flow, visuals, vendors, ticketing, and guest experience around it."}
                     </p>
                     <Button className="mt-5 w-full bg-[#D88C4A] text-[#1C2431] hover:bg-primary" asChild>
-                      <Link href="/contact">{"Plan with TEEZ"}</Link>
+                      <Link href={eventPlanningHref}>{"Plan with TEEZ"}</Link>
                     </Button>
                   </div>
                 </div>

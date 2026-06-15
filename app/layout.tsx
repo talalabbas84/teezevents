@@ -8,9 +8,9 @@ const _montserrat = Montserrat({ subsets: ["latin"] })
 const _cinzel = Cinzel({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Teez Events | Premium Event Experiences",
+  title: "Teez Events Co. | Premium Event Experiences",
   description:
-    "Experience unforgettable events with Teez Events. From themed parties to corporate gatherings, we bring your vision to life.",
+    "Experience unforgettable events with Teez Events Co. From themed parties to signature social nights, we bring your vision to life.",
   generator: "v0.app",
   keywords: ["events", "event planning", "event management", "themed parties", "corporate events"],
   icons: {

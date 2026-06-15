@@ -1,15 +1,20 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
 import { Menu, X } from "lucide-react"
 import Image from "next/image"
+
+const navItems = [
+  { href: "/", label: "Home" },
+  { href: "/about", label: "About Us" },
+  { href: "/events", label: "Events" },
+  { href: "/contact", label: "Contact" },
+]
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
-  const [cmsNavItems, setCmsNavItems] = useState<Array<{ href: string; label: string }>>([])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -18,33 +23,6 @@ export function Navigation() {
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
-
-  useEffect(() => {
-    let mounted = true
-
-    fetch("/api/cms/navigation")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        if (!mounted || !Array.isArray(payload?.pages)) {
-          return
-        }
-
-        setCmsNavItems(payload.pages.slice(0, 6))
-      })
-      .catch(() => undefined)
-
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  const baseNavItems = [
-    { href: "/", label: "Home" },
-    { href: "/about", label: "About Us" },
-    { href: "/events", label: "Events" },
-    { href: "/contact", label: "Contact" },
-  ]
-  const navItems = [...baseNavItems, ...cmsNavItems.filter((item) => !baseNavItems.some((baseItem) => baseItem.href === item.href))]
 
   return (
     <nav
@@ -61,12 +39,12 @@ export function Navigation() {
         <div className="flex items-center justify-between h-20">
           <Link href="/" className="flex items-center gap-3">
             <div className="relative w-14 h-14">
-              <Image src="/images/image.png" alt="Teez Events Logo" fill className="object-contain drop-shadow-lg" />
+              <Image src="/images/image.png" alt="Teez Events Co. Logo" fill className="object-contain drop-shadow-lg" />
             </div>
             <div className="flex flex-col">
               <div className="text-3xl font-serif font-bold text-gradient leading-none tracking-tight">TEEZ</div>
               <div className="text-xs font-sans uppercase tracking-widest font-semibold" style={{ color: "#B86A2E" }}>
-                Events
+                Events Co.
               </div>
             </div>
           </Link>
@@ -87,12 +65,6 @@ export function Navigation() {
                 />
               </Link>
             ))}
-            <Button
-              className="magnetic-button font-bold shadow-xl hover:shadow-2xl text-base px-8 py-6"
-              style={{ backgroundColor: "#C57A3A", color: "white" }}
-            >
-              Book Now
-            </Button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -121,9 +93,6 @@ export function Navigation() {
                   {item.label}
                 </Link>
               ))}
-              <Button className="w-full mt-4 font-bold py-6" style={{ backgroundColor: "#C57A3A", color: "white" }}>
-                Book Now
-              </Button>
             </div>
           </div>
         )}

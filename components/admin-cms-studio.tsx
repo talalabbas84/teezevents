@@ -197,7 +197,7 @@ function starterPage(): CmsFormState {
     status: "DRAFT",
     seoTitle: "",
     seoDescription: "",
-    heroEyebrow: "TEEZ Events",
+    heroEyebrow: "Teez Events Co.",
     heroTitle: "",
     heroBody: "",
     heroImage: "",
@@ -606,7 +606,7 @@ export function AdminCmsStudio({ pages }: { pages: CmsPageView[] }) {
                   id="cms-seo-title"
                   value={form.seoTitle}
                   onChange={(event) => setForm((current) => ({ ...current, seoTitle: event.target.value }))}
-                  placeholder="Teez Events | Private Event Planning Toronto"
+                  placeholder="Teez Events Co. | Private Event Planning Toronto"
                 />
                 <div className="text-xs text-muted-foreground">{`${(form.seoTitle || form.title).length} characters`}</div>
               </div>
@@ -998,7 +998,7 @@ export function AdminCmsStudio({ pages }: { pages: CmsPageView[] }) {
             <div className="overflow-hidden rounded-3xl border border-border bg-background">
               {form.heroImage && <img src={form.heroImage} alt="" className="h-72 w-full object-cover" />}
               <div className="p-6 lg:p-10">
-                <div className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">{form.heroEyebrow || "TEEZ Events"}</div>
+                <div className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">{form.heroEyebrow || "Teez Events Co."}</div>
                 <h3 className="mt-3 text-4xl font-serif font-bold text-balance">{form.heroTitle || "Managed page hero"}</h3>
                 <p className="mt-4 max-w-3xl leading-relaxed text-muted-foreground">{form.heroBody || "Hero body preview."}</p>
                 {form.heroCtaLabel && form.heroCtaHref && (

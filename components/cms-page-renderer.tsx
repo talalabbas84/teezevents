@@ -176,7 +176,7 @@ export function CmsPageRenderer({ page }: CmsPageRendererProps) {
           <div className="container mx-auto px-4 py-16 lg:px-8 lg:py-24">
             <div className="max-w-5xl">
               <div className="text-sm font-semibold uppercase tracking-[0.24em] text-primary">
-                {page.heroEyebrow || "TEEZ Events"}
+                {page.heroEyebrow || "Teez Events Co."}
               </div>
               <h1 className="mt-5 text-5xl font-serif font-bold leading-tight text-balance md:text-7xl">{page.heroTitle}</h1>
               {page.heroBody && <p className="mt-6 max-w-3xl text-xl leading-relaxed text-white/75">{page.heroBody}</p>}

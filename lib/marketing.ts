@@ -878,7 +878,7 @@ function buildMarketingEmailHtml(input: {
       ${buildHiddenPreheader(input.preheader)}
       <div style="max-width: 680px; margin: 0 auto; background: #fffaf2; border: 1px solid rgba(197,122,58,0.22); border-radius: 24px; overflow: hidden;">
         <div style="padding: 32px;">
-          <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #c57a3a;">TEEZ Events</div>
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #c57a3a;">Teez Events Co.</div>
           <h1 style="font-family: Georgia, serif; font-size: 36px; margin: 12px 0 16px;">${escapeHtml(input.title)}</h1>
           <div style="line-height: 1.7; color: #6d5f51; white-space: pre-line;">${escapeHtml(input.body)}</div>
           <p style="margin: 28px 0 0;">

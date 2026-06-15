@@ -1157,7 +1157,7 @@ export function AdminEventEmailCampaignComposer({
                 />
               ) : (
                 <div className="mt-4 rounded-2xl border border-border bg-[#fffaf2] p-5">
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">TEEZ Events</div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Teez Events Co.</div>
                   <div className="mt-3 whitespace-pre-line text-sm leading-6 text-muted-foreground">{previewBody}</div>
                   <div className="mt-5">
                     <span className="inline-flex rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">

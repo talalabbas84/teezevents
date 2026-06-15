@@ -10,18 +10,21 @@ import { roaring20sGallery } from "@/lib/events"
 const slides = [
   {
     image: roaring20sGallery[0],
-    title: "Events people dress up for",
-    subtitle: "Immersive socials, ticketed nights, and private celebrations with a point of view.",
+    title: "Events to Dress Up For",
+    subtitle:
+      "We don't do casual hangouts. From elegant themes to high-energy nights, our crowd shows up and shows out.",
   },
   {
     image: roaring20sGallery[3],
-    title: "Rooms with a real story",
-    subtitle: "From Roaring 20s glamour to intimate invite-only gatherings, every detail has a job.",
+    title: "Rooms with a Vibe",
+    subtitle:
+      "No template setups or generic rooms. Every venue is curated to have its own distinct identity and energy from the moment you walk in.",
   },
   {
-    image: "/professional-event-setup-with-stage-and-decoration.jpg",
-    title: "Production without the chaos",
-    subtitle: "Concept, vendors, guest flow, ticketing, check-in, and day-of execution in one system.",
+    image: "/outdoor-salsa-dancing-party-summer-evening.jpg",
+    title: "The Ultimate Fusion",
+    subtitle:
+      "Born on the Latin dance floor, we blend different crowds and sounds—sandwiching a heavy Latin vibe with global beats to keep the room packed and moving.",
   },
 ]
 
@@ -70,7 +73,7 @@ export function HeroCarousel() {
                 <div className="relative w-24 h-24">
                   <Image
                     src="/images/screenshot-202026-01-10-20at-2012.png"
-                    alt="Teez Events Flame"
+                    alt="Teez Events Co. Flame"
                     fill
                     className="object-contain"
                   />

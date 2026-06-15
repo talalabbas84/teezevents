@@ -55,7 +55,7 @@ function getResendConfig(): ResendEmailConfig | null {
     provider: "resend",
     apiKey,
     fromEmail,
-    fromName: clean(process.env.RESEND_FROM_NAME || process.env.SMTP_FROM_NAME) || "TEEZ Events",
+    fromName: clean(process.env.RESEND_FROM_NAME || process.env.SMTP_FROM_NAME) || "Teez Events Co.",
   }
 }
 
@@ -76,7 +76,7 @@ function getSmtpConfig(): SmtpEmailConfig | null {
     user: clean(process.env.SMTP_USER) || undefined,
     password: clean(process.env.SMTP_PASSWORD) || undefined,
     fromEmail,
-    fromName: clean(process.env.SMTP_FROM_NAME) || "TEEZ Events",
+    fromName: clean(process.env.SMTP_FROM_NAME) || "Teez Events Co.",
   }
 }
 
