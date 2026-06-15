@@ -54,9 +54,9 @@ export async function EventPreviewSection() {
           <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4 text-balance">
             {"Featured Events"}
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          {/* <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             {"Published from the Teez Events Co. admin dashboard and updated live across the website."}
-          </p>
+          </p> */}
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 mb-12">
