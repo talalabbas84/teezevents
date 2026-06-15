@@ -1,6 +1,5 @@
 import "server-only"
 
-import { eventsById } from "@/lib/events"
 import { getPublicTicketUrl, getPublicTicketWalletUrl, getTicketQrCodeDataUrl } from "@/lib/ticket-qr"
 
 type TicketPackOrder = {
@@ -64,7 +63,7 @@ function formatEventTime(order: TicketPackOrder) {
     })
   }
 
-  return eventsById[order.eventId]?.time || null
+  return null
 }
 
 function escapeHtml(value: string) {
@@ -81,13 +80,10 @@ export function getOrderTicketPackFilename(orderNumber: string) {
 }
 
 export async function renderOrderTicketPackHtml(order: TicketPackOrder) {
-  const event = eventsById[order.eventId]
   const eventTime = formatEventTime(order)
   const eventDate = formatEventDate(order)
-  const venue = event
-    ? event.venue?.trim() || "Location shared after confirmation"
-    : order.event.venue?.trim() || "Location shared after confirmation"
-  const location = event ? event.location : order.event.address || ""
+  const venue = order.event.venue?.trim() || "Location shared after confirmation"
+  const location = order.event.address || ""
   const walletUrl = order.accessToken ? getPublicTicketWalletUrl(order.accessToken) : null
   const ticketCards = await Promise.all(
     order.tickets.map(async (ticket) => {

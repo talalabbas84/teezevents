@@ -1,6 +1,5 @@
 import "server-only"
 
-import { eventsById } from "@/lib/events"
 import { getPrismaClient } from "@/lib/prisma"
 
 type ManagedEventRecord = {
@@ -551,7 +550,7 @@ export async function deleteAdminEvent(eventId: string) {
     throw new Error("Event not found.")
   }
 
-  const mustArchive = Boolean(eventsById[normalizedId]) || event._count.orders > 0 || event._count.tickets > 0
+  const mustArchive = event._count.orders > 0 || event._count.tickets > 0
 
   if (mustArchive) {
     const archived = await prisma.event.update({

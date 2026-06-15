@@ -43,15 +43,19 @@ function TicketButton({
 export async function EventPreviewSection() {
   const featuredUpcomingEvents = await getFeaturedPublicEvents()
 
+  if (!featuredUpcomingEvents.length) {
+    return null
+  }
+
   return (
     <section className="py-20 lg:py-32 bg-muted/30">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4 text-balance">
-            {"Get Your Tickets for the Next Events"}
+            {"Featured Events"}
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {"Reserve your spot early and head straight to checkout when tickets are live."}
+            {"Published from the Teez Events Co. admin dashboard and updated live across the website."}
           </p>
         </div>
 

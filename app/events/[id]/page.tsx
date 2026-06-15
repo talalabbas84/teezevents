@@ -30,7 +30,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import {
-  allEvents,
   getEventPrimaryTicketHref,
   getEventPrimaryTicketLabel,
   supportsCheckout,
@@ -40,6 +39,8 @@ import { getPublicEventById } from "@/lib/public-events"
 
 const eventPlanningHref =
   "mailto:info@teezevents.ca?subject=Plan%20an%20event%20with%20Teez%20Events%20Co."
+
+export const dynamic = "force-dynamic"
 
 function ActionButton({
   href,
@@ -159,10 +160,6 @@ function GuestCluster({ going }: { going: number }) {
       <div className="ml-3 text-sm text-muted-foreground">{`${going} going so far`}</div>
     </div>
   )
-}
-
-export function generateStaticParams() {
-  return allEvents.map((event) => ({ id: event.id }))
 }
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {

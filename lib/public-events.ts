@@ -3,8 +3,6 @@ import "server-only"
 import { unstable_noStore as noStore } from "next/cache"
 
 import {
-  allEvents,
-  eventsById,
   type EventData,
   type EventSection,
   type EventType,
@@ -149,87 +147,60 @@ function parseSections(value: unknown): EventSection[] {
     .slice(0, 12)
 }
 
-function mergeEventRecord(
-  catalogEvent: EventData | null,
-  dbEvent: DbEventRecord | null,
+function mapDbEventRecord(
+  dbEvent: DbEventRecord,
   spotsLeft?: number,
   options: { includeInactive?: boolean } = {},
 ): EventData | null {
-  if (!catalogEvent && !dbEvent) {
+  if (!dbEvent.isActive && !options.includeInactive) {
     return null
   }
 
-  if (dbEvent && !dbEvent.isActive && !options.includeInactive) {
-    return null
-  }
-
-  if (!dbEvent && catalogEvent) {
-    return {
-      ...catalogEvent,
-      spotsLeft: spotsLeft ?? catalogEvent.spotsLeft,
-    }
-  }
-
-  if (!dbEvent) {
-    return catalogEvent
-  }
-
-  const base = catalogEvent
-  const location = base?.location ?? dbEvent.address ?? "Toronto"
-  const venue = base?.venue ?? dbEvent.venue ?? undefined
+  const location = dbEvent.address ?? dbEvent.venue ?? "Toronto"
+  const venue = dbEvent.venue ?? undefined
   const startsAt = dbEvent.startsAt
-  const capacity = dbEvent.capacity || base?.capacity || 0
-  const ticketPriceCents = dbEvent.ticketPriceCents ?? base?.ticketPriceCents ?? 0
-  const currency = (dbEvent.currency || base?.currency || "cad").toLowerCase()
+  const capacity = dbEvent.capacity || 0
+  const ticketPriceCents = dbEvent.ticketPriceCents ?? 0
+  const currency = (dbEvent.currency || "cad").toLowerCase()
   const dbGallery = parseGallery(dbEvent.gallery)
   const dbSections = parseSections(dbEvent.contentSections)
 
   return {
     id: dbEvent.id,
-    title: dbEvent.title || base?.title || "Untitled Event",
+    title: dbEvent.title || "Untitled Event",
     date: formatLongDate(startsAt),
     shortDate: formatShortDate(startsAt),
-    startsAtIso: startsAt?.toISOString() || base?.startsAtIso,
-    time: formatTime(startsAt) || base?.time,
+    startsAtIso: startsAt?.toISOString(),
+    time: formatTime(startsAt),
     venue,
     location,
-    address: base?.address ?? dbEvent.address ?? location,
-    hostedBy: dbEvent.hostedBy || base?.hostedBy,
-    attendees: base?.attendees || `${capacity}`,
-    image: dbEvent.image || base?.image || "/placeholder.svg",
+    address: dbEvent.address ?? location,
+    hostedBy: dbEvent.hostedBy || undefined,
+    attendees: `${capacity}`,
+    image: dbEvent.image || "/placeholder.svg",
     previewDescription:
       dbEvent.previewDescription ||
-      base?.previewDescription ||
       "A live TEEZ event with digital tickets, admin check-in, and real-time capacity tracking.",
     description:
       dbEvent.description ||
-      base?.description ||
       "Event details will be published here soon. Tickets and capacity are already managed live in the TEEZ dashboard.",
     category: mapCategory(dbEvent.category),
     type: mapEventType(dbEvent.eventKind),
-    highlights: base?.highlights?.length ? base.highlights : buildFallbackHighlights(dbEvent),
-    gallery: dbGallery.length ? dbGallery : base?.gallery?.length ? base.gallery : [dbEvent.image || "/placeholder.svg"],
-    videoUrl: base?.videoUrl || null,
-    ticketsUrl: base?.ticketsUrl || `/contact?event=${dbEvent.id}&intent=rsvp`,
+    highlights: buildFallbackHighlights(dbEvent),
+    gallery: dbGallery.length ? dbGallery : [dbEvent.image || "/placeholder.svg"],
+    videoUrl: null,
+    ticketsUrl: `/contact?event=${dbEvent.id}&intent=rsvp`,
     ticketPrice: formatPrice(ticketPriceCents, currency),
     ticketPriceCents,
     currency,
-    maxTicketsPerOrder: Math.max(1, Math.min(dbEvent.maxTicketsPerOrder || base?.maxTicketsPerOrder || capacity, capacity)),
+    maxTicketsPerOrder: Math.max(1, Math.min(dbEvent.maxTicketsPerOrder || capacity, capacity)),
     checkoutEnabled: dbEvent.checkoutEnabled,
     ticketNote:
       dbEvent.ticketNote ||
-      base?.ticketNote ||
       "Checkout and inventory are managed live. Ticket holds expire automatically if payment is not completed.",
-    spotsLeft: spotsLeft ?? base?.spotsLeft ?? capacity,
+    spotsLeft: spotsLeft ?? capacity,
     capacity,
-    sections: dbSections.length ? dbSections : base?.sections,
-    guestStats: base?.guestStats,
-    timeline: base?.timeline,
-    perks: base?.perks,
-    faqs: base?.faqs,
-    policies: base?.policies,
-    shareText: base?.shareText,
-    kindNote: base?.kindNote,
+    sections: dbSections,
     featured: dbEvent.featured,
   }
 }
@@ -303,40 +274,24 @@ export async function listPublicEvents() {
     })) as DbEventRecord[]
     const dbEventIds = dbEvents.filter((event) => event.isActive).map((event) => event.id)
     const inventoryMap = await getInventoryMap(dbEventIds)
-    const dbEventsById = new Map(dbEvents.map((event) => [event.id, event]))
-    const merged: EventData[] = []
-    const seen = new Set<string>()
-
-    allEvents.forEach((catalogEvent) => {
-      const dbEvent = dbEventsById.get(catalogEvent.id) || null
-      const reserved = dbEvent ? inventoryMap.get(catalogEvent.id) || 0 : 0
-      const capacity = dbEvent?.capacity ?? catalogEvent.capacity
-      const available = typeof capacity === "number" ? Math.max(capacity - reserved, 0) : catalogEvent.spotsLeft
-      const mergedEvent = mergeEventRecord(catalogEvent, dbEvent, available)
-
-      if (mergedEvent) {
-        merged.push(mergedEvent)
-      }
-
-      seen.add(catalogEvent.id)
-    })
+    const publicEvents: EventData[] = []
 
     dbEvents.forEach((dbEvent) => {
-      if (seen.has(dbEvent.id) || !dbEvent.isActive) {
+      if (!dbEvent.isActive) {
         return
       }
 
       const reserved = inventoryMap.get(dbEvent.id) || 0
-      const mergedEvent = mergeEventRecord(null, dbEvent, Math.max(dbEvent.capacity - reserved, 0))
+      const publicEvent = mapDbEventRecord(dbEvent, Math.max(dbEvent.capacity - reserved, 0))
 
-      if (mergedEvent) {
-        merged.push(mergedEvent)
+      if (publicEvent) {
+        publicEvents.push(publicEvent)
       }
     })
 
-    return sortEvents(merged)
+    return sortEvents(publicEvents)
   } catch {
-    return sortEvents(allEvents)
+    return []
   }
 }
 
@@ -348,8 +303,6 @@ export async function getFeaturedPublicEvents() {
 export async function getPublicEventById(eventId: string) {
   noStore()
 
-  const catalogEvent = eventsById[eventId] || null
-
   try {
     const prisma = getPrismaClient()
     const dbEvent = (await prisma.event.findUnique({
@@ -359,7 +312,7 @@ export async function getPublicEventById(eventId: string) {
     })) as DbEventRecord | null
 
     if (!dbEvent) {
-      return catalogEvent
+      return null
     }
 
     if (!dbEvent.isActive) {
@@ -368,16 +321,14 @@ export async function getPublicEventById(eventId: string) {
 
     const inventoryMap = await getInventoryMap([eventId])
     const reserved = inventoryMap.get(eventId) || 0
-    return mergeEventRecord(catalogEvent, dbEvent, Math.max(dbEvent.capacity - reserved, 0))
+    return mapDbEventRecord(dbEvent, Math.max(dbEvent.capacity - reserved, 0))
   } catch {
-    return catalogEvent
+    return null
   }
 }
 
 export async function getCheckoutEventById(eventId: string) {
   noStore()
-
-  const catalogEvent = eventsById[eventId] || null
 
   try {
     const prisma = getPrismaClient()
@@ -388,15 +339,15 @@ export async function getCheckoutEventById(eventId: string) {
     })) as DbEventRecord | null
 
     if (!dbEvent) {
-      return catalogEvent
+      return null
     }
 
     const inventoryMap = await getInventoryMap([eventId])
     const reserved = inventoryMap.get(eventId) || 0
-    return mergeEventRecord(catalogEvent, dbEvent, Math.max(dbEvent.capacity - reserved, 0), {
+    return mapDbEventRecord(dbEvent, Math.max(dbEvent.capacity - reserved, 0), {
       includeInactive: true,
     })
   } catch {
-    return catalogEvent
+    return null
   }
 }

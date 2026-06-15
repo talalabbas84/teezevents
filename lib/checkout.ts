@@ -2,7 +2,7 @@ import "server-only"
 
 import type { Prisma } from "@prisma/client"
 
-import { eventsById, supportsCheckout, type EventData } from "@/lib/events"
+import { supportsCheckout } from "@/lib/events"
 import { getCheckoutEventById } from "@/lib/public-events"
 import { getPrismaClient } from "@/lib/prisma"
 import { getStripeClient } from "@/lib/stripe-server"
@@ -317,44 +317,6 @@ function buildTicketCode(orderNumber: string, ticketIndex: number) {
   const compactOrder = orderNumber.replace(/[^A-Z0-9]/g, "").slice(-8)
 
   return `TKT-${compactOrder}-${String(ticketIndex).padStart(2, "0")}-${suffix}`
-}
-
-function buildDbEventData(event: EventData): Omit<DbEventRecord, "createdAt" | "updatedAt"> {
-  if (!supportsCheckout(event) || !event.ticketPriceCents || !event.currency || !event.capacity) {
-    throw new Error("This event is not available for checkout.")
-  }
-
-  const category = event.category === "Past Event" ? "PAST" : "UPCOMING"
-  const eventKind =
-    event.type === "themed"
-      ? "THEMED"
-      : event.type === "signature"
-        ? "SIGNATURE"
-        : event.type === "corporate"
-          ? "CORPORATE"
-          : "SOCIAL"
-
-  return {
-    id: event.id,
-    title: event.title,
-    startsAt: event.startsAtIso ? new Date(event.startsAtIso) : null,
-    venue: event.venue || null,
-    address: event.address || event.location,
-    hostedBy: event.hostedBy || null,
-    image: event.image || null,
-    previewDescription: event.previewDescription || null,
-    description: event.description || null,
-    category,
-    eventKind,
-    currency: event.currency.toLowerCase(),
-    ticketPriceCents: event.ticketPriceCents,
-    capacity: event.capacity,
-    checkoutEnabled: Boolean(event.checkoutEnabled),
-    maxTicketsPerOrder: resolveMaxTicketsPerOrder(event.maxTicketsPerOrder, event.capacity),
-    ticketNote: event.ticketNote || null,
-    featured: Boolean(event.featured),
-    isActive: true,
-  }
 }
 
 function resolveMaxTicketsPerOrder(maxTicketsPerOrder: number | null | undefined, capacity: number) {
@@ -679,17 +641,7 @@ export async function syncCheckoutEventRecord(eventId: string) {
     return existing
   }
 
-  const catalogEvent = eventsById[eventId]
-
-  if (!catalogEvent) {
-    throw new Error("This event is not available for checkout.")
-  }
-
-  const data = buildDbEventData(catalogEvent)
-
-  return (await prisma.event.create({
-    data,
-  })) as DbEventRecord
+  throw new Error("This event is not available for checkout.")
 }
 
 export async function getEventInventorySnapshot(eventId: string) {
@@ -886,9 +838,9 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
 
   const createdOrder = await prisma.$transaction(
     async (tx): Promise<CreatedOrder> => {
-      const event = (await tx.event.upsert({
+      const event = (await tx.event.update({
         where: { id: checkoutEvent.id },
-        update: {
+        data: {
           title: checkoutEvent.title,
           startsAt: checkoutEvent.startsAtIso ? new Date(checkoutEvent.startsAtIso) : null,
           venue: checkoutEvent.venue || null,
@@ -914,7 +866,6 @@ export async function createStripeCheckoutForOrder(input: CheckoutRequest) {
           ticketNote: checkoutEvent.ticketNote || null,
           featured: Boolean(checkoutEvent.featured),
         },
-        create: buildDbEventData(checkoutEvent),
       })) as DbEventRecord
 
       const activeReservations = (await tx.ticketOrder.aggregate({
@@ -1195,9 +1146,9 @@ export async function createComplimentaryOrder(input: ComplimentaryOrderRequest)
   const checkoutEventTicketPriceCents = checkoutEvent.ticketPriceCents || 0
 
   return prisma.$transaction(async (tx) => {
-    const event = (await tx.event.upsert({
+    const event = (await tx.event.update({
       where: { id: checkoutEvent.id },
-      update: {
+      data: {
         title: checkoutEvent.title,
         startsAt: checkoutEvent.startsAtIso ? new Date(checkoutEvent.startsAtIso) : null,
         venue: checkoutEvent.venue || null,
@@ -1223,7 +1174,6 @@ export async function createComplimentaryOrder(input: ComplimentaryOrderRequest)
         ticketNote: checkoutEvent.ticketNote || null,
         featured: Boolean(checkoutEvent.featured),
       },
-      create: buildDbEventData(checkoutEvent),
     })) as DbEventRecord
 
     const activeReservations = (await tx.ticketOrder.aggregate({

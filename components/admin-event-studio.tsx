@@ -688,6 +688,66 @@ function EventEditorCard({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="rounded-2xl border border-primary/20 bg-primary/10 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+                  Publishing & Placement
+                </div>
+                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                  Show publicly publishes this event to the website. Featured controls the homepage and events page
+                  placement. Checkout enabled sends ticket buttons into the checkout flow.
+                </p>
+              </div>
+              <div className="rounded-full border border-primary/25 bg-background px-4 py-2 text-sm font-semibold text-primary">
+                {`${form.isActive ? "Public" : "Hidden"}${form.featured ? " - Featured" : ""}`}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              {[
+                {
+                  id: `${mode}-active`,
+                  label: "Show publicly",
+                  helper: "Adds the event to public event pages.",
+                  checked: form.isActive,
+                  onCheckedChange: (checked: boolean) => setForm((current) => ({ ...current, isActive: checked })),
+                },
+                {
+                  id: `${mode}-featured`,
+                  label: "Feature on website",
+                  helper: "Prioritizes this event in featured placements.",
+                  checked: form.featured,
+                  onCheckedChange: (checked: boolean) => setForm((current) => ({ ...current, featured: checked })),
+                },
+                {
+                  id: `${mode}-checkout-enabled`,
+                  label: "Checkout enabled",
+                  helper: "Uses live ticket inventory and payment checkout.",
+                  checked: form.checkoutEnabled,
+                  onCheckedChange: (checked: boolean) => setForm((current) => ({ ...current, checkoutEnabled: checked })),
+                },
+              ].map((toggle) => (
+                <label
+                  key={toggle.id}
+                  htmlFor={toggle.id}
+                  className="flex min-h-[116px] flex-col justify-between rounded-2xl border border-border bg-background/75 p-4"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sm font-semibold">{toggle.label}</span>
+                    <Switch
+                      id={toggle.id}
+                      checked={toggle.checked}
+                      onCheckedChange={toggle.onCheckedChange}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <span className="mt-3 text-sm leading-relaxed text-muted-foreground">{toggle.helper}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor={`${mode}-event-id`}>Event ID</Label>
@@ -1593,47 +1653,6 @@ function EventEditorCard({
             )}
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              {
-                id: `${mode}-checkout-enabled`,
-                label: "Checkout enabled",
-                checked: form.checkoutEnabled,
-                onCheckedChange: (checked: boolean) => setForm((current) => ({ ...current, checkoutEnabled: checked })),
-              },
-              {
-                id: `${mode}-featured`,
-                label: "Featured event",
-                checked: form.featured,
-                onCheckedChange: (checked: boolean) => setForm((current) => ({ ...current, featured: checked })),
-              },
-              {
-                id: `${mode}-active`,
-                label: "Show publicly",
-                checked: form.isActive,
-                onCheckedChange: (checked: boolean) => setForm((current) => ({ ...current, isActive: checked })),
-              },
-            ].map((toggle) => (
-              <label
-                key={toggle.id}
-                htmlFor={toggle.id}
-                className="flex items-center justify-between rounded-2xl border border-border bg-muted/20 px-4 py-3"
-              >
-                <span className="text-sm font-medium">{toggle.label}</span>
-                <Switch
-                  id={toggle.id}
-                  checked={toggle.checked}
-                  onCheckedChange={toggle.onCheckedChange}
-                  disabled={isSubmitting}
-                />
-              </label>
-            ))}
-
-            <div className="rounded-2xl border border-primary/15 bg-primary/10 px-4 py-3 text-sm text-muted-foreground">
-              Turn off public visibility for test events. Hidden managed events stay out of public event pages, but direct checkout links still work for internal testing.
-            </div>
-          </div>
-
           {error && <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
           {status && <div className="rounded-2xl border border-primary/15 bg-primary/10 p-4 text-sm text-primary">{status}</div>}
 
@@ -1698,7 +1717,9 @@ export function AdminEventStudio({ events }: { events: AdminManagedEventView[] }
                 <option value={createEventId}>Create a new event</option>
                 {events.map((event) => (
                   <option key={event.id} value={event.id}>
-                    {`${event.title} - ${formatStudioDate(event.startsAt)} - ${event.isActive ? "Public" : "Hidden"}`}
+                    {`${event.title} - ${formatStudioDate(event.startsAt)} - ${event.isActive ? "Public" : "Hidden"}${
+                      event.featured ? " - Featured" : ""
+                    }`}
                   </option>
                 ))}
               </select>

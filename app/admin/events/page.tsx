@@ -17,7 +17,9 @@ export default async function AdminEventsPage() {
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">TEEZ Admin</div>
             <h1 className="mt-2 text-5xl font-serif font-bold text-balance">Event Studio</h1>
-            <p className="mt-3 max-w-3xl text-lg text-muted-foreground">Choose one event, edit it, then save.</p>
+            <p className="mt-3 max-w-3xl text-lg text-muted-foreground">
+              Create events, publish them to the website, mark featured placements, and manage checkout from one place.
+            </p>
           </div>
 
           <Button asChild variant="outline" className="border-2 border-primary text-primary">

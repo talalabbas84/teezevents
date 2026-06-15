@@ -2,7 +2,6 @@ import "server-only"
 
 import { StandardFonts, rgb, PDFDocument } from "pdf-lib"
 
-import { eventsById } from "@/lib/events"
 import { getPublicTicketUrl, getPublicTicketWalletUrl, getTicketQrCodeDataUrl } from "@/lib/ticket-qr"
 
 type TicketPdfOrder = {
@@ -79,7 +78,7 @@ function formatEventTime(order: TicketPdfOrder) {
     })
   }
 
-  return eventsById[order.eventId]?.time || null
+  return null
 }
 
 function dataUrlToBytes(dataUrl: string) {
@@ -174,13 +173,10 @@ export async function renderOrderTicketPackPdf(order: TicketPdfOrder) {
   const bodyFont = await pdf.embedFont(StandardFonts.Helvetica)
   const bodyBold = await pdf.embedFont(StandardFonts.HelveticaBold)
   const walletUrl = order.accessToken ? getPublicTicketWalletUrl(order.accessToken) : null
-  const event = eventsById[order.eventId]
   const eventDate = formatEventDate(order)
   const eventTime = formatEventTime(order) || "See event details"
-  const venue = event
-    ? event.venue?.trim() || "Location shared after confirmation"
-    : order.event.venue?.trim() || "Location shared after confirmation"
-  const location = event ? event.location : order.event.address || "Toronto"
+  const venue = order.event.venue?.trim() || "Location shared after confirmation"
+  const location = order.event.address || "Toronto"
 
   const summaryPage = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT])
   summaryPage.drawRectangle({
