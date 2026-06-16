@@ -65,6 +65,42 @@ type SendTemplatedMarketingEmailInput = {
   baseUrl: string
 }
 
+type MarketingEmailRecipient = {
+  name: string
+  email: string
+  discountCount?: number
+}
+
+type MarketingEmailEventContext = {
+  event: {
+    id: string
+    title: string
+    startsAt: Date | null
+    venue: string | null
+    address: string | null
+    checkoutEnabled?: boolean
+  }
+  sourceEvent: {
+    id: string
+    title: string
+    startsAt: Date | null
+    venue: string | null
+    address: string | null
+  } | null
+  eventUrl: string
+  baseCheckoutUrl: string
+}
+
+type RenderedMarketingEmail = {
+  subject: string
+  body: string
+  html: string
+  text: string
+  targetUrl: string
+  discountCode: string
+  discountCodes: string[]
+}
+
 type DirectPublishInput = {
   platform: MarketingPlatformKey
   caption: string
@@ -82,10 +118,12 @@ function getMarketingPrismaClient() {
 
   if (
     typeof prisma.marketingCampaign?.create !== "function" ||
-    typeof prisma.marketingPost?.create !== "function"
+    typeof prisma.marketingPost?.create !== "function" ||
+    typeof prisma.marketingEmailCampaignDetail?.create !== "function" ||
+    typeof prisma.marketingEmailDelivery?.create !== "function"
   ) {
     throw new Error(
-      "Marketing models are not available in the running Prisma Client. Run pnpm exec prisma generate and restart the dev server.",
+      "Marketing email tracking models are not available in the running Prisma Client. Run pnpm exec prisma generate and restart the dev server.",
     )
   }
 
@@ -314,6 +352,153 @@ async function recordMarketingPost(input: {
       externalId: input.externalId || null,
       externalUrl: input.externalUrl || null,
       errorMessage: input.errorMessage || null,
+    },
+  })
+}
+
+function getAttachmentNames(attachments: MarketingEmailAttachment[] | undefined) {
+  if (!attachments?.length) {
+    return undefined
+  }
+
+  return attachments.map((attachment) => ({
+    filename: attachment.filename,
+    contentType: attachment.contentType || "application/octet-stream",
+    size: attachment.size || 0,
+  }))
+}
+
+async function recordEmailCampaignDetail(input: {
+  campaignId: string
+  data: SendTemplatedMarketingEmailInput
+}) {
+  const prisma = getMarketingPrismaClient()
+  const expiresAt = input.data.expiresAt ? new Date(input.data.expiresAt) : null
+
+  return prisma.marketingEmailCampaignDetail.create({
+    data: {
+      campaignId: input.campaignId,
+      eventId: input.data.eventId,
+      sourceEventId: input.data.sourceEventId || null,
+      recipientSource: input.data.recipientSource,
+      audienceLabel: input.data.audienceLabel || null,
+      testRecipient: input.data.testRecipient || null,
+      subject: input.data.subject,
+      preheader: input.data.preheader || null,
+      replyTo: input.data.replyTo || null,
+      ctaLabel: input.data.ctaLabel || null,
+      ctaUrl: input.data.ctaUrl || null,
+      emailFormat: input.data.emailFormat || "BRANDED",
+      bodyTemplate: input.data.bodyTemplate,
+      excludeCurrentEventGuests: Boolean(input.data.excludeCurrentEventGuests),
+      includeDiscountCodes: input.data.includeDiscountCodes,
+      codePrefix: input.data.codePrefix || null,
+      discountType: input.data.includeDiscountCodes ? input.data.discountType || "PERCENT" : null,
+      amountValue: typeof input.data.amountValue === "number" ? input.data.amountValue : null,
+      expiresAt: expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt : null,
+      baseUrl: input.data.baseUrl || null,
+      attachmentNames: getAttachmentNames(input.data.attachments),
+    },
+  })
+}
+
+function getProviderMessageId(result: unknown) {
+  if (!result || typeof result !== "object") {
+    return null
+  }
+
+  const payload = result as { id?: unknown; messageId?: unknown; message?: { id?: unknown } }
+  const value = payload.id || payload.messageId || payload.message?.id
+
+  return typeof value === "string" ? value : null
+}
+
+async function recordEmailDelivery(input: {
+  campaignId: string
+  eventId: string
+  recipient: MarketingEmailRecipient
+  rendered: RenderedMarketingEmail
+  status: "PENDING" | "SENT" | "FAILED"
+  errorMessage?: string | null
+  providerMessageId?: string | null
+}) {
+  const prisma = getMarketingPrismaClient()
+  const attemptedAt = input.status === "PENDING" ? null : new Date()
+
+  return prisma.marketingEmailDelivery.create({
+    data: {
+      campaignId: input.campaignId,
+      eventId: input.eventId,
+      recipientEmail: input.recipient.email,
+      recipientName: input.recipient.name || null,
+      subject: input.rendered.subject,
+      targetUrl: input.rendered.targetUrl,
+      discountCode: input.rendered.discountCode || null,
+      discountCodes: input.rendered.discountCodes.length > 0 ? input.rendered.discountCodes : undefined,
+      status: input.status,
+      attemptCount: input.status === "PENDING" ? 0 : 1,
+      lastAttemptAt: attemptedAt,
+      sentAt: input.status === "SENT" ? attemptedAt : null,
+      errorMessage: input.errorMessage || null,
+      providerMessageId: input.providerMessageId || null,
+    },
+  })
+}
+
+async function updateEmailDeliveryAttempt(input: {
+  deliveryId: string
+  rendered: RenderedMarketingEmail
+  status: "SENT" | "FAILED"
+  errorMessage?: string | null
+  providerMessageId?: string | null
+}) {
+  const prisma = getMarketingPrismaClient()
+  const attemptedAt = new Date()
+
+  return prisma.marketingEmailDelivery.update({
+    where: {
+      id: input.deliveryId,
+    },
+    data: {
+      subject: input.rendered.subject,
+      targetUrl: input.rendered.targetUrl,
+      discountCode: input.rendered.discountCode || null,
+      discountCodes: input.rendered.discountCodes.length > 0 ? input.rendered.discountCodes : undefined,
+      status: input.status,
+      attemptCount: {
+        increment: 1,
+      },
+      lastAttemptAt: attemptedAt,
+      sentAt: input.status === "SENT" ? attemptedAt : null,
+      errorMessage: input.errorMessage || null,
+      providerMessageId: input.providerMessageId || null,
+    },
+  })
+}
+
+async function attachDeliveriesToPost(campaignId: string, postId: string) {
+  const prisma = getMarketingPrismaClient()
+
+  await prisma.marketingEmailDelivery.updateMany({
+    where: {
+      campaignId,
+      postId: null,
+    },
+    data: {
+      postId,
+    },
+  })
+}
+
+async function updateCampaignStatusFromFailures(campaignId: string, failedCount: number) {
+  const prisma = getMarketingPrismaClient()
+
+  await prisma.marketingCampaign.update({
+    where: {
+      id: campaignId,
+    },
+    data: {
+      status: failedCount > 0 ? "ACTIVE" : "COMPLETED",
     },
   })
 }
@@ -666,6 +851,7 @@ export async function getEventMarketingRecipients(eventId: string) {
       select: {
         customerName: true,
         customerEmail: true,
+        quantity: true,
       },
     }),
     prisma.ticket.findMany({
@@ -678,23 +864,60 @@ export async function getEventMarketingRecipients(eventId: string) {
       select: {
         holderName: true,
         holderEmail: true,
+        order: {
+          select: {
+            customerEmail: true,
+          },
+        },
       },
     }),
   ])
 
-  const recipients = new Map<string, { name: string; email: string }>()
+  const recipients = new Map<string, MarketingEmailRecipient>()
+
+  function addRecipient(input: { name: string; email: string; discountCount: number }) {
+    const email = normalizeEmail(input.email)
+
+    if (!email) {
+      return
+    }
+
+    const existing = recipients.get(email)
+
+    if (existing) {
+      recipients.set(email, {
+        ...existing,
+        name: existing.name || input.name,
+        discountCount: Math.max(1, existing.discountCount || 1) + Math.max(1, input.discountCount),
+      })
+      return
+    }
+
+    recipients.set(email, {
+      name: input.name,
+      email,
+      discountCount: Math.max(1, input.discountCount),
+    })
+  }
 
   orders.forEach((order) => {
-    const email = order.customerEmail.trim().toLowerCase()
-    if (email) {
-      recipients.set(email, { name: order.customerName, email })
-    }
+    addRecipient({
+      name: order.customerName,
+      email: order.customerEmail,
+      discountCount: order.quantity,
+    })
   })
 
   tickets.forEach((ticket) => {
-    const email = ticket.holderEmail.trim().toLowerCase()
-    if (email && !recipients.has(email)) {
-      recipients.set(email, { name: ticket.holderName, email })
+    const holderEmail = normalizeEmail(ticket.holderEmail)
+    const buyerEmail = normalizeEmail(ticket.order.customerEmail)
+
+    if (holderEmail && holderEmail !== buyerEmail && !recipients.has(holderEmail)) {
+      addRecipient({
+        name: ticket.holderName,
+        email: holderEmail,
+        discountCount: 1,
+      })
     }
   })
 
@@ -707,11 +930,12 @@ async function getTemplatedEmailRecipients(input: SendTemplatedMarketingEmailInp
       {
         name: "Test recipient",
         email: normalizeEmail(input.testRecipient),
+        discountCount: 1,
       },
     ]
   }
 
-  const recipients = new Map<string, { name: string; email: string }>()
+  const recipients = new Map<string, MarketingEmailRecipient>()
 
   if (input.recipientSource === "EVENT_GUESTS" || input.recipientSource === "BOTH") {
     const guestRecipients = await getEventMarketingRecipients(input.sourceEventId || input.eventId)
@@ -727,6 +951,7 @@ async function getTemplatedEmailRecipients(input: SendTemplatedMarketingEmailInp
         recipients.set(email, {
           name: email.split("@")[0] || "Guest",
           email,
+          discountCount: 1,
         })
       }
     })
@@ -794,10 +1019,10 @@ function renderTemplate(value: string, variables: Record<string, string>) {
 
 async function createAssignedDiscountCodes(
   input: SendTemplatedMarketingEmailInput,
-  recipients: Array<{ name: string; email: string }>,
+  recipients: MarketingEmailRecipient[],
 ) {
   if (!input.includeDiscountCodes) {
-    return new Map<string, string>()
+    return new Map<string, string[]>()
   }
 
   if (input.discountType === "PERCENT" && (!input.amountValue || input.amountValue < 1 || input.amountValue > 100)) {
@@ -811,56 +1036,66 @@ async function createAssignedDiscountCodes(
   const prisma = getPrismaClient()
   const prefix = normalizeCodePrefix(input.codePrefix)
   const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null
-  const codesByEmail = new Map<string, string>()
+  const codesByEmail = new Map<string, string[]>()
 
   if (expiresAt && Number.isNaN(expiresAt.getTime())) {
     throw new Error("Discount expiry date is invalid.")
   }
 
   for (const recipient of recipients) {
-    let code = ""
+    const codeCount = Math.max(1, Math.min(Math.round(recipient.discountCount || 1), 25))
+    const codes: string[] = []
 
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const nextCode = buildCode(prefix)
+    for (let codeIndex = 0; codeIndex < codeCount; codeIndex += 1) {
+      let code = ""
 
-      try {
-        const voucher = await prisma.voucher.create({
-          data: {
-            eventId: input.eventId,
-            code: nextCode,
-            description: buildAssignedDescription(input.campaignName, recipient.email),
-            discountType: input.discountType || "PERCENT",
-            amountOffCents:
-              input.discountType === "FIXED" && typeof input.amountValue === "number"
-                ? Math.round(input.amountValue * 100)
-                : null,
-            percentOff:
-              input.discountType !== "FIXED" && typeof input.amountValue === "number"
-                ? Math.round(input.amountValue)
-                : null,
-            minimumQuantity: null,
-            maxRedemptions: 1,
-            startsAt: null,
-            expiresAt,
-            isActive: true,
-          },
-        })
-        code = voucher.code
-        break
-      } catch (error) {
-        const message = error instanceof Error ? error.message : ""
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const nextCode = buildCode(prefix)
 
-        if (!/Unique constraint|unique/i.test(message) || attempt === 4) {
-          throw error
+        try {
+          const voucher = await prisma.voucher.create({
+            data: {
+              eventId: input.eventId,
+              code: nextCode,
+              description: buildAssignedDescription(
+                `${input.campaignName} code ${codeIndex + 1} of ${codeCount}`,
+                recipient.email,
+              ),
+              discountType: input.discountType || "PERCENT",
+              amountOffCents:
+                input.discountType === "FIXED" && typeof input.amountValue === "number"
+                  ? Math.round(input.amountValue * 100)
+                  : null,
+              percentOff:
+                input.discountType !== "FIXED" && typeof input.amountValue === "number"
+                  ? Math.round(input.amountValue)
+                  : null,
+              minimumQuantity: null,
+              maxRedemptions: 1,
+              startsAt: null,
+              expiresAt,
+              isActive: true,
+            },
+          })
+          code = voucher.code
+          break
+        } catch (error) {
+          const message = error instanceof Error ? error.message : ""
+
+          if (!/Unique constraint|unique/i.test(message) || attempt === 4) {
+            throw error
+          }
         }
       }
+
+      if (!code) {
+        throw new Error(`Unable to create a discount code for ${recipient.email}.`)
+      }
+
+      codes.push(code)
     }
 
-    if (!code) {
-      throw new Error(`Unable to create a discount code for ${recipient.email}.`)
-    }
-
-    codesByEmail.set(recipient.email, code)
+    codesByEmail.set(recipient.email, codes)
   }
 
   return codesByEmail
@@ -897,7 +1132,7 @@ function buildCustomMarketingEmailHtml(input: {
   return `${buildHiddenPreheader(input.preheader)}${input.html}`
 }
 
-export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMarketingEmailInput) {
+async function getMarketingEmailEventContext(input: SendTemplatedMarketingEmailInput): Promise<MarketingEmailEventContext> {
   const prisma = getPrismaClient()
   const [event, sourceEvent] = await Promise.all([
     prisma.event.findUnique({
@@ -933,6 +1168,109 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
     throw new Error("Event not found.")
   }
 
+  return {
+    event,
+    sourceEvent,
+    eventUrl: buildPublicUrl(input.baseUrl, `/events/${encodeURIComponent(event.id)}`),
+    baseCheckoutUrl: buildPublicUrl(input.baseUrl, `/checkout/${encodeURIComponent(event.id)}`),
+  }
+}
+
+function renderMarketingEmailForRecipient(input: {
+  campaign: SendTemplatedMarketingEmailInput
+  context: MarketingEmailEventContext
+  recipient: MarketingEmailRecipient
+  discountCodes?: string[]
+}) {
+  const discountCodes = input.discountCodes?.filter(Boolean) || []
+  const discountCode = discountCodes[0] || ""
+  const discountCodesText = discountCodes.length > 0 ? discountCodes.map((code, index) => `${index + 1}. ${code}`).join("\n") : ""
+  const checkoutUrl = discountCode
+    ? `${input.context.baseCheckoutUrl}?voucher=${encodeURIComponent(discountCode)}`
+    : input.context.baseCheckoutUrl
+  const firstName = input.recipient.name.trim().split(/\s+/)[0] || "there"
+  const variables = {
+    name: input.recipient.name,
+    firstName,
+    email: input.recipient.email,
+    eventTitle: input.context.event.title,
+    eventDate: formatMarketingEventDate(input.context.event.startsAt),
+    eventTime: formatMarketingEventTime(input.context.event.startsAt),
+    venue: input.context.event.venue || input.context.event.address || "Venue to be announced",
+    eventUrl: input.context.eventUrl,
+    checkoutUrl,
+    discountCode,
+    discountCodes: discountCodesText,
+    discountCodeCount: discountCodes.length.toString(),
+    discountValue: formatDiscountValue(input.campaign),
+    sourceEventTitle: input.context.sourceEvent?.title || input.context.event.title,
+    sourceEventDate: formatMarketingEventDate(input.context.sourceEvent?.startsAt || input.context.event.startsAt),
+    sourceEventVenue:
+      input.context.sourceEvent?.venue ||
+      input.context.sourceEvent?.address ||
+      input.context.event.venue ||
+      input.context.event.address ||
+      "Venue to be announced",
+  }
+  const subject = renderTemplate(input.campaign.subject, variables)
+  const body = renderTemplate(input.campaign.bodyTemplate, variables)
+  const preheader = renderTemplate(input.campaign.preheader || "", variables)
+  const ctaUrl = renderTemplate(input.campaign.ctaUrl || "", variables).trim()
+  const targetUrl = ctaUrl || checkoutUrl
+  const html =
+    input.campaign.emailFormat === "CUSTOM_HTML"
+      ? buildCustomMarketingEmailHtml({
+          html: body,
+          preheader,
+        })
+      : buildMarketingEmailHtml({
+          title: input.context.event.title,
+          body,
+          targetUrl,
+          preheader,
+          ctaLabel: input.campaign.ctaLabel,
+        })
+
+  return {
+    subject,
+    body,
+    html,
+    text: input.campaign.emailFormat === "CUSTOM_HTML" ? stripHtml(body) : body,
+    targetUrl,
+    discountCode,
+    discountCodes,
+  } satisfies RenderedMarketingEmail
+}
+
+async function deliverMarketingEmail(input: {
+  campaignId: string
+  recipient: MarketingEmailRecipient
+  rendered: RenderedMarketingEmail
+  replyTo?: string
+  attachments?: ReturnType<typeof buildEmailAttachments>
+  utmCampaign: string
+}) {
+  return sendEmail({
+    to: input.recipient.email,
+    subject: input.rendered.subject,
+    html: input.rendered.html,
+    text: input.rendered.text,
+    replyTo: input.replyTo,
+    attachments: input.attachments,
+    headers: {
+      "X-TEEZ-Campaign-ID": input.campaignId,
+    },
+    tags: [
+      {
+        name: "campaign",
+        value: input.utmCampaign.slice(0, 128),
+      },
+    ],
+  })
+}
+
+export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMarketingEmailInput) {
+  const context = await getMarketingEmailEventContext(input)
   const recipients = await getTemplatedEmailRecipients(input)
 
   if (recipients.length === 0) {
@@ -945,8 +1283,6 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
 
   const codesByEmail = await createAssignedDiscountCodes(input, recipients)
   const attachments = buildEmailAttachments(input.attachments)
-  const eventUrl = buildPublicUrl(input.baseUrl, `/events/${encodeURIComponent(event.id)}`)
-  const baseCheckoutUrl = buildPublicUrl(input.baseUrl, `/checkout/${encodeURIComponent(event.id)}`)
   const campaign = await createMarketingCampaign({
     eventId: input.eventId,
     name: input.campaignName,
@@ -954,62 +1290,56 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
     objective: input.includeDiscountCodes ? "Discount email campaign" : "Event email campaign",
     audience: input.testRecipient ? "Test recipient" : input.audienceLabel || input.recipientSource,
   })
+  await recordEmailCampaignDetail({
+    campaignId: campaign.id,
+    data: input,
+  })
 
   const sent: string[] = []
   const failed: Array<{ email: string; error: string }> = []
 
   for (const recipient of recipients) {
-    const discountCode = codesByEmail.get(recipient.email) || ""
-    const checkoutUrl = discountCode ? `${baseCheckoutUrl}?voucher=${encodeURIComponent(discountCode)}` : baseCheckoutUrl
-    const firstName = recipient.name.trim().split(/\s+/)[0] || "there"
-    const variables = {
-      name: recipient.name,
-      firstName,
-      email: recipient.email,
-      eventTitle: event.title,
-      eventDate: formatMarketingEventDate(event.startsAt),
-      eventTime: formatMarketingEventTime(event.startsAt),
-      venue: event.venue || event.address || "Venue to be announced",
-      eventUrl,
-      checkoutUrl,
-      discountCode,
-      discountValue: formatDiscountValue(input),
-      sourceEventTitle: sourceEvent?.title || event.title,
-      sourceEventDate: formatMarketingEventDate(sourceEvent?.startsAt || event.startsAt),
-      sourceEventVenue: sourceEvent?.venue || sourceEvent?.address || event.venue || event.address || "Venue to be announced",
-    }
-    const subject = renderTemplate(input.subject, variables)
-    const body = renderTemplate(input.bodyTemplate, variables)
-    const preheader = renderTemplate(input.preheader || "", variables)
-    const ctaUrl = renderTemplate(input.ctaUrl || "", variables).trim()
-    const html =
-      input.emailFormat === "CUSTOM_HTML"
-        ? buildCustomMarketingEmailHtml({
-            html: body,
-            preheader,
-          })
-        : buildMarketingEmailHtml({
-            title: event.title,
-            body,
-            targetUrl: ctaUrl || checkoutUrl,
-            preheader,
-            ctaLabel: input.ctaLabel,
-          })
+    const rendered = renderMarketingEmailForRecipient({
+      campaign: input,
+      context,
+      recipient,
+      discountCodes: codesByEmail.get(recipient.email),
+    })
+    const deliveryRecord = await recordEmailDelivery({
+      campaignId: campaign.id,
+      eventId: input.eventId,
+      recipient,
+      rendered,
+      status: "PENDING",
+    })
 
     try {
-      await sendEmail({
-        to: recipient.email,
-        subject,
-        html,
-        text: input.emailFormat === "CUSTOM_HTML" ? stripHtml(body) : body,
+      const delivery = await deliverMarketingEmail({
+        campaignId: campaign.id,
+        recipient,
+        rendered,
         replyTo: input.replyTo,
         attachments,
+        utmCampaign: input.utmCampaign,
+      })
+      await updateEmailDeliveryAttempt({
+        deliveryId: deliveryRecord.id,
+        rendered,
+        status: "SENT",
+        providerMessageId: getProviderMessageId(delivery),
       })
       sent.push(recipient.email)
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Email send failed."
+      await updateEmailDeliveryAttempt({
+        deliveryId: deliveryRecord.id,
+        rendered,
+        status: "FAILED",
+        errorMessage: message,
+      })
       failed.push({
         email: recipient.email,
-        error: error instanceof Error ? error.message : "Email send failed.",
+        error: message,
       })
     }
   }
@@ -1019,11 +1349,13 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
     campaignId: campaign.id,
     platform: "EMAIL",
     caption: `${input.subject}\n\n${input.bodyTemplate}`,
-    targetUrl: eventUrl,
+    targetUrl: context.eventUrl,
     status,
     publishedAt: status === "PUBLISHED" ? new Date() : null,
     errorMessage: failed.length > 0 ? `${failed.length} email(s) failed.` : null,
   })
+  await attachDeliveriesToPost(campaign.id, post.id)
+  await updateCampaignStatusFromFailures(campaign.id, failed.length)
 
   return {
     campaignId: campaign.id,
@@ -1031,7 +1363,498 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
     total: recipients.length,
     sent: sent.length,
     failed: failed.length,
-    generatedCodes: codesByEmail.size,
+    generatedCodes: [...codesByEmail.values()].reduce((total, codes) => total + codes.length, 0),
+  }
+}
+
+function toIso(value: Date | null | undefined) {
+  return value ? value.toISOString() : null
+}
+
+function parseStoredDiscountCodes(value: unknown, fallback?: string | null) {
+  const codes = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : []
+
+  if (codes.length > 0) {
+    return codes
+  }
+
+  return fallback ? [fallback] : []
+}
+
+function parseRecipientSource(value: string): RecipientSource {
+  return value === "PASTED_EMAILS" || value === "BOTH" ? value : "EVENT_GUESTS"
+}
+
+function parseEmailFormat(value: string): EmailFormat {
+  return value === "CUSTOM_HTML" ? "CUSTOM_HTML" : "BRANDED"
+}
+
+function buildInputFromEmailDetail(input: {
+  detail: {
+    eventId: string
+    sourceEventId: string | null
+    recipientSource: string
+    audienceLabel: string | null
+    testRecipient: string | null
+    subject: string
+    preheader: string | null
+    replyTo: string | null
+    ctaLabel: string | null
+    ctaUrl: string | null
+    emailFormat: string
+    bodyTemplate: string
+    excludeCurrentEventGuests: boolean
+    includeDiscountCodes: boolean
+    codePrefix: string | null
+    discountType: "FIXED" | "PERCENT" | null
+    amountValue: number | null
+    expiresAt: Date | null
+    baseUrl: string | null
+  }
+  campaignName: string
+  utmCampaign: string
+  baseUrl: string
+}) {
+  return {
+    eventId: input.detail.eventId,
+    sourceEventId: input.detail.sourceEventId || undefined,
+    recipientSource: parseRecipientSource(input.detail.recipientSource),
+    campaignName: input.campaignName,
+    utmCampaign: input.utmCampaign,
+    subject: input.detail.subject,
+    preheader: input.detail.preheader || undefined,
+    replyTo: input.detail.replyTo || undefined,
+    ctaLabel: input.detail.ctaLabel || undefined,
+    ctaUrl: input.detail.ctaUrl || undefined,
+    emailFormat: parseEmailFormat(input.detail.emailFormat),
+    bodyTemplate: input.detail.bodyTemplate,
+    excludeCurrentEventGuests: input.detail.excludeCurrentEventGuests,
+    audienceLabel: input.detail.audienceLabel || undefined,
+    includeDiscountCodes: input.detail.includeDiscountCodes,
+    codePrefix: input.detail.codePrefix || undefined,
+    discountType: input.detail.discountType || "PERCENT",
+    amountValue: input.detail.amountValue ?? undefined,
+    expiresAt: input.detail.expiresAt ? input.detail.expiresAt.toISOString() : undefined,
+    baseUrl: input.baseUrl || input.detail.baseUrl || "",
+  } satisfies SendTemplatedMarketingEmailInput
+}
+
+export async function getEventEmailCampaignHistory(eventId: string) {
+  try {
+    const prisma = getMarketingPrismaClient()
+    const campaigns = await prisma.marketingCampaign.findMany({
+      where: {
+        eventId,
+        OR: [
+          {
+            emailDetails: {
+              isNot: null,
+            },
+          },
+          {
+            posts: {
+              some: {
+                platform: "EMAIL",
+              },
+            },
+          },
+        ],
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 12,
+      include: {
+        emailDetails: true,
+        posts: {
+          where: {
+            platform: "EMAIL",
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+        emailDeliveries: {
+          orderBy: {
+            updatedAt: "desc",
+          },
+          take: 5000,
+        },
+      },
+    })
+
+    return campaigns.map((campaign) => {
+      const deliveries = [...campaign.emailDeliveries].sort((left, right) => {
+        if (left.status !== right.status) {
+          return left.status === "FAILED" ? -1 : right.status === "FAILED" ? 1 : 0
+        }
+
+        return right.updatedAt.getTime() - left.updatedAt.getTime()
+      })
+
+      return {
+        id: campaign.id,
+        name: campaign.name,
+        utmCampaign: campaign.utmCampaign,
+        status: campaign.status,
+        audience: campaign.audience,
+        objective: campaign.objective,
+        createdAt: campaign.createdAt.toISOString(),
+        updatedAt: campaign.updatedAt.toISOString(),
+        post: campaign.posts[0]
+          ? {
+              id: campaign.posts[0].id,
+              status: campaign.posts[0].status,
+              caption: campaign.posts[0].caption,
+              targetUrl: campaign.posts[0].targetUrl,
+              errorMessage: campaign.posts[0].errorMessage,
+              publishedAt: toIso(campaign.posts[0].publishedAt),
+              createdAt: campaign.posts[0].createdAt.toISOString(),
+            }
+          : null,
+        detail: campaign.emailDetails
+          ? {
+              sourceEventId: campaign.emailDetails.sourceEventId,
+              recipientSource: campaign.emailDetails.recipientSource,
+              audienceLabel: campaign.emailDetails.audienceLabel,
+              testRecipient: campaign.emailDetails.testRecipient,
+              subject: campaign.emailDetails.subject,
+              preheader: campaign.emailDetails.preheader,
+              replyTo: campaign.emailDetails.replyTo,
+              ctaLabel: campaign.emailDetails.ctaLabel,
+              ctaUrl: campaign.emailDetails.ctaUrl,
+              emailFormat: campaign.emailDetails.emailFormat,
+              bodyTemplate: campaign.emailDetails.bodyTemplate,
+              excludeCurrentEventGuests: campaign.emailDetails.excludeCurrentEventGuests,
+              includeDiscountCodes: campaign.emailDetails.includeDiscountCodes,
+              codePrefix: campaign.emailDetails.codePrefix,
+              discountType: campaign.emailDetails.discountType,
+              amountValue: campaign.emailDetails.amountValue,
+              expiresAt: toIso(campaign.emailDetails.expiresAt),
+              baseUrl: campaign.emailDetails.baseUrl,
+              attachmentNames: campaign.emailDetails.attachmentNames,
+            }
+          : null,
+        total: deliveries.length,
+        sent: deliveries.filter((delivery) => delivery.status === "SENT").length,
+        failed: deliveries.filter((delivery) => delivery.status === "FAILED").length,
+        deliveries: deliveries.map((delivery) => ({
+          id: delivery.id,
+          recipientEmail: delivery.recipientEmail,
+          recipientName: delivery.recipientName,
+          subject: delivery.subject,
+          targetUrl: delivery.targetUrl,
+          discountCode: delivery.discountCode,
+          discountCodes: parseStoredDiscountCodes(delivery.discountCodes, delivery.discountCode),
+          status: delivery.status,
+          attemptCount: delivery.attemptCount,
+          lastAttemptAt: toIso(delivery.lastAttemptAt),
+          sentAt: toIso(delivery.sentAt),
+          errorMessage: delivery.errorMessage,
+          providerMessageId: delivery.providerMessageId,
+          createdAt: delivery.createdAt.toISOString(),
+          updatedAt: delivery.updatedAt.toISOString(),
+        })),
+      }
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ""
+
+    if (/does not exist|Unknown arg|marketingEmailCampaignDetail|marketingEmailDelivery/i.test(message)) {
+      return []
+    }
+
+    throw error
+  }
+}
+
+export async function resendFailedTemplatedMarketingEmailCampaign(input: {
+  eventId: string
+  campaignId: string
+  baseUrl: string
+}) {
+  const prisma = getMarketingPrismaClient()
+  const campaign = await prisma.marketingCampaign.findFirst({
+    where: {
+      id: input.campaignId,
+      eventId: input.eventId,
+    },
+    include: {
+      emailDetails: true,
+      emailDeliveries: {
+        where: {
+          status: "FAILED",
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+      },
+    },
+  })
+
+  if (!campaign || !campaign.emailDetails) {
+    throw new Error("Email campaign details were not found.")
+  }
+
+  if (campaign.emailDeliveries.length === 0) {
+    throw new Error("This campaign has no failed emails to resend.")
+  }
+
+  const campaignInput = buildInputFromEmailDetail({
+    detail: campaign.emailDetails,
+    campaignName: campaign.name,
+    utmCampaign: campaign.utmCampaign,
+    baseUrl: input.baseUrl || campaign.emailDetails.baseUrl || "",
+  })
+  const context = await getMarketingEmailEventContext(campaignInput)
+  const recipients = campaign.emailDeliveries.map((delivery) => ({
+    id: delivery.id,
+    name: delivery.recipientName || delivery.recipientEmail.split("@")[0] || "Guest",
+    email: delivery.recipientEmail,
+    discountCodes: parseStoredDiscountCodes(delivery.discountCodes, delivery.discountCode),
+  }))
+  const missingCodeRecipients = campaignInput.includeDiscountCodes
+    ? recipients
+        .filter((recipient) => recipient.discountCodes.length === 0)
+        .map((recipient) => ({
+          name: recipient.name,
+          email: recipient.email,
+          discountCount: 1,
+        }))
+    : []
+  const generatedCodes = await createAssignedDiscountCodes(campaignInput, missingCodeRecipients)
+  const sent: string[] = []
+  const failed: Array<{ email: string; error: string }> = []
+  const attemptedDeliveryIds: string[] = []
+
+  for (const recipient of recipients) {
+    const rendered = renderMarketingEmailForRecipient({
+      campaign: campaignInput,
+      context,
+      recipient,
+      discountCodes: recipient.discountCodes.length > 0 ? recipient.discountCodes : generatedCodes.get(recipient.email),
+    })
+    const attemptedAt = new Date()
+    attemptedDeliveryIds.push(recipient.id)
+
+    try {
+      const delivery = await deliverMarketingEmail({
+        campaignId: campaign.id,
+        recipient,
+        rendered,
+        replyTo: campaignInput.replyTo,
+        attachments: undefined,
+        utmCampaign: campaign.utmCampaign,
+      })
+
+      await prisma.marketingEmailDelivery.update({
+        where: {
+          id: recipient.id,
+        },
+        data: {
+          recipientName: recipient.name,
+          subject: rendered.subject,
+          targetUrl: rendered.targetUrl,
+          discountCode: rendered.discountCode || null,
+          discountCodes: rendered.discountCodes.length > 0 ? rendered.discountCodes : undefined,
+          status: "SENT",
+          attemptCount: {
+            increment: 1,
+          },
+          lastAttemptAt: attemptedAt,
+          sentAt: attemptedAt,
+          errorMessage: null,
+          providerMessageId: getProviderMessageId(delivery),
+        },
+      })
+      sent.push(recipient.email)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Email send failed."
+      await prisma.marketingEmailDelivery.update({
+        where: {
+          id: recipient.id,
+        },
+        data: {
+          subject: rendered.subject,
+          targetUrl: rendered.targetUrl,
+          discountCode: rendered.discountCode || null,
+          discountCodes: rendered.discountCodes.length > 0 ? rendered.discountCodes : undefined,
+          status: "FAILED",
+          attemptCount: {
+            increment: 1,
+          },
+          lastAttemptAt: attemptedAt,
+          errorMessage: message,
+        },
+      })
+      failed.push({
+        email: recipient.email,
+        error: message,
+      })
+    }
+  }
+
+  const status = failed.length > 0 && sent.length === 0 ? "FAILED" : "PUBLISHED"
+  const post = await recordMarketingPost({
+    campaignId: campaign.id,
+    platform: "EMAIL",
+    caption: `${campaignInput.subject}\n\n${campaignInput.bodyTemplate}`,
+    targetUrl: context.eventUrl,
+    status,
+    publishedAt: status === "PUBLISHED" ? new Date() : null,
+    errorMessage: failed.length > 0 ? `${failed.length} email(s) failed on resend.` : null,
+  })
+
+  if (attemptedDeliveryIds.length > 0) {
+    await prisma.marketingEmailDelivery.updateMany({
+      where: {
+        id: {
+          in: attemptedDeliveryIds,
+        },
+      },
+      data: {
+        postId: post.id,
+      },
+    })
+  }
+
+  const remainingFailed = await prisma.marketingEmailDelivery.count({
+    where: {
+      campaignId: campaign.id,
+      status: "FAILED",
+    },
+  })
+  await updateCampaignStatusFromFailures(campaign.id, remainingFailed)
+
+  return {
+    campaignId: campaign.id,
+    postId: post.id,
+    total: recipients.length,
+    sent: sent.length,
+    failed: failed.length,
+    generatedCodes: [...generatedCodes.values()].reduce((total, codes) => total + codes.length, 0),
+  }
+}
+
+export async function resendMarketingEmailDelivery(input: {
+  eventId: string
+  campaignId: string
+  deliveryId: string
+  baseUrl: string
+}) {
+  const prisma = getMarketingPrismaClient()
+  const campaign = await prisma.marketingCampaign.findFirst({
+    where: {
+      id: input.campaignId,
+      eventId: input.eventId,
+    },
+    include: {
+      emailDetails: true,
+      emailDeliveries: {
+        where: {
+          id: input.deliveryId,
+        },
+        take: 1,
+      },
+    },
+  })
+
+  if (!campaign || !campaign.emailDetails) {
+    throw new Error("Email campaign details were not found.")
+  }
+
+  const delivery = campaign.emailDeliveries[0]
+
+  if (!delivery) {
+    throw new Error("Email delivery row was not found.")
+  }
+
+  const campaignInput = buildInputFromEmailDetail({
+    detail: campaign.emailDetails,
+    campaignName: campaign.name,
+    utmCampaign: campaign.utmCampaign,
+    baseUrl: input.baseUrl || campaign.emailDetails.baseUrl || "",
+  })
+  const context = await getMarketingEmailEventContext(campaignInput)
+  const recipient = {
+    name: delivery.recipientName || delivery.recipientEmail.split("@")[0] || "Guest",
+    email: delivery.recipientEmail,
+    discountCount: 1,
+  }
+  const storedDiscountCodes = parseStoredDiscountCodes(delivery.discountCodes, delivery.discountCode)
+  const generatedCodes = campaignInput.includeDiscountCodes && storedDiscountCodes.length === 0
+    ? await createAssignedDiscountCodes(campaignInput, [recipient])
+    : new Map<string, string[]>()
+  const rendered = renderMarketingEmailForRecipient({
+    campaign: campaignInput,
+    context,
+    recipient,
+    discountCodes: storedDiscountCodes.length > 0 ? storedDiscountCodes : generatedCodes.get(recipient.email),
+  })
+
+  try {
+    const providerDelivery = await deliverMarketingEmail({
+      campaignId: campaign.id,
+      recipient,
+      rendered,
+      replyTo: campaignInput.replyTo,
+      attachments: undefined,
+      utmCampaign: campaign.utmCampaign,
+    })
+
+    await updateEmailDeliveryAttempt({
+      deliveryId: delivery.id,
+      rendered,
+      status: "SENT",
+      providerMessageId: getProviderMessageId(providerDelivery),
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Email send failed."
+    await updateEmailDeliveryAttempt({
+      deliveryId: delivery.id,
+      rendered,
+      status: "FAILED",
+      errorMessage: message,
+    })
+    throw new Error(`Resend failed for ${recipient.email}: ${message}`)
+  }
+
+  const post = await recordMarketingPost({
+    campaignId: campaign.id,
+    platform: "EMAIL",
+    caption: `${campaignInput.subject}\n\n${campaignInput.bodyTemplate}`,
+    targetUrl: context.eventUrl,
+    status: "PUBLISHED",
+    publishedAt: new Date(),
+    errorMessage: null,
+  })
+  await prisma.marketingEmailDelivery.update({
+    where: {
+      id: delivery.id,
+    },
+    data: {
+      postId: post.id,
+    },
+  })
+
+  const remainingFailed = await prisma.marketingEmailDelivery.count({
+    where: {
+      campaignId: campaign.id,
+      status: "FAILED",
+    },
+  })
+  await updateCampaignStatusFromFailures(campaign.id, remainingFailed)
+
+  return {
+    campaignId: campaign.id,
+    postId: post.id,
+    total: 1,
+    sent: 1,
+    failed: 0,
+    generatedCodes: [...generatedCodes.values()].reduce((total, codes) => total + codes.length, 0),
   }
 }
 

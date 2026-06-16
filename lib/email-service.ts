@@ -158,7 +158,8 @@ async function sendWithResend(config: ResendEmailConfig, input: SendEmailInput) 
   const payload = await response.json().catch(() => null)
 
   if (!response.ok) {
-    throw new Error(payload?.message || payload?.error?.message || "Resend email delivery failed.")
+    const reason = payload?.message || payload?.error?.message || payload?.error || "Resend email delivery failed."
+    throw new Error(`Resend rejected the email: ${reason}`)
   }
 
   return payload
@@ -195,5 +196,10 @@ export async function sendEmail(input: SendEmailInput) {
     return sendWithResend(config, input)
   }
 
-  return sendWithSmtp(config, input)
+  try {
+    return await sendWithSmtp(config, input)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "SMTP email delivery failed."
+    throw new Error(`SMTP delivery failed: ${message}`)
+  }
 }

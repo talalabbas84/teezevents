@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -67,6 +67,13 @@ enum MarketingPostStatus {
   FAILED
 }
 
+enum MarketingEmailDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
 enum WebsitePageStatus {
   DRAFT
   REVIEW
@@ -76,7 +83,7 @@ enum WebsitePageStatus {
 }
 
 model Event {
-  id                 String        @id
+  id                 String              @id
   title              String
   startsAt           DateTime?
   venue              String?
@@ -92,18 +99,18 @@ model Event {
   faqs               Json?
   policies           Json?
   shareText          String?
-  category           EventCategory @default(UPCOMING)
-  eventKind          EventKind     @default(SOCIAL)
-  currency           String        @default("cad")
+  category           EventCategory       @default(UPCOMING)
+  eventKind          EventKind           @default(SOCIAL)
+  currency           String              @default("cad")
   ticketPriceCents   Int
   capacity           Int
-  checkoutEnabled    Boolean       @default(false)
-  maxTicketsPerOrder Int           @default(4)
+  checkoutEnabled    Boolean             @default(false)
+  maxTicketsPerOrder Int                 @default(4)
   ticketNote         String?
-  featured           Boolean       @default(false)
-  isActive           Boolean       @default(true)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  featured           Boolean             @default(false)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   orders             TicketOrder[]
   tickets            Ticket[]
   ticketTiers        TicketTier[]
@@ -156,19 +163,19 @@ model TicketOrder {
 }
 
 model Ticket {
-  id            String       @id @default(cuid())
-  ticketCode    String       @unique
-  orderId       String
-  order         TicketOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  eventId       String
-  event         Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  status        TicketStatus @default(ISSUED)
-  holderName    String
-  holderEmail   String
-  ticketIndex   Int
-  checkedInAt   DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id          String       @id @default(cuid())
+  ticketCode  String       @unique
+  orderId     String
+  order       TicketOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  eventId     String
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status      TicketStatus @default(ISSUED)
+  holderName  String
+  holderEmail String
+  ticketIndex Int
+  checkedInAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@unique([orderId, ticketIndex])
   @@index([eventId, status])
@@ -194,70 +201,130 @@ model TicketTier {
 }
 
 model Voucher {
-  id             String        @id @default(cuid())
-  eventId        String
-  event          Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  code           String        @unique
-  description    String?
-  discountType   DiscountType
-  amountOffCents Int?
-  percentOff     Int?
+  id              String        @id @default(cuid())
+  eventId         String
+  event           Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  code            String        @unique
+  description     String?
+  discountType    DiscountType
+  amountOffCents  Int?
+  percentOff      Int?
   minimumQuantity Int?
-  maxRedemptions Int?
-  startsAt       DateTime?
-  expiresAt      DateTime?
-  isActive       Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  orders         TicketOrder[]
+  maxRedemptions  Int?
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  orders          TicketOrder[]
 
   @@index([eventId, isActive])
 }
 
 model MarketingCampaign {
-  id          String                  @id @default(cuid())
-  eventId     String
-  event       Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  name        String
-  objective   String?
-  audience    String?
-  budgetCents Int?
-  utmCampaign String
-  status      MarketingCampaignStatus @default(DRAFT)
-  startsAt    DateTime?
-  endsAt      DateTime?
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
-  posts       MarketingPost[]
+  id              String                        @id @default(cuid())
+  eventId         String
+  event           Event                         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name            String
+  objective       String?
+  audience        String?
+  budgetCents     Int?
+  utmCampaign     String
+  status          MarketingCampaignStatus       @default(DRAFT)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+  posts           MarketingPost[]
+  emailDetails    MarketingEmailCampaignDetail?
+  emailDeliveries MarketingEmailDelivery[]
 
   @@index([eventId, status])
 }
 
 model MarketingPost {
-  id          String              @id @default(cuid())
-  campaignId  String
-  campaign    MarketingCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  platform    MarketingPlatform
-  caption     String
-  targetUrl   String
-  mediaUrls   Json?
-  status      MarketingPostStatus @default(DRAFT)
-  scheduledAt DateTime?
-  publishedAt DateTime?
-  externalId  String?
-  externalUrl String?
-  errorMessage String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id              String                   @id @default(cuid())
+  campaignId      String
+  campaign        MarketingCampaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  platform        MarketingPlatform
+  caption         String
+  targetUrl       String
+  mediaUrls       Json?
+  status          MarketingPostStatus      @default(DRAFT)
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  externalId      String?
+  externalUrl     String?
+  errorMessage    String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  emailDeliveries MarketingEmailDelivery[]
 
   @@index([campaignId, platform, status])
 }
 
+model MarketingEmailCampaignDetail {
+  id                        String            @id @default(cuid())
+  campaignId                String            @unique
+  campaign                  MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  eventId                   String
+  sourceEventId             String?
+  recipientSource           String
+  audienceLabel             String?
+  testRecipient             String?
+  subject                   String
+  preheader                 String?
+  replyTo                   String?
+  ctaLabel                  String?
+  ctaUrl                    String?
+  emailFormat               String            @default("BRANDED")
+  bodyTemplate              String
+  excludeCurrentEventGuests Boolean           @default(false)
+  includeDiscountCodes      Boolean           @default(false)
+  codePrefix                String?
+  discountType              DiscountType?
+  amountValue               Float?
+  expiresAt                 DateTime?
+  baseUrl                   String?
+  attachmentNames           Json?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+
+  @@index([eventId, createdAt])
+}
+
+model MarketingEmailDelivery {
+  id                String                       @id @default(cuid())
+  campaignId        String
+  campaign          MarketingCampaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  postId            String?
+  post              MarketingPost?               @relation(fields: [postId], references: [id], onDelete: SetNull)
+  eventId           String
+  recipientEmail    String
+  recipientName     String?
+  subject           String
+  targetUrl         String?
+  discountCode      String?
+  discountCodes     Json?
+  status            MarketingEmailDeliveryStatus @default(PENDING)
+  attemptCount      Int                          @default(0)
+  lastAttemptAt     DateTime?
+  sentAt            DateTime?
+  errorMessage      String?
+  providerMessageId String?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+
+  @@index([campaignId, status])
+  @@index([eventId, status])
+  @@index([recipientEmail])
+}
+
 model WebsitePage {
-  id                  String            @id @default(cuid())
-  slug                String            @unique
+  id                  String                @id @default(cuid())
+  slug                String                @unique
   title               String
-  status              WebsitePageStatus @default(DRAFT)
+  status              WebsitePageStatus     @default(DRAFT)
   seoTitle            String?
   seoDescription      String?
   heroEyebrow         String?
@@ -267,15 +334,15 @@ model WebsitePage {
   heroCtaLabel        String?
   heroCtaHref         String?
   sections            Json?
-  showInNavigation    Boolean           @default(false)
+  showInNavigation    Boolean               @default(false)
   navigationLabel     String?
-  navigationSortOrder Int               @default(100)
+  navigationSortOrder Int                   @default(100)
   publishedAt         DateTime?
   scheduledAt         DateTime?
   createdByAdminEmail String?
   updatedByAdminEmail String?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
   revisions           WebsitePageRevision[]
 
   @@index([status, publishedAt])

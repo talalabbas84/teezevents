@@ -5,7 +5,14 @@ const globalForPrisma = globalThis as typeof globalThis & {
 }
 
 function hasCurrentGeneratedDelegates(client: PrismaClient) {
-  return Boolean(client.marketingCampaign && client.marketingPost && client.websitePage && client.websitePageRevision)
+  return Boolean(
+    client.marketingCampaign &&
+      client.marketingPost &&
+      client.marketingEmailCampaignDetail &&
+      client.marketingEmailDelivery &&
+      client.websitePage &&
+      client.websitePageRevision,
+  )
 }
 
 export function getPrismaClient() {

@@ -2,7 +2,12 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { isAdminAuthenticated } from "@/lib/admin-auth"
-import { sendTemplatedMarketingEmailCampaign } from "@/lib/marketing"
+import {
+  getEventEmailCampaignHistory,
+  resendFailedTemplatedMarketingEmailCampaign,
+  resendMarketingEmailDelivery,
+  sendTemplatedMarketingEmailCampaign,
+} from "@/lib/marketing"
 
 export const runtime = "nodejs"
 
@@ -18,6 +23,7 @@ const optionalText = (max: number) =>
   )
 
 const emailCampaignSchema = z.object({
+  action: z.literal("send").optional(),
   recipientSource: z.enum(["EVENT_GUESTS", "PASTED_EMAILS", "BOTH"]).default("EVENT_GUESTS"),
   sourceEventId: optionalText(80),
   pastedEmails: z.string().max(200000).optional(),
@@ -52,6 +58,35 @@ const emailCampaignSchema = z.object({
   baseUrl: optionalText(500),
 })
 
+const resendFailedSchema = z.object({
+  action: z.literal("resend_failed"),
+  campaignId: z.string().trim().min(1).max(120),
+  baseUrl: optionalText(500),
+})
+
+const resendDeliverySchema = z.object({
+  action: z.literal("resend_delivery"),
+  campaignId: z.string().trim().min(1).max(120),
+  deliveryId: z.string().trim().min(1).max(120),
+  baseUrl: optionalText(500),
+})
+
+export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const authenticated = await isAdminAuthenticated().catch(() => false)
+
+  if (!authenticated) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 401 })
+  }
+
+  const { eventId } = await params
+  const campaigns = await getEventEmailCampaignHistory(eventId)
+
+  return NextResponse.json({
+    ok: true,
+    campaigns,
+  })
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const authenticated = await isAdminAuthenticated().catch(() => false)
 
@@ -61,6 +96,57 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 
   const { eventId } = await params
   const json = await request.json().catch(() => null)
+  const action = json && typeof json === "object" && "action" in json ? (json as { action?: unknown }).action : undefined
+
+  if (action === "resend_failed") {
+    const parsed = resendFailedSchema.safeParse(json)
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid resend request." }, { status: 400 })
+    }
+
+    try {
+      const result = await resendFailedTemplatedMarketingEmailCampaign({
+        eventId,
+        campaignId: parsed.data.campaignId,
+        baseUrl: parsed.data.baseUrl || new URL(request.url).origin,
+      })
+
+      return NextResponse.json({
+        ok: true,
+        ...result,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to resend failed emails."
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
+  }
+
+  if (action === "resend_delivery") {
+    const parsed = resendDeliverySchema.safeParse(json)
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid delivery resend request." }, { status: 400 })
+    }
+
+    try {
+      const result = await resendMarketingEmailDelivery({
+        eventId,
+        campaignId: parsed.data.campaignId,
+        deliveryId: parsed.data.deliveryId,
+        baseUrl: parsed.data.baseUrl || new URL(request.url).origin,
+      })
+
+      return NextResponse.json({
+        ok: true,
+        ...result,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to resend email."
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
+  }
+
   const parsed = emailCampaignSchema.safeParse(json)
 
   if (!parsed.success) {

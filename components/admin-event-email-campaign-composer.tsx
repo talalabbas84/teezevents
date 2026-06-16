@@ -2,17 +2,20 @@
 
 import { useMemo, useState, type ChangeEvent } from "react"
 import {
+  AlertTriangle,
   CheckCircle2,
   ClipboardList,
   Code2,
   Copy,
   Eye,
   FileText,
+  History,
   LayoutTemplate,
   Link2,
   Mail,
   Monitor,
   Paperclip,
+  RefreshCw,
   Send,
   ShieldCheck,
   Smartphone,
@@ -65,6 +68,70 @@ type SendResult = {
   sent: number
   failed: number
   generatedCodes: number
+  campaignId?: string
+}
+
+type CampaignHistoryDelivery = {
+  id: string
+  recipientEmail: string
+  recipientName: string | null
+  subject: string
+  targetUrl: string | null
+  discountCode: string | null
+  discountCodes: string[]
+  status: "PENDING" | "SENT" | "FAILED" | "SKIPPED"
+  attemptCount: number
+  lastAttemptAt: string | null
+  sentAt: string | null
+  errorMessage: string | null
+  providerMessageId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+type CampaignHistoryItem = {
+  id: string
+  name: string
+  utmCampaign: string
+  status: "DRAFT" | "ACTIVE" | "PAUSED" | "COMPLETED"
+  audience: string | null
+  objective: string | null
+  createdAt: string
+  updatedAt: string
+  post: {
+    id: string
+    status: "DRAFT" | "READY" | "PUBLISHED" | "FAILED"
+    caption: string
+    targetUrl: string
+    errorMessage: string | null
+    publishedAt: string | null
+    createdAt: string
+  } | null
+  detail: {
+    sourceEventId: string | null
+    recipientSource: string
+    audienceLabel: string | null
+    testRecipient: string | null
+    subject: string
+    preheader: string | null
+    replyTo: string | null
+    ctaLabel: string | null
+    ctaUrl: string | null
+    emailFormat: string
+    bodyTemplate: string
+    excludeCurrentEventGuests: boolean
+    includeDiscountCodes: boolean
+    codePrefix: string | null
+    discountType: DiscountType | null
+    amountValue: number | null
+    expiresAt: string | null
+    baseUrl: string | null
+    attachmentNames: unknown
+  } | null
+  total: number
+  sent: number
+  failed: number
+  deliveries: CampaignHistoryDelivery[]
 }
 
 type CampaignAttachment = {
@@ -90,6 +157,8 @@ const templateVariables = [
   "{{eventUrl}}",
   "{{checkoutUrl}}",
   "{{discountCode}}",
+  "{{discountCodes}}",
+  "{{discountCodeCount}}",
   "{{discountValue}}",
   "{{sourceEventTitle}}",
   "{{sourceEventDate}}",
@@ -183,6 +252,64 @@ function formatCurrency(amountInCents: number, currency = "cad") {
   }).format(amountInCents / 100)
 }
 
+function formatDateTimeLabel(value: string | null) {
+  if (!value) {
+    return "Not recorded"
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not recorded"
+  }
+
+  return date.toLocaleString("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+function getFailedDeliveries(campaign: CampaignHistoryItem) {
+  return campaign.deliveries.filter((delivery) => delivery.status === "FAILED")
+}
+
+function getInferredFailureCount(campaign: CampaignHistoryItem) {
+  const match = campaign.post?.errorMessage?.match(/(\d+)\s+email/i)
+  return match ? Number(match[1]) : null
+}
+
+function hasCampaignLevelFailure(campaign: CampaignHistoryItem) {
+  return Boolean(campaign.post?.errorMessage || campaign.post?.status === "FAILED")
+}
+
+function getDeliveryBadgeVariant(status: CampaignHistoryDelivery["status"]) {
+  if (status === "FAILED") {
+    return "destructive" as const
+  }
+
+  if (status === "SENT") {
+    return "secondary" as const
+  }
+
+  return "outline" as const
+}
+
+function getDeliveryStatusLabel(status: CampaignHistoryDelivery["status"]) {
+  switch (status) {
+    case "SENT":
+      return "Sent"
+    case "FAILED":
+      return "Failed"
+    case "PENDING":
+      return "Pending"
+    case "SKIPPED":
+      return "Skipped"
+  }
+}
+
 function buildEventDetailsTemplate(event: EmailCampaignEvent) {
   const venue = event.venue || event.address || "Venue to be announced"
 
@@ -201,13 +328,13 @@ Open the event page:
 function buildDiscountTemplate() {
   return `Hi {{firstName}},
 
-Thanks for being part of the TEEZ community. Here is your unique code for {{eventTitle}}:
+Thanks for being part of the TEEZ community. Based on your previous ticket purchase, here are your unique code(s) for {{eventTitle}}:
 
-{{discountCode}}
+{{discountCodes}}
 
-It gives you {{discountValue}} off and is locked to this email address for one redemption.
+Each code gives you {{discountValue}} off, is locked to this email address, and can be used once.
 
-Use it here:
+Use your first code here:
 {{checkoutUrl}}`
 }
 
@@ -274,7 +401,7 @@ function buildContentBlock(blockId: (typeof contentBlocks)[number]["id"], format
   <tr><td style="padding: 6px 0; font-weight: 700;">Venue</td><td style="padding: 6px 0;">{{venue}}</td></tr>
 </table>`,
       "past-guest": `<p style="margin: 18px 0;">Thanks for being part of {{sourceEventTitle}}. We are inviting that attendee list first for {{eventTitle}}.</p>`,
-      discount: `<p style="margin: 18px 0;"><strong>Your code:</strong> {{discountCode}}<br><strong>Value:</strong> {{discountValue}}</p>`,
+      discount: `<p style="margin: 18px 0;"><strong>Your code(s):</strong><br>{{discountCodes}}<br><strong>Value:</strong> {{discountValue}}</p>`,
       cta: `<p style="margin: 28px 0;"><a href="{{checkoutUrl}}" style="display:inline-block; background:#c57a3a; color:#fffaf2; padding:14px 20px; border-radius:999px; text-decoration:none; font-weight:700;">Reserve now</a></p>`,
       divider: `<hr style="border:0; border-top:1px solid #e8d7c1; margin: 28px 0;">`,
     }
@@ -288,7 +415,8 @@ function buildContentBlock(blockId: (typeof contentBlocks)[number]["id"], format
 Time: {{eventTime}}
 Venue: {{venue}}`,
     "past-guest": `Thanks for being part of {{sourceEventTitle}}. We are inviting that attendee list first for {{eventTitle}}.`,
-    discount: `Your code: {{discountCode}}
+    discount: `Your code(s):
+{{discountCodes}}
 Value: {{discountValue}}`,
     cta: `Reserve here:
 {{checkoutUrl}}`,
@@ -310,6 +438,8 @@ function previewTemplate(value: string, event: EmailCampaignEvent, sourceEvent?:
     eventUrl: `/events/${event.id}`,
     checkoutUrl: `/checkout/${event.id}?voucher=TEEZ-SAMPLE123`,
     discountCode: "TEEZ-SAMPLE123",
+    discountCodes: "1. TEEZ-SAMPLE123\n2. TEEZ-SAMPLE456\n3. TEEZ-SAMPLE789",
+    discountCodeCount: "3",
     discountValue: "20%",
     sourceEventTitle: sourceEvent?.title || event.title,
     sourceEventDate: toDateLabel(sourceEvent?.startsAt || event.startsAt),
@@ -356,9 +486,11 @@ function readFileAsBase64(file: File) {
 export function AdminEventEmailCampaignComposer({
   event,
   audienceEvents = [],
+  campaignHistory = [],
 }: {
   event: EmailCampaignEvent
   audienceEvents?: AudienceEvent[]
+  campaignHistory?: CampaignHistoryItem[]
 }) {
   const defaultCampaignName = `${slugify(event.title) || event.id}-email`
   const audienceOptions = useMemo(() => {
@@ -406,6 +538,9 @@ export function AdminEventEmailCampaignComposer({
   const [error, setError] = useState("")
   const [result, setResult] = useState<SendResult | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>("DESKTOP")
+  const [history, setHistory] = useState<CampaignHistoryItem[]>(campaignHistory)
+  const [historyError, setHistoryError] = useState("")
+  const [historyActionId, setHistoryActionId] = useState<string | null>(null)
 
   const selectedAudienceEvent = useMemo(
     () => audienceOptions.find((audienceEvent) => audienceEvent.id === sourceEventId) || audienceOptions[0],
@@ -588,6 +723,158 @@ export function AdminEventEmailCampaignComposer({
     setAttachments((current) => current.filter((attachment) => attachment.id !== id))
   }
 
+  async function refreshCampaignHistory() {
+    const response = await fetch(`/api/admin/events/${encodeURIComponent(event.id)}/marketing/email-campaign`)
+    const payload = await response.json().catch(() => null)
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || "Unable to load campaign history.")
+    }
+
+    setHistory(payload.campaigns || [])
+  }
+
+  function loadCampaignIntoEditor(campaign: CampaignHistoryItem, mode: "template" | "failed-list") {
+    if (!campaign.detail) {
+      setHistoryError("This campaign does not have a saved template snapshot.")
+      return
+    }
+
+    const detail = campaign.detail
+    const failedEmails = getFailedDeliveries(campaign).map((delivery) => delivery.recipientEmail)
+    const ctaUrl = detail.ctaUrl || ""
+    const nextRecipientSource: RecipientSource =
+      detail.recipientSource === "PASTED_EMAILS" || detail.recipientSource === "BOTH" ? detail.recipientSource : "EVENT_GUESTS"
+    const nextEmailFormat: EmailFormat = detail.emailFormat === "CUSTOM_HTML" ? "CUSTOM_HTML" : "BRANDED"
+
+    setCampaignName(mode === "failed-list" ? `${campaign.name}-failed-resend` : campaign.name)
+    setUtmCampaign(campaign.utmCampaign)
+    setRecipientSource(mode === "failed-list" ? "PASTED_EMAILS" : nextRecipientSource)
+    setSourceEventId(detail.sourceEventId || event.id)
+    setExcludeCurrentEventGuests(detail.excludeCurrentEventGuests)
+    setPastedEmails(mode === "failed-list" ? failedEmails.join("\n") : "")
+    setSubject(detail.subject)
+    setPreheader(detail.preheader || "")
+    setReplyTo(detail.replyTo || "")
+    setCtaLabel(detail.ctaLabel || "Open event")
+    setCtaDestination(ctaUrl === "{{checkoutUrl}}" ? "CHECKOUT" : ctaUrl === "{{eventUrl}}" || !ctaUrl ? "EVENT_PAGE" : "CUSTOM")
+    setCustomCtaUrl(ctaUrl === "{{checkoutUrl}}" || ctaUrl === "{{eventUrl}}" ? "" : ctaUrl)
+    setEmailFormat(nextEmailFormat)
+    setBodyTemplate(detail.bodyTemplate)
+    setIncludeDiscountCodes(detail.includeDiscountCodes)
+    setCodePrefix(detail.codePrefix || "TEEZ")
+    setDiscountType(detail.discountType || "PERCENT")
+    setAmountValue(typeof detail.amountValue === "number" ? String(detail.amountValue) : "20")
+    setExpiresAt(detail.expiresAt ? detail.expiresAt.slice(0, 16) : "")
+    setAttachments([])
+    setError("")
+    setHistoryError(
+      mode === "failed-list"
+        ? "Failed recipients loaded into the pasted list. Edit any addresses, then send as a new campaign."
+        : "Campaign template loaded. Attachments are not stored in history, so reattach files before resending if needed.",
+    )
+  }
+
+  async function resendFailedCampaign(campaign: CampaignHistoryItem) {
+    const failedDeliveries = getFailedDeliveries(campaign)
+
+    if (failedDeliveries.length === 0) {
+      setHistoryError("This campaign has no failed emails to resend.")
+      return
+    }
+
+    const confirmed = window.confirm(`Resend this campaign to ${failedDeliveries.length} failed recipient(s)?`)
+
+    if (!confirmed) {
+      return
+    }
+
+    setHistoryActionId(campaign.id)
+    setHistoryError("")
+
+    try {
+      const response = await fetch(`/api/admin/events/${encodeURIComponent(event.id)}/marketing/email-campaign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "resend_failed",
+          campaignId: campaign.id,
+          baseUrl: window.location.origin,
+        }),
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Unable to resend failed emails.")
+      }
+
+      setResult({
+        total: payload.total || 0,
+        sent: payload.sent || 0,
+        failed: payload.failed || 0,
+        generatedCodes: payload.generatedCodes || 0,
+        campaignId: payload.campaignId,
+      })
+      await refreshCampaignHistory()
+    } catch (resendError) {
+      setHistoryError(resendError instanceof Error ? resendError.message : "Unable to resend failed emails.")
+    } finally {
+      setHistoryActionId(null)
+    }
+  }
+
+  async function resendSingleDelivery(campaign: CampaignHistoryItem, delivery: CampaignHistoryDelivery) {
+    if (!campaign.detail) {
+      setHistoryError("This campaign does not have a saved template snapshot.")
+      return
+    }
+
+    const confirmed = window.confirm(`Resend this campaign email to ${delivery.recipientEmail}?`)
+
+    if (!confirmed) {
+      return
+    }
+
+    const actionId = `delivery:${delivery.id}`
+    setHistoryActionId(actionId)
+    setHistoryError("")
+
+    try {
+      const response = await fetch(`/api/admin/events/${encodeURIComponent(event.id)}/marketing/email-campaign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "resend_delivery",
+          campaignId: campaign.id,
+          deliveryId: delivery.id,
+          baseUrl: window.location.origin,
+        }),
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Unable to resend email.")
+      }
+
+      setResult({
+        total: payload.total || 0,
+        sent: payload.sent || 0,
+        failed: payload.failed || 0,
+        generatedCodes: payload.generatedCodes || 0,
+        campaignId: payload.campaignId,
+      })
+      await refreshCampaignHistory()
+    } catch (resendError) {
+      setHistoryError(resendError instanceof Error ? resendError.message : "Unable to resend email.")
+    } finally {
+      setHistoryActionId(null)
+    }
+  }
+
   async function sendEmailCampaign(mode: "test" | "campaign") {
     setError("")
     setResult(null)
@@ -688,7 +975,9 @@ export function AdminEventEmailCampaignComposer({
         sent: payload.sent || 0,
         failed: payload.failed || 0,
         generatedCodes: payload.generatedCodes || 0,
+        campaignId: payload.campaignId,
       })
+      await refreshCampaignHistory()
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Unable to send email campaign.")
     } finally {
@@ -1065,7 +1354,8 @@ export function AdminEventEmailCampaignComposer({
             <span>
               <span className="block font-semibold">Generate unique one-use discount code per recipient</span>
               <span className="mt-1 block text-sm text-muted-foreground">
-                Codes are created on this event and assigned to the recipient email, so checkout must use the same email address.
+                Codes are created on this event and assigned to the recipient email. Paid guest audiences receive one code per
+                ticket purchased by that email on the source event.
               </span>
             </span>
           </label>
@@ -1228,6 +1518,282 @@ export function AdminEventEmailCampaignComposer({
               </Button>
             </div>
           </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-muted/20 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+                <History size={16} />
+                Campaign History
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Review sent campaigns, inspect failed recipients, resend failures, or load a saved template back into the builder.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-primary text-primary"
+              disabled={historyActionId !== null}
+              onClick={() => {
+                setHistoryActionId("refresh")
+                setHistoryError("")
+                refreshCampaignHistory()
+                  .catch((refreshError) =>
+                    setHistoryError(refreshError instanceof Error ? refreshError.message : "Unable to refresh campaign history."),
+                  )
+                  .finally(() => setHistoryActionId(null))
+              }}
+            >
+              <span className="inline-flex items-center gap-2">
+                <RefreshCw size={16} className={historyActionId === "refresh" ? "animate-spin" : undefined} />
+                Refresh
+              </span>
+            </Button>
+          </div>
+
+          {historyError && (
+            <div className="mt-4 rounded-xl border border-primary/15 bg-primary/10 p-3 text-sm text-primary">{historyError}</div>
+          )}
+
+          {history.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
+              No email campaigns have been sent for this event yet.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {history.map((campaign) => {
+                const failedDeliveries = getFailedDeliveries(campaign)
+                const hasRecipientLogs = campaign.deliveries.length > 0
+                const campaignLevelFailure = hasCampaignLevelFailure(campaign)
+                const inferredFailureCount = getInferredFailureCount(campaign)
+                const statusLabel = hasRecipientLogs
+                  ? campaign.failed > 0
+                    ? `${campaign.failed} failed`
+                    : "All sent"
+                  : campaignLevelFailure
+                    ? "Untracked failure"
+                    : "No recipient logs"
+
+                return (
+                  <details
+                    key={campaign.id}
+                    className="rounded-2xl border border-border bg-background/80 p-4"
+                    open={campaign.failed > 0 || (!hasRecipientLogs && campaignLevelFailure)}
+                  >
+                    <summary className="cursor-pointer list-none">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="break-words text-lg font-serif font-bold">{campaign.name}</h3>
+                            <Badge
+                              variant={
+                                hasRecipientLogs && campaign.failed === 0
+                                  ? "secondary"
+                                  : campaignLevelFailure || campaign.failed > 0
+                                    ? "destructive"
+                                    : "outline"
+                              }
+                            >
+                              {statusLabel}
+                            </Badge>
+                            <Badge variant="outline">{campaign.status}</Badge>
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {hasRecipientLogs
+                              ? `${campaign.sent}/${campaign.total} sent - ${formatDateTimeLabel(campaign.createdAt)}`
+                              : `Recipient-level statuses unavailable - ${formatDateTimeLabel(campaign.createdAt)}`}
+                          </div>
+                          {campaign.detail && (
+                            <div className="mt-2 break-words text-sm font-medium">{campaign.detail.subject}</div>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2">
+                            <div className="font-serif text-xl font-bold">{hasRecipientLogs ? campaign.total : "Unknown"}</div>
+                            <div className="text-xs text-muted-foreground">Total</div>
+                          </div>
+                          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2">
+                            <div className="font-serif text-xl font-bold">{hasRecipientLogs ? campaign.sent : "Unknown"}</div>
+                            <div className="text-xs text-muted-foreground">Sent</div>
+                          </div>
+                          <div className="rounded-xl border border-border bg-muted/20 px-3 py-2">
+                            <div className="font-serif text-xl font-bold">
+                              {hasRecipientLogs ? campaign.failed : inferredFailureCount ?? "Unknown"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Failed</div>
+                          </div>
+                        </div>
+                      </div>
+                    </summary>
+
+                    <div className="mt-4 space-y-4 border-t border-border pt-4">
+                      {!hasRecipientLogs && campaignLevelFailure && (
+                        <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
+                          <div className="flex items-center gap-2 font-semibold">
+                            <AlertTriangle size={16} />
+                            Recipient statuses were not captured for this send.
+                          </div>
+                          <p className="mt-2 leading-relaxed">
+                            {`The campaign only has a campaign-level error: ${
+                              campaign.post?.errorMessage || "Email delivery failed."
+                            } Exact failed email addresses are unavailable for this older/untracked send. Load the template and send again to create per-email status rows.`}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-primary text-primary"
+                          disabled={!campaign.detail}
+                          onClick={() => loadCampaignIntoEditor(campaign, "template")}
+                        >
+                          Load Template
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-primary text-primary"
+                          disabled={failedDeliveries.length === 0 || !campaign.detail}
+                          onClick={() => loadCampaignIntoEditor(campaign, "failed-list")}
+                        >
+                          Use Failed List
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="bg-primary text-primary-foreground hover:bg-accent"
+                          disabled={failedDeliveries.length === 0 || !campaign.detail || historyActionId !== null}
+                          onClick={() => void resendFailedCampaign(campaign)}
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <RefreshCw size={14} className={historyActionId === campaign.id ? "animate-spin" : undefined} />
+                            {historyActionId === campaign.id ? "Resending..." : "Resend Failed"}
+                          </span>
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-xl border border-border bg-muted/20 p-3 text-sm">
+                          <div className="font-semibold">Campaign Details</div>
+                          <div className="mt-2 space-y-1 text-muted-foreground">
+                            <div>{`Audience: ${campaign.audience || campaign.detail?.audienceLabel || "Not recorded"}`}</div>
+                            <div>{`UTM: ${campaign.utmCampaign}`}</div>
+                            <div>{`Last update: ${formatDateTimeLabel(campaign.updatedAt)}`}</div>
+                            {campaign.detail?.attachmentNames ? (
+                              <div>Attachments were used. Reattach files before sending from the builder.</div>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-border bg-muted/20 p-3 text-sm">
+                          <div className="font-semibold">Latest Error</div>
+                          <div className="mt-2 text-muted-foreground">
+                            {failedDeliveries[0]?.errorMessage ||
+                              campaign.post?.errorMessage ||
+                              (hasRecipientLogs ? "No delivery errors recorded." : "No recipient-level delivery records found.")}
+                          </div>
+                        </div>
+                      </div>
+
+                      {hasRecipientLogs && (
+                        <div className="rounded-xl border border-border bg-muted/20 p-3">
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 text-sm font-semibold">
+                              <Mail size={16} className="text-primary" />
+                              All Recipient Statuses
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="secondary">
+                                {`${campaign.deliveries.filter((delivery) => delivery.status === "SENT").length} sent`}
+                              </Badge>
+                              <Badge variant={failedDeliveries.length > 0 ? "destructive" : "outline"}>
+                                {`${failedDeliveries.length} failed`}
+                              </Badge>
+                              <Badge variant="outline">
+                                {`${campaign.deliveries.filter((delivery) => delivery.status === "PENDING").length} pending`}
+                              </Badge>
+                              <Badge variant="outline">
+                                {`${campaign.deliveries.filter((delivery) => delivery.status === "SKIPPED").length} skipped`}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="max-h-72 space-y-2 overflow-auto pr-1">
+                            {campaign.deliveries.map((delivery) => (
+                              <div key={delivery.id} className="rounded-lg border border-border bg-background p-3 text-sm">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="break-all font-medium">{delivery.recipientEmail}</div>
+                                    {delivery.recipientName && (
+                                      <div className="text-xs text-muted-foreground">{delivery.recipientName}</div>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant={getDeliveryBadgeVariant(delivery.status)}>
+                                      {getDeliveryStatusLabel(delivery.status)}
+                                    </Badge>
+                                    <Badge variant="outline">{`${delivery.attemptCount} attempt${delivery.attemptCount === 1 ? "" : "s"}`}</Badge>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 border-primary text-primary"
+                                      disabled={!campaign.detail || historyActionId !== null}
+                                      onClick={() => void resendSingleDelivery(campaign, delivery)}
+                                    >
+                                      <span className="inline-flex items-center gap-2">
+                                        <RefreshCw
+                                          size={13}
+                                          className={historyActionId === `delivery:${delivery.id}` ? "animate-spin" : undefined}
+                                        />
+                                        {historyActionId === `delivery:${delivery.id}` ? "Resending" : "Resend"}
+                                      </span>
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="mt-2 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                                  <div>{`Subject: ${delivery.subject}`}</div>
+                                  <div>{`Last attempt: ${formatDateTimeLabel(delivery.lastAttemptAt)}`}</div>
+                                  <div>{`Sent at: ${formatDateTimeLabel(delivery.sentAt)}`}</div>
+                                  <div>{`Provider ID: ${delivery.providerMessageId || "Not returned"}`}</div>
+                                </div>
+                                {delivery.discountCodes.length > 0 && (
+                                  <div className="mt-2 rounded-lg border border-primary/15 bg-primary/5 p-2 text-xs">
+                                    <div className="font-semibold text-primary">
+                                      {`${delivery.discountCodes.length} assigned discount code${
+                                        delivery.discountCodes.length === 1 ? "" : "s"
+                                      }`}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {delivery.discountCodes.map((code) => (
+                                        <span key={code} className="rounded-md border border-border bg-background px-2 py-1 font-mono">
+                                          {code}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {delivery.targetUrl && <div className="mt-2 break-all text-xs text-muted-foreground">{delivery.targetUrl}</div>}
+                                {delivery.errorMessage && (
+                                  <div className="mt-2 rounded-lg border border-destructive/15 bg-destructive/5 p-2 text-destructive">
+                                    {delivery.errorMessage}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                )
+              })}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

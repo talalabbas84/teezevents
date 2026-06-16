@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireAdminSession } from "@/lib/admin-auth"
 import { formatCurrency, getAdminEventOperationsData, getCheckoutSetupIssue } from "@/lib/checkout"
+import { getEventEmailCampaignHistory } from "@/lib/marketing"
 import { getTicketDeliverySetupIssue } from "@/lib/ticket-delivery"
 
 function formatEventDate(startsAt: Date | null) {
@@ -112,6 +113,7 @@ export default async function AdminEventOperationsPage({
   }
 
   const { event, summary, orders, tickets, audienceEvents, ticketTiers, vouchers } = data
+  const emailCampaignHistory = await getEventEmailCampaignHistory(event.id)
   const dateLabel = formatEventDate(event.startsAt)
   const uniqueAudiencePool = audienceEvents.reduce((total, audienceEvent) => total + audienceEvent.uniqueRecipients, 0)
   const unsentPaidOrders = Math.max(summary.paidOrders - summary.deliveredOrders, 0)
@@ -339,6 +341,7 @@ export default async function AdminEventOperationsPage({
                 uniqueRecipients: audienceEvent.uniqueRecipients,
                 revenueCents: audienceEvent.revenueCents,
               }))}
+              campaignHistory={emailCampaignHistory}
             />
           </TabsContent>
 
