@@ -6,6 +6,8 @@ import {
   getEventEmailCampaignHistory,
   resendFailedTemplatedMarketingEmailCampaign,
   resendMarketingEmailDelivery,
+  saveTemplatedMarketingEmailDraft,
+  scheduleTemplatedMarketingEmailCampaign,
   sendTemplatedMarketingEmailCampaign,
 } from "@/lib/marketing"
 
@@ -23,7 +25,7 @@ const optionalText = (max: number) =>
   )
 
 const emailCampaignSchema = z.object({
-  action: z.literal("send").optional(),
+  action: z.enum(["send", "save_draft", "schedule"]).optional(),
   recipientSource: z.enum(["EVENT_GUESTS", "PASTED_EMAILS", "BOTH"]).default("EVENT_GUESTS"),
   sourceEventId: optionalText(80),
   pastedEmails: z.string().max(200000).optional(),
@@ -55,6 +57,7 @@ const emailCampaignSchema = z.object({
   discountType: z.enum(["FIXED", "PERCENT"]).default("PERCENT"),
   amountValue: z.coerce.number().min(0).max(10000).optional(),
   expiresAt: optionalText(40),
+  scheduledAt: optionalText(40),
   baseUrl: optionalText(500),
 })
 
@@ -154,7 +157,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   }
 
   try {
-    const result = await sendTemplatedMarketingEmailCampaign({
+    const campaignInput = {
       eventId,
       sourceEventId: parsed.data.sourceEventId,
       recipientSource: parsed.data.recipientSource,
@@ -177,8 +180,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
       discountType: parsed.data.discountType,
       amountValue: parsed.data.amountValue,
       expiresAt: parsed.data.expiresAt,
+      scheduledAt: parsed.data.scheduledAt,
       baseUrl: parsed.data.baseUrl || new URL(request.url).origin,
-    })
+    }
+    const result =
+      parsed.data.action === "save_draft"
+        ? await saveTemplatedMarketingEmailDraft(campaignInput)
+        : parsed.data.action === "schedule"
+          ? await scheduleTemplatedMarketingEmailCampaign(campaignInput)
+          : await sendTemplatedMarketingEmailCampaign(campaignInput)
 
     return NextResponse.json({
       ok: true,

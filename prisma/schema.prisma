@@ -270,6 +270,7 @@ model MarketingEmailCampaignDetail {
   eventId                   String
   sourceEventId             String?
   recipientSource           String
+  pastedEmails              String?
   audienceLabel             String?
   testRecipient             String?
   subject                   String
@@ -286,6 +287,7 @@ model MarketingEmailCampaignDetail {
   amountValue               Float?
   expiresAt                 DateTime?
   baseUrl                   String?
+  scheduledSendAt           DateTime?
   attachmentNames           Json?
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt

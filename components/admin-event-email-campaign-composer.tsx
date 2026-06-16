@@ -3,6 +3,7 @@
 import { useMemo, useState, type ChangeEvent } from "react"
 import {
   AlertTriangle,
+  CalendarClock,
   CheckCircle2,
   ClipboardList,
   Code2,
@@ -16,6 +17,7 @@ import {
   Monitor,
   Paperclip,
   RefreshCw,
+  Save,
   Send,
   ShieldCheck,
   Smartphone,
@@ -104,12 +106,14 @@ type CampaignHistoryItem = {
     caption: string
     targetUrl: string
     errorMessage: string | null
+    scheduledAt: string | null
     publishedAt: string | null
     createdAt: string
   } | null
   detail: {
     sourceEventId: string | null
     recipientSource: string
+    pastedEmails: string | null
     audienceLabel: string | null
     testRecipient: string | null
     subject: string
@@ -126,6 +130,7 @@ type CampaignHistoryItem = {
     amountValue: number | null
     expiresAt: string | null
     baseUrl: string | null
+    scheduledSendAt: string | null
     attachmentNames: unknown
   } | null
   total: number
@@ -272,6 +277,21 @@ function formatDateTimeLabel(value: string | null) {
   })
 }
 
+function toDateTimeLocalValue(value: string | null) {
+  if (!value) {
+    return ""
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return ""
+  }
+
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
+}
+
 function getFailedDeliveries(campaign: CampaignHistoryItem) {
   return campaign.deliveries.filter((delivery) => delivery.status === "FAILED")
 }
@@ -336,6 +356,22 @@ Each code gives you {{discountValue}} off, is locked to this email address, and 
 
 Use your first code here:
 {{checkoutUrl}}`
+}
+
+function buildMultiCodeTestTemplate() {
+  return `Hi {{firstName}},
+
+This is a test discount email for {{eventTitle}}.
+
+You received {{discountCodeCount}} unique code(s), based on the number of tickets connected to your email from {{sourceEventTitle}}.
+
+Your code list:
+{{discountCodes}}
+
+Quick checkout link using your first code:
+{{checkoutUrl}}
+
+Admin note: {{discountCode}} is only the first code. Use {{discountCodes}} when you want every assigned code to appear in the email.`
 }
 
 function buildReminderTemplate(event: EmailCampaignEvent) {
@@ -534,8 +570,10 @@ export function AdminEventEmailCampaignComposer({
   const [discountType, setDiscountType] = useState<DiscountType>("PERCENT")
   const [amountValue, setAmountValue] = useState("20")
   const [expiresAt, setExpiresAt] = useState("")
-  const [loadingMode, setLoadingMode] = useState<"test" | "campaign" | null>(null)
+  const [scheduledAt, setScheduledAt] = useState("")
+  const [loadingMode, setLoadingMode] = useState<"test" | "campaign" | "draft" | "schedule" | null>(null)
   const [error, setError] = useState("")
+  const [actionMessage, setActionMessage] = useState("")
   const [result, setResult] = useState<SendResult | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>("DESKTOP")
   const [history, setHistory] = useState<CampaignHistoryItem[]>(campaignHistory)
@@ -615,6 +653,16 @@ export function AdminEventEmailCampaignComposer({
     setCtaLabel("Use code")
     setCtaDestination("CHECKOUT")
     setBodyTemplate(buildDiscountTemplate())
+  }
+
+  function applyMultiCodeTestPreset() {
+    setIncludeDiscountCodes(true)
+    setEmailFormat("BRANDED")
+    setSubject("Test: {{discountCodeCount}} code(s) for {{eventTitle}}")
+    setPreheader("Preview the multi-code discount email variables before sending.")
+    setCtaLabel("Use first code")
+    setCtaDestination("CHECKOUT")
+    setBodyTemplate(buildMultiCodeTestTemplate())
   }
 
   function applyReminderPreset() {
@@ -752,7 +800,7 @@ export function AdminEventEmailCampaignComposer({
     setRecipientSource(mode === "failed-list" ? "PASTED_EMAILS" : nextRecipientSource)
     setSourceEventId(detail.sourceEventId || event.id)
     setExcludeCurrentEventGuests(detail.excludeCurrentEventGuests)
-    setPastedEmails(mode === "failed-list" ? failedEmails.join("\n") : "")
+    setPastedEmails(mode === "failed-list" ? failedEmails.join("\n") : detail.pastedEmails || "")
     setSubject(detail.subject)
     setPreheader(detail.preheader || "")
     setReplyTo(detail.replyTo || "")
@@ -766,8 +814,10 @@ export function AdminEventEmailCampaignComposer({
     setDiscountType(detail.discountType || "PERCENT")
     setAmountValue(typeof detail.amountValue === "number" ? String(detail.amountValue) : "20")
     setExpiresAt(detail.expiresAt ? detail.expiresAt.slice(0, 16) : "")
+    setScheduledAt(toDateTimeLocalValue(detail.scheduledSendAt || campaign.post?.scheduledAt || null))
     setAttachments([])
     setError("")
+    setActionMessage("")
     setHistoryError(
       mode === "failed-list"
         ? "Failed recipients loaded into the pasted list. Edit any addresses, then send as a new campaign."
@@ -875,33 +925,30 @@ export function AdminEventEmailCampaignComposer({
     }
   }
 
-  async function sendEmailCampaign(mode: "test" | "campaign") {
-    setError("")
-    setResult(null)
-
+  function validateEmailCampaignAction(mode: "test" | "campaign" | "draft" | "schedule") {
     if (mode === "test" && !testRecipient.trim()) {
       setError("Add a test recipient before sending a test email.")
-      return
+      return false
     }
 
     if (!subject.trim() || !bodyTemplate.trim()) {
       setError("Subject and message are required.")
-      return
+      return false
     }
 
     if (emailFormat === "BRANDED" && !ctaLabel.trim()) {
       setError("Add a CTA label for the branded email template.")
-      return
+      return false
     }
 
     if ((recipientSource === "EVENT_GUESTS" || recipientSource === "BOTH") && !sourceEventId.trim()) {
       setError("Select the event audience for this campaign.")
-      return
+      return false
     }
 
     if (emailFormat === "BRANDED" && ctaDestination === "CUSTOM" && !customCtaUrl.trim()) {
       setError("Add a custom CTA URL or choose event page or checkout.")
-      return
+      return false
     }
 
     if (includeDiscountCodes) {
@@ -909,13 +956,124 @@ export function AdminEventEmailCampaignComposer({
 
       if (!Number.isFinite(amount) || amount <= 0) {
         setError("Discount amount must be above 0.")
-        return
+        return false
       }
 
       if (discountType === "PERCENT" && amount > 100) {
         setError("Percent discount cannot be above 100.")
+        return false
+      }
+    }
+
+    if (mode === "schedule") {
+      const scheduleDate = new Date(scheduledAt)
+
+      if (!scheduledAt.trim() || Number.isNaN(scheduleDate.getTime())) {
+        setError("Choose a valid date and time before scheduling.")
+        return false
+      }
+
+      if (scheduleDate.getTime() <= Date.now()) {
+        setError("Scheduled send time must be in the future.")
+        return false
+      }
+
+      if (attachments.length > 0) {
+        setError("Scheduled sends do not store attachment files yet. Remove attachments or send the campaign now.")
+        return false
+      }
+    }
+
+    return true
+  }
+
+  function buildEmailCampaignPayload(mode: "test" | "campaign" | "draft" | "schedule") {
+    return {
+      action: mode === "draft" ? "save_draft" : mode === "schedule" ? "schedule" : "send",
+      recipientSource,
+      sourceEventId,
+      pastedEmails,
+      testRecipient: mode === "test" ? testRecipient : undefined,
+      campaignName,
+      utmCampaign,
+      subject,
+      preheader,
+      replyTo,
+      ctaLabel,
+      ctaUrl: ctaUrlTemplate,
+      emailFormat,
+      bodyTemplate,
+      attachments: attachments.map(({ filename, contentType, size, content }) => ({
+        filename,
+        contentType,
+        size,
+        content,
+      })),
+      excludeCurrentEventGuests,
+      audienceLabel: selectedAudienceLabel,
+      includeDiscountCodes,
+      codePrefix,
+      discountType,
+      amountValue: Number(amountValue),
+      expiresAt,
+      scheduledAt: mode === "schedule" && scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+      baseUrl: window.location.origin,
+    }
+  }
+
+  async function saveEmailCampaign(mode: "draft" | "schedule") {
+    setError("")
+    setActionMessage("")
+    setResult(null)
+
+    if (!validateEmailCampaignAction(mode)) {
+      return
+    }
+
+    if (mode === "schedule") {
+      const confirmed = window.confirm(`Schedule this campaign for ${formatDateTimeLabel(new Date(scheduledAt).toISOString())}?`)
+
+      if (!confirmed) {
         return
       }
+    }
+
+    setLoadingMode(mode)
+
+    try {
+      const response = await fetch(`/api/admin/events/${encodeURIComponent(event.id)}/marketing/email-campaign`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildEmailCampaignPayload(mode)),
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error || (mode === "schedule" ? "Unable to schedule email campaign." : "Unable to save draft."))
+      }
+
+      setActionMessage(
+        mode === "schedule"
+          ? `Campaign scheduled for ${formatDateTimeLabel(payload?.scheduledAt || new Date(scheduledAt).toISOString())}.`
+          : `Draft saved.${attachments.length > 0 ? " Attachment files are not stored in drafts; reattach them before sending." : ""}`,
+      )
+      await refreshCampaignHistory()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save email campaign.")
+    } finally {
+      setLoadingMode(null)
+    }
+  }
+
+  async function sendEmailCampaign(mode: "test" | "campaign") {
+    setError("")
+    setActionMessage("")
+    setResult(null)
+
+    if (!validateEmailCampaignAction(mode)) {
+      return
     }
 
     if (mode === "campaign") {
@@ -934,35 +1092,7 @@ export function AdminEventEmailCampaignComposer({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          recipientSource,
-          sourceEventId,
-          pastedEmails,
-          testRecipient: mode === "test" ? testRecipient : undefined,
-          campaignName,
-          utmCampaign,
-          subject,
-          preheader,
-          replyTo,
-          ctaLabel,
-          ctaUrl: ctaUrlTemplate,
-          emailFormat,
-          bodyTemplate,
-          attachments: attachments.map(({ filename, contentType, size, content }) => ({
-            filename,
-            contentType,
-            size,
-            content,
-          })),
-          excludeCurrentEventGuests,
-          audienceLabel: selectedAudienceLabel,
-          includeDiscountCodes,
-          codePrefix,
-          discountType,
-          amountValue: Number(amountValue),
-          expiresAt,
-          baseUrl: window.location.origin,
-        }),
+        body: JSON.stringify(buildEmailCampaignPayload(mode)),
       })
       const payload = await response.json().catch(() => null)
 
@@ -1010,6 +1140,12 @@ export function AdminEventEmailCampaignComposer({
               <span className="inline-flex items-center gap-2">
                 <TicketPercent size={16} />
                 Discount Codes
+              </span>
+            </Button>
+            <Button type="button" variant="outline" className="border-primary text-primary" onClick={applyMultiCodeTestPreset}>
+              <span className="inline-flex items-center gap-2">
+                <TicketPercent size={16} />
+                Test Multi-Code
               </span>
             </Button>
             <Button type="button" variant="outline" className="border-primary text-primary" onClick={applyReminderPreset}>
@@ -1495,7 +1631,53 @@ export function AdminEventEmailCampaignComposer({
                 <div className="mt-1">{`${result.generatedCodes} discount code(s) generated. ${result.failed} failed.`}</div>
               </div>
             )}
+            {actionMessage && (
+              <div className="mt-4 rounded-xl border border-primary/15 bg-primary/10 p-3 text-sm text-primary">
+                <div className="flex items-center gap-2 font-medium">
+                  <CheckCircle2 size={16} />
+                  {actionMessage}
+                </div>
+              </div>
+            )}
+            <div className="mt-4 grid gap-3 rounded-xl border border-border bg-background/70 p-3 md:grid-cols-[1fr_auto] md:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="email-scheduled-at">Schedule Send</Label>
+                <Input
+                  id="email-scheduled-at"
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(inputEvent) => setScheduledAt(inputEvent.target.value)}
+                />
+                <div className="text-xs text-muted-foreground">
+                  Scheduled campaigns use the saved audience rules and generate discount codes when they send.
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-primary text-primary"
+                disabled={loadingMode !== null}
+                onClick={() => void saveEmailCampaign("schedule")}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <CalendarClock size={16} />
+                  {loadingMode === "schedule" ? "Scheduling..." : "Schedule"}
+                </span>
+              </Button>
+            </div>
             <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="border-primary text-primary"
+                disabled={loadingMode !== null}
+                onClick={() => void saveEmailCampaign("draft")}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Save size={16} />
+                  {loadingMode === "draft" ? "Saving..." : "Save Draft"}
+                </span>
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -1528,7 +1710,7 @@ export function AdminEventEmailCampaignComposer({
                 Campaign History
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Review sent campaigns, inspect failed recipients, resend failures, or load a saved template back into the builder.
+                Review sent campaigns, scheduled sends, drafts, failed recipients, and saved templates.
               </p>
             </div>
             <Button
@@ -1559,7 +1741,7 @@ export function AdminEventEmailCampaignComposer({
 
           {history.length === 0 ? (
             <div className="mt-4 rounded-xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
-              No email campaigns have been sent for this event yet.
+              No email campaigns, drafts, or scheduled sends have been created for this event yet.
             </div>
           ) : (
             <div className="mt-4 space-y-3">
@@ -1568,43 +1750,50 @@ export function AdminEventEmailCampaignComposer({
                 const hasRecipientLogs = campaign.deliveries.length > 0
                 const campaignLevelFailure = hasCampaignLevelFailure(campaign)
                 const inferredFailureCount = getInferredFailureCount(campaign)
-                const statusLabel = hasRecipientLogs
-                  ? campaign.failed > 0
-                    ? `${campaign.failed} failed`
-                    : "All sent"
-                  : campaignLevelFailure
-                    ? "Untracked failure"
-                    : "No recipient logs"
+                const isDraft = campaign.status === "DRAFT" || campaign.post?.status === "DRAFT"
+                const isScheduled = campaign.post?.status === "READY"
+                const statusLabel = isScheduled
+                  ? "Scheduled"
+                  : isDraft
+                    ? "Draft"
+                    : hasRecipientLogs
+                      ? campaign.failed > 0
+                        ? `${campaign.failed} failed`
+                        : "All sent"
+                      : campaignLevelFailure
+                        ? "Untracked failure"
+                        : "No recipient logs"
+                const statusSummary = isScheduled
+                  ? `Scheduled for ${formatDateTimeLabel(campaign.post?.scheduledAt || campaign.detail?.scheduledSendAt || null)}`
+                  : isDraft
+                    ? `Draft saved - ${formatDateTimeLabel(campaign.createdAt)}`
+                    : hasRecipientLogs
+                      ? `${campaign.sent}/${campaign.total} sent - ${formatDateTimeLabel(campaign.createdAt)}`
+                      : `Recipient-level statuses unavailable - ${formatDateTimeLabel(campaign.createdAt)}`
+                const statusBadgeVariant =
+                  isScheduled || isDraft
+                    ? "outline"
+                    : hasRecipientLogs && campaign.failed === 0
+                      ? "secondary"
+                      : campaignLevelFailure || campaign.failed > 0
+                        ? "destructive"
+                        : "outline"
 
                 return (
                   <details
                     key={campaign.id}
                     className="rounded-2xl border border-border bg-background/80 p-4"
-                    open={campaign.failed > 0 || (!hasRecipientLogs && campaignLevelFailure)}
+                    open={!isDraft && !isScheduled && (campaign.failed > 0 || (!hasRecipientLogs && campaignLevelFailure))}
                   >
                     <summary className="cursor-pointer list-none">
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="break-words text-lg font-serif font-bold">{campaign.name}</h3>
-                            <Badge
-                              variant={
-                                hasRecipientLogs && campaign.failed === 0
-                                  ? "secondary"
-                                  : campaignLevelFailure || campaign.failed > 0
-                                    ? "destructive"
-                                    : "outline"
-                              }
-                            >
-                              {statusLabel}
-                            </Badge>
+                            <Badge variant={statusBadgeVariant}>{statusLabel}</Badge>
                             <Badge variant="outline">{campaign.status}</Badge>
                           </div>
-                          <div className="mt-1 text-sm text-muted-foreground">
-                            {hasRecipientLogs
-                              ? `${campaign.sent}/${campaign.total} sent - ${formatDateTimeLabel(campaign.createdAt)}`
-                              : `Recipient-level statuses unavailable - ${formatDateTimeLabel(campaign.createdAt)}`}
-                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">{statusSummary}</div>
                           {campaign.detail && (
                             <div className="mt-2 break-words text-sm font-medium">{campaign.detail.subject}</div>
                           )}
@@ -1684,6 +1873,9 @@ export function AdminEventEmailCampaignComposer({
                           <div className="mt-2 space-y-1 text-muted-foreground">
                             <div>{`Audience: ${campaign.audience || campaign.detail?.audienceLabel || "Not recorded"}`}</div>
                             <div>{`UTM: ${campaign.utmCampaign}`}</div>
+                            {(campaign.post?.scheduledAt || campaign.detail?.scheduledSendAt) && (
+                              <div>{`Scheduled: ${formatDateTimeLabel(campaign.post?.scheduledAt || campaign.detail?.scheduledSendAt || null)}`}</div>
+                            )}
                             <div>{`Last update: ${formatDateTimeLabel(campaign.updatedAt)}`}</div>
                             {campaign.detail?.attachmentNames ? (
                               <div>Attachments were used. Reattach files before sending from the builder.</div>
@@ -1693,9 +1885,13 @@ export function AdminEventEmailCampaignComposer({
                         <div className="rounded-xl border border-border bg-muted/20 p-3 text-sm">
                           <div className="font-semibold">Latest Error</div>
                           <div className="mt-2 text-muted-foreground">
-                            {failedDeliveries[0]?.errorMessage ||
-                              campaign.post?.errorMessage ||
-                              (hasRecipientLogs ? "No delivery errors recorded." : "No recipient-level delivery records found.")}
+                            {isScheduled
+                              ? "Not sent yet. Recipient statuses will appear after the scheduled send runs."
+                              : isDraft
+                                ? "Draft has not been sent yet."
+                                : failedDeliveries[0]?.errorMessage ||
+                                  campaign.post?.errorMessage ||
+                                  (hasRecipientLogs ? "No delivery errors recorded." : "No recipient-level delivery records found.")}
                           </div>
                         </div>
                       </div>

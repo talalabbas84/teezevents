@@ -62,6 +62,7 @@ type SendTemplatedMarketingEmailInput = {
   discountType?: "FIXED" | "PERCENT"
   amountValue?: number
   expiresAt?: string
+  scheduledAt?: string
   baseUrl: string
 }
 
@@ -308,6 +309,7 @@ async function createMarketingCampaign(input: {
   objective?: string
   audience?: string
   budgetCents?: number
+  status?: "DRAFT" | "ACTIVE" | "PAUSED" | "COMPLETED"
 }) {
   const prisma = getMarketingPrismaClient()
 
@@ -319,7 +321,7 @@ async function createMarketingCampaign(input: {
       audience: input.audience || null,
       budgetCents: input.budgetCents ?? null,
       utmCampaign: input.utmCampaign,
-      status: "ACTIVE",
+      status: input.status || "ACTIVE",
     },
   })
 }
@@ -374,6 +376,7 @@ async function recordEmailCampaignDetail(input: {
 }) {
   const prisma = getMarketingPrismaClient()
   const expiresAt = input.data.expiresAt ? new Date(input.data.expiresAt) : null
+  const scheduledSendAt = input.data.scheduledAt ? new Date(input.data.scheduledAt) : null
 
   return prisma.marketingEmailCampaignDetail.create({
     data: {
@@ -381,6 +384,7 @@ async function recordEmailCampaignDetail(input: {
       eventId: input.data.eventId,
       sourceEventId: input.data.sourceEventId || null,
       recipientSource: input.data.recipientSource,
+      pastedEmails: input.data.pastedEmails || null,
       audienceLabel: input.data.audienceLabel || null,
       testRecipient: input.data.testRecipient || null,
       subject: input.data.subject,
@@ -397,6 +401,7 @@ async function recordEmailCampaignDetail(input: {
       amountValue: typeof input.data.amountValue === "number" ? input.data.amountValue : null,
       expiresAt: expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt : null,
       baseUrl: input.data.baseUrl || null,
+      scheduledSendAt: scheduledSendAt && !Number.isNaN(scheduledSendAt.getTime()) ? scheduledSendAt : null,
       attachmentNames: getAttachmentNames(input.data.attachments),
     },
   })
@@ -785,6 +790,22 @@ export async function processScheduledMarketingPosts(limit = 20) {
 
   for (const post of posts) {
     try {
+      if (post.platform === "EMAIL") {
+        const result = await sendScheduledTemplatedMarketingEmailCampaign({
+          campaignId: post.campaignId,
+          postId: post.id,
+          baseUrl: post.targetUrl ? new URL(post.targetUrl).origin : undefined,
+        })
+
+        results.push({
+          postId: post.id,
+          platform: post.platform,
+          status: result.status === "FAILED" ? "failed" : "published",
+          error: result.failed > 0 ? `${result.failed} email(s) failed.` : undefined,
+        })
+        continue
+      }
+
       const result = await publishDirectPost({
         platform: post.platform as MarketingPlatformKey,
         caption: post.caption,
@@ -1269,7 +1290,42 @@ async function deliverMarketingEmail(input: {
   })
 }
 
-export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMarketingEmailInput) {
+function buildEmailCampaignCaption(input: SendTemplatedMarketingEmailInput) {
+  return `${input.subject}\n\n${input.bodyTemplate}`
+}
+
+function getScheduledDate(value?: string) {
+  if (!value?.trim()) {
+    throw new Error("Choose a date and time before scheduling this email campaign.")
+  }
+
+  const scheduledAt = new Date(value)
+
+  if (Number.isNaN(scheduledAt.getTime())) {
+    throw new Error("Scheduled send date is invalid.")
+  }
+
+  if (scheduledAt.getTime() <= Date.now()) {
+    throw new Error("Scheduled send date must be in the future.")
+  }
+
+  return scheduledAt
+}
+
+function assertNoScheduledAttachments(input: SendTemplatedMarketingEmailInput) {
+  if (input.attachments?.length) {
+    throw new Error("Scheduled email sends cannot include attachments yet. Remove attachments or send the campaign now.")
+  }
+}
+
+async function sendTemplatedMarketingEmailForCampaign(
+  input: SendTemplatedMarketingEmailInput,
+  campaignId: string,
+  options: {
+    postId?: string
+  } = {},
+) {
+  const prisma = getMarketingPrismaClient()
   const context = await getMarketingEmailEventContext(input)
   const recipients = await getTemplatedEmailRecipients(input)
 
@@ -1283,17 +1339,6 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
 
   const codesByEmail = await createAssignedDiscountCodes(input, recipients)
   const attachments = buildEmailAttachments(input.attachments)
-  const campaign = await createMarketingCampaign({
-    eventId: input.eventId,
-    name: input.campaignName,
-    utmCampaign: input.utmCampaign,
-    objective: input.includeDiscountCodes ? "Discount email campaign" : "Event email campaign",
-    audience: input.testRecipient ? "Test recipient" : input.audienceLabel || input.recipientSource,
-  })
-  await recordEmailCampaignDetail({
-    campaignId: campaign.id,
-    data: input,
-  })
 
   const sent: string[] = []
   const failed: Array<{ email: string; error: string }> = []
@@ -1306,7 +1351,7 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
       discountCodes: codesByEmail.get(recipient.email),
     })
     const deliveryRecord = await recordEmailDelivery({
-      campaignId: campaign.id,
+      campaignId,
       eventId: input.eventId,
       recipient,
       rendered,
@@ -1315,7 +1360,7 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
 
     try {
       const delivery = await deliverMarketingEmail({
-        campaignId: campaign.id,
+        campaignId,
         recipient,
         rendered,
         replyTo: input.replyTo,
@@ -1344,27 +1389,171 @@ export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMa
     }
   }
 
-  const status = failed.length > 0 && sent.length === 0 ? "FAILED" : "PUBLISHED"
-  const post = await recordMarketingPost({
-    campaignId: campaign.id,
-    platform: "EMAIL",
-    caption: `${input.subject}\n\n${input.bodyTemplate}`,
+  const status: "FAILED" | "PUBLISHED" = failed.length > 0 && sent.length === 0 ? "FAILED" : "PUBLISHED"
+  const postData = {
+    caption: buildEmailCampaignCaption(input),
     targetUrl: context.eventUrl,
     status,
     publishedAt: status === "PUBLISHED" ? new Date() : null,
     errorMessage: failed.length > 0 ? `${failed.length} email(s) failed.` : null,
-  })
-  await attachDeliveriesToPost(campaign.id, post.id)
-  await updateCampaignStatusFromFailures(campaign.id, failed.length)
+  }
+  const post = options.postId
+    ? await prisma.marketingPost.update({
+        where: {
+          id: options.postId,
+        },
+        data: postData,
+      })
+    : await recordMarketingPost({
+        campaignId,
+        platform: "EMAIL",
+        ...postData,
+      })
+
+  await attachDeliveriesToPost(campaignId, post.id)
+  await updateCampaignStatusFromFailures(campaignId, failed.length)
 
   return {
-    campaignId: campaign.id,
+    campaignId,
     postId: post.id,
     total: recipients.length,
     sent: sent.length,
     failed: failed.length,
     generatedCodes: [...codesByEmail.values()].reduce((total, codes) => total + codes.length, 0),
+    status,
   }
+}
+
+export async function sendTemplatedMarketingEmailCampaign(input: SendTemplatedMarketingEmailInput) {
+  const recipients = await getTemplatedEmailRecipients(input)
+
+  if (recipients.length === 0) {
+    throw new Error("No recipient emails found.")
+  }
+
+  if (recipients.length > 5000) {
+    throw new Error("Send at most 5,000 emails at a time.")
+  }
+
+  const campaign = await createMarketingCampaign({
+    eventId: input.eventId,
+    name: input.campaignName,
+    utmCampaign: input.utmCampaign,
+    objective: input.includeDiscountCodes ? "Discount email campaign" : "Event email campaign",
+    audience: input.testRecipient ? "Test recipient" : input.audienceLabel || input.recipientSource,
+  })
+  await recordEmailCampaignDetail({
+    campaignId: campaign.id,
+    data: input,
+  })
+
+  return sendTemplatedMarketingEmailForCampaign(input, campaign.id)
+}
+
+export async function saveTemplatedMarketingEmailDraft(input: SendTemplatedMarketingEmailInput) {
+  const context = await getMarketingEmailEventContext(input)
+  const campaign = await createMarketingCampaign({
+    eventId: input.eventId,
+    name: input.campaignName,
+    utmCampaign: input.utmCampaign,
+    objective: input.includeDiscountCodes ? "Discount email draft" : "Event email draft",
+    audience: input.testRecipient ? "Test recipient" : input.audienceLabel || input.recipientSource,
+    status: "DRAFT",
+  })
+  await recordEmailCampaignDetail({
+    campaignId: campaign.id,
+    data: input,
+  })
+  const post = await recordMarketingPost({
+    campaignId: campaign.id,
+    platform: "EMAIL",
+    caption: buildEmailCampaignCaption(input),
+    targetUrl: context.eventUrl,
+    status: "DRAFT",
+  })
+
+  return {
+    campaignId: campaign.id,
+    postId: post.id,
+    mode: "draft" as const,
+  }
+}
+
+export async function scheduleTemplatedMarketingEmailCampaign(input: SendTemplatedMarketingEmailInput) {
+  assertNoScheduledAttachments(input)
+  const scheduledAt = getScheduledDate(input.scheduledAt)
+  const [context, recipients] = await Promise.all([getMarketingEmailEventContext(input), getTemplatedEmailRecipients(input)])
+
+  if (recipients.length === 0) {
+    throw new Error("No recipient emails found for this scheduled campaign.")
+  }
+
+  if (recipients.length > 5000) {
+    throw new Error("Schedule at most 5,000 emails at a time.")
+  }
+
+  const campaign = await createMarketingCampaign({
+    eventId: input.eventId,
+    name: input.campaignName,
+    utmCampaign: input.utmCampaign,
+    objective: input.includeDiscountCodes ? "Scheduled discount email campaign" : "Scheduled event email campaign",
+    audience: input.testRecipient ? "Test recipient" : input.audienceLabel || input.recipientSource,
+    status: "ACTIVE",
+  })
+  await recordEmailCampaignDetail({
+    campaignId: campaign.id,
+    data: {
+      ...input,
+      scheduledAt: scheduledAt.toISOString(),
+    },
+  })
+  const post = await recordMarketingPost({
+    campaignId: campaign.id,
+    platform: "EMAIL",
+    caption: buildEmailCampaignCaption(input),
+    targetUrl: context.eventUrl,
+    status: "READY",
+    scheduledAt: scheduledAt.toISOString(),
+  })
+
+  return {
+    campaignId: campaign.id,
+    postId: post.id,
+    mode: "scheduled" as const,
+    scheduledAt: scheduledAt.toISOString(),
+    estimatedRecipients: recipients.length,
+  }
+}
+
+export async function sendScheduledTemplatedMarketingEmailCampaign(input: {
+  campaignId: string
+  postId: string
+  baseUrl?: string
+}) {
+  const prisma = getMarketingPrismaClient()
+  const campaign = await prisma.marketingCampaign.findUnique({
+    where: {
+      id: input.campaignId,
+    },
+    include: {
+      emailDetails: true,
+    },
+  })
+
+  if (!campaign || !campaign.emailDetails) {
+    throw new Error("Scheduled email campaign details were not found.")
+  }
+
+  const campaignInput = buildInputFromEmailDetail({
+    detail: campaign.emailDetails,
+    campaignName: campaign.name,
+    utmCampaign: campaign.utmCampaign,
+    baseUrl: input.baseUrl || campaign.emailDetails.baseUrl || "",
+  })
+
+  return sendTemplatedMarketingEmailForCampaign(campaignInput, campaign.id, {
+    postId: input.postId,
+  })
 }
 
 function toIso(value: Date | null | undefined) {
@@ -1396,6 +1585,7 @@ function buildInputFromEmailDetail(input: {
     eventId: string
     sourceEventId: string | null
     recipientSource: string
+    pastedEmails: string | null
     audienceLabel: string | null
     testRecipient: string | null
     subject: string
@@ -1412,6 +1602,7 @@ function buildInputFromEmailDetail(input: {
     amountValue: number | null
     expiresAt: Date | null
     baseUrl: string | null
+    scheduledSendAt?: Date | null
   }
   campaignName: string
   utmCampaign: string
@@ -1421,6 +1612,7 @@ function buildInputFromEmailDetail(input: {
     eventId: input.detail.eventId,
     sourceEventId: input.detail.sourceEventId || undefined,
     recipientSource: parseRecipientSource(input.detail.recipientSource),
+    pastedEmails: input.detail.pastedEmails || undefined,
     campaignName: input.campaignName,
     utmCampaign: input.utmCampaign,
     subject: input.detail.subject,
@@ -1437,6 +1629,7 @@ function buildInputFromEmailDetail(input: {
     discountType: input.detail.discountType || "PERCENT",
     amountValue: input.detail.amountValue ?? undefined,
     expiresAt: input.detail.expiresAt ? input.detail.expiresAt.toISOString() : undefined,
+    scheduledAt: input.detail.scheduledSendAt ? input.detail.scheduledSendAt.toISOString() : undefined,
     baseUrl: input.baseUrl || input.detail.baseUrl || "",
   } satisfies SendTemplatedMarketingEmailInput
 }
@@ -1511,6 +1704,7 @@ export async function getEventEmailCampaignHistory(eventId: string) {
               caption: campaign.posts[0].caption,
               targetUrl: campaign.posts[0].targetUrl,
               errorMessage: campaign.posts[0].errorMessage,
+              scheduledAt: toIso(campaign.posts[0].scheduledAt),
               publishedAt: toIso(campaign.posts[0].publishedAt),
               createdAt: campaign.posts[0].createdAt.toISOString(),
             }
@@ -1519,6 +1713,7 @@ export async function getEventEmailCampaignHistory(eventId: string) {
           ? {
               sourceEventId: campaign.emailDetails.sourceEventId,
               recipientSource: campaign.emailDetails.recipientSource,
+              pastedEmails: campaign.emailDetails.pastedEmails,
               audienceLabel: campaign.emailDetails.audienceLabel,
               testRecipient: campaign.emailDetails.testRecipient,
               subject: campaign.emailDetails.subject,
@@ -1535,6 +1730,7 @@ export async function getEventEmailCampaignHistory(eventId: string) {
               amountValue: campaign.emailDetails.amountValue,
               expiresAt: toIso(campaign.emailDetails.expiresAt),
               baseUrl: campaign.emailDetails.baseUrl,
+              scheduledSendAt: toIso(campaign.emailDetails.scheduledSendAt),
               attachmentNames: campaign.emailDetails.attachmentNames,
             }
           : null,
