@@ -7,6 +7,7 @@ import {
   DoorOpen,
   Download,
   Mail,
+  MessageSquareText,
   ReceiptText,
   Settings2,
   Ticket,
@@ -112,7 +113,7 @@ export default async function AdminEventOperationsPage({
     )
   }
 
-  const { event, summary, orders, tickets, audienceEvents, ticketTiers, vouchers } = data
+  const { event, summary, orders, tickets, rsvps, audienceEvents, ticketTiers, vouchers } = data
   const emailCampaignHistory = await getEventEmailCampaignHistory(event.id)
   const dateLabel = formatEventDate(event.startsAt)
   const uniqueAudiencePool = audienceEvents.reduce((total, audienceEvent) => total + audienceEvent.uniqueRecipients, 0)
@@ -204,6 +205,7 @@ export default async function AdminEventOperationsPage({
               <TabsTrigger value="email" className="px-4 py-2">Email</TabsTrigger>
               <TabsTrigger value="marketing" className="px-4 py-2">Marketing</TabsTrigger>
               <TabsTrigger value="orders" className="px-4 py-2">{`Orders (${orders.length})`}</TabsTrigger>
+              <TabsTrigger value="rsvps" className="px-4 py-2">{`RSVPs (${rsvps.length})`}</TabsTrigger>
               <TabsTrigger value="tickets" className="px-4 py-2">{`Tickets (${tickets.length})`}</TabsTrigger>
               <TabsTrigger value="promotions" className="px-4 py-2">Promotions</TabsTrigger>
               <TabsTrigger value="guest-list" className="px-4 py-2">Guest List</TabsTrigger>
@@ -268,6 +270,20 @@ export default async function AdminEventOperationsPage({
                   <div className="text-3xl font-serif font-bold">{formatCurrency(averageOrderValueCents, event.currency)}</div>
                 </CardContent>
               </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <MessageSquareText className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">RSVP Leads</div>
+                  <div className="text-3xl font-serif font-bold">{rsvps.length}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border shadow-lg">
+                <CardContent className="space-y-3 p-5">
+                  <MessageSquareText className="text-primary" />
+                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Text Opt-ins</div>
+                  <div className="text-3xl font-serif font-bold">{summary.rsvpSmsOptIns}</div>
+                </CardContent>
+              </Card>
             </section>
 
             <Card className="border border-border shadow-xl">
@@ -329,6 +345,7 @@ export default async function AdminEventOperationsPage({
                 address: event.address,
                 checkoutEnabled: event.checkoutEnabled,
                 currency: event.currency,
+                rsvpContactCount: summary.rsvpEmailOptIns,
               }}
               audienceEvents={audienceEvents.map((audienceEvent) => ({
                 id: audienceEvent.id,
@@ -339,6 +356,7 @@ export default async function AdminEventOperationsPage({
                 paidOrders: audienceEvent.paidOrders,
                 ticketsIssued: audienceEvent.ticketsIssued,
                 uniqueRecipients: audienceEvent.uniqueRecipients,
+                rsvpContacts: audienceEvent.rsvpContacts,
                 revenueCents: audienceEvent.revenueCents,
               }))}
               campaignHistory={emailCampaignHistory}
@@ -448,6 +466,85 @@ export default async function AdminEventOperationsPage({
                     </TableCell>
                   </TableRow>
                 ))}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+          </TabsContent>
+
+          <TabsContent value="rsvps">
+        <section id="rsvps" className="rounded-3xl border border-border bg-background shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">RSVP Pipeline</div>
+              <h2 className="mt-2 text-2xl font-serif font-bold">Going, interested, and can't-go contacts</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Use these opt-ins for email campaigns, promo reminders, and SMS-ready exports.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:items-end">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">{`${summary.rsvpGoing} going`}</Badge>
+                <Badge variant="outline">{`${summary.rsvpInterested} interested`}</Badge>
+                <Badge variant="outline">{`${summary.rsvpCantGo} can't go`}</Badge>
+                <Badge variant="secondary">{`${summary.rsvpEmailOptIns} email opt-ins`}</Badge>
+                <Badge variant="secondary">{`${summary.rsvpSmsOptIns} text opt-ins`}</Badge>
+              </div>
+              <Button asChild variant="outline" className="border-primary text-primary">
+                <a href={`/api/admin/exports/rsvps?eventId=${encodeURIComponent(event.id)}`}>
+                  <span className="inline-flex items-center gap-2">
+                    <Download size={16} />
+                    Export RSVP CSV
+                  </span>
+                </a>
+              </Button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Consent</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Last response</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rsvps.length > 0 ? (
+                  rsvps.map((rsvp) => (
+                    <TableRow key={rsvp.id}>
+                      <TableCell>
+                        <Badge variant={rsvp.status === "GOING" ? "default" : rsvp.status === "INTERESTED" ? "secondary" : "outline"}>
+                          {rsvp.status === "CANT_GO" ? "CAN'T GO" : rsvp.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <span>{rsvp.name || "Guest"}</span>
+                          <span className="text-xs text-muted-foreground">{rsvp.email}</span>
+                          {rsvp.phone && <span className="text-xs text-muted-foreground">{rsvp.phone}</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                          <span>{rsvp.emailOptIn ? "Email opt-in" : "Email opt-out"}</span>
+                          <span>{rsvp.smsOptIn && rsvp.phone ? "Text opt-in" : "No text opt-in"}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{rsvp.source.replaceAll("_", " ")}</TableCell>
+                      <TableCell>{rsvp.lastSubmittedAt.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                      No RSVP contacts have been captured for this event yet.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

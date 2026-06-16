@@ -25,6 +25,7 @@ import {
 
 import { Footer } from "@/components/footer"
 import { Navigation } from "@/components/navigation"
+import { EventRsvpCapture } from "@/components/event-rsvp-capture"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -519,6 +520,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                         </div>
                       </div>
                     </div>
+                  )}
+
+                  {event.category === "Upcoming Event" && (
+                    <EventRsvpCapture eventId={event.id} eventTitle={event.title} source="EVENT_PAGE" compact />
                   )}
 
                   {event.guestStats && (

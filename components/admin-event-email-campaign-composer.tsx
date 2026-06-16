@@ -45,9 +45,10 @@ type EmailCampaignEvent = {
   address: string | null
   checkoutEnabled: boolean
   currency: string
+  rsvpContactCount: number
 }
 
-type RecipientSource = "EVENT_GUESTS" | "PASTED_EMAILS" | "BOTH"
+type RecipientSource = "EVENT_GUESTS" | "RSVP_CONTACTS" | "PASTED_EMAILS" | "BOTH"
 type DiscountType = "PERCENT" | "FIXED"
 type EmailFormat = "BRANDED" | "CUSTOM_HTML"
 type CtaDestination = "EVENT_PAGE" | "CHECKOUT" | "CUSTOM"
@@ -62,6 +63,7 @@ type AudienceEvent = {
   paidOrders: number
   ticketsIssued: number
   uniqueRecipients: number
+  rsvpContacts: number
   revenueCents: number
 }
 
@@ -544,6 +546,7 @@ export function AdminEventEmailCampaignComposer({
             paidOrders: 0,
             ticketsIssued: 0,
             uniqueRecipients: 0,
+            rsvpContacts: event.rsvpContactCount,
             revenueCents: 0,
           },
           ...audienceEvents,
@@ -591,9 +594,13 @@ export function AdminEventEmailCampaignComposer({
   const attachmentTotal = useMemo(() => attachments.reduce((total, attachment) => total + attachment.size, 0), [attachments])
   const selectedEventRecipientCount =
     selectedAudienceEvent && excludeCurrentEventGuests && selectedAudienceEvent.id === event.id ? 0 : selectedAudienceEvent?.uniqueRecipients || 0
+  const selectedRsvpContactCount =
+    selectedAudienceEvent && excludeCurrentEventGuests && selectedAudienceEvent.id === event.id ? 0 : selectedAudienceEvent?.rsvpContacts || 0
   const estimatedRecipientCount =
     recipientSource === "EVENT_GUESTS"
       ? selectedEventRecipientCount
+      : recipientSource === "RSVP_CONTACTS"
+        ? selectedRsvpContactCount
       : recipientSource === "PASTED_EMAILS"
         ? pastedEmailCount
         : selectedEventRecipientCount + pastedEmailCount
@@ -601,6 +608,8 @@ export function AdminEventEmailCampaignComposer({
   const recipientLabel =
     recipientSource === "EVENT_GUESTS"
       ? `paid attendees from ${selectedAudienceLabel}`
+      : recipientSource === "RSVP_CONTACTS"
+        ? `RSVP contacts from ${selectedAudienceLabel}`
       : recipientSource === "PASTED_EMAILS"
         ? "the pasted email list"
         : `${selectedAudienceLabel} attendees plus pasted emails`
@@ -792,7 +801,9 @@ export function AdminEventEmailCampaignComposer({
     const failedEmails = getFailedDeliveries(campaign).map((delivery) => delivery.recipientEmail)
     const ctaUrl = detail.ctaUrl || ""
     const nextRecipientSource: RecipientSource =
-      detail.recipientSource === "PASTED_EMAILS" || detail.recipientSource === "BOTH" ? detail.recipientSource : "EVENT_GUESTS"
+      detail.recipientSource === "PASTED_EMAILS" || detail.recipientSource === "BOTH" || detail.recipientSource === "RSVP_CONTACTS"
+        ? detail.recipientSource
+        : "EVENT_GUESTS"
     const nextEmailFormat: EmailFormat = detail.emailFormat === "CUSTOM_HTML" ? "CUSTOM_HTML" : "BRANDED"
 
     setCampaignName(mode === "failed-list" ? `${campaign.name}-failed-resend` : campaign.name)
@@ -941,7 +952,7 @@ export function AdminEventEmailCampaignComposer({
       return false
     }
 
-    if ((recipientSource === "EVENT_GUESTS" || recipientSource === "BOTH") && !sourceEventId.trim()) {
+    if ((recipientSource === "EVENT_GUESTS" || recipientSource === "RSVP_CONTACTS" || recipientSource === "BOTH") && !sourceEventId.trim()) {
       setError("Select the event audience for this campaign.")
       return false
     }
@@ -1232,15 +1243,18 @@ export function AdminEventEmailCampaignComposer({
                 className="w-full rounded-md border-2 border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="EVENT_GUESTS">Paid guests from event</option>
+                <option value="RSVP_CONTACTS">RSVP contacts from event</option>
                 <option value="PASTED_EMAILS">Pasted emails or CSV</option>
                 <option value="BOTH">Event guests and pasted list</option>
               </select>
             </div>
 
-            {(recipientSource === "EVENT_GUESTS" || recipientSource === "BOTH") && (
+            {(recipientSource === "EVENT_GUESTS" || recipientSource === "RSVP_CONTACTS" || recipientSource === "BOTH") && (
               <div className="space-y-3 rounded-2xl border border-border bg-background/70 p-3">
                 <div className="space-y-2">
-                  <Label htmlFor="email-source-event">Attendee Source Event</Label>
+                  <Label htmlFor="email-source-event">
+                    {recipientSource === "RSVP_CONTACTS" ? "RSVP Source Event" : "Attendee Source Event"}
+                  </Label>
                   <select
                     id="email-source-event"
                     value={sourceEventId}
@@ -1249,7 +1263,9 @@ export function AdminEventEmailCampaignComposer({
                   >
                     {audienceOptions.map((audienceEvent) => (
                       <option key={audienceEvent.id} value={audienceEvent.id}>
-                        {`${audienceEvent.title} - ${toShortDateLabel(audienceEvent.startsAt)} - ${audienceEvent.uniqueRecipients} recipients`}
+                        {`${audienceEvent.title} - ${toShortDateLabel(audienceEvent.startsAt)} - ${
+                          recipientSource === "RSVP_CONTACTS" ? audienceEvent.rsvpContacts : audienceEvent.uniqueRecipients
+                        } recipients`}
                       </option>
                     ))}
                   </select>
@@ -1259,7 +1275,9 @@ export function AdminEventEmailCampaignComposer({
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-xl border border-border bg-muted/20 p-2">
                       <div className="text-muted-foreground">Recipients</div>
-                      <div className="mt-1 text-lg font-serif font-bold">{selectedAudienceEvent.uniqueRecipients}</div>
+                      <div className="mt-1 text-lg font-serif font-bold">
+                        {recipientSource === "RSVP_CONTACTS" ? selectedAudienceEvent.rsvpContacts : selectedAudienceEvent.uniqueRecipients}
+                      </div>
                     </div>
                     <div className="rounded-xl border border-border bg-muted/20 p-2">
                       <div className="text-muted-foreground">Orders</div>
@@ -1270,8 +1288,8 @@ export function AdminEventEmailCampaignComposer({
                       <div className="mt-1 text-lg font-serif font-bold">{selectedAudienceEvent.ticketsIssued}</div>
                     </div>
                     <div className="rounded-xl border border-border bg-muted/20 p-2">
-                      <div className="text-muted-foreground">Revenue</div>
-                      <div className="mt-1 text-lg font-serif font-bold">{formatCurrency(selectedAudienceEvent.revenueCents, event.currency)}</div>
+                      <div className="text-muted-foreground">RSVPs</div>
+                      <div className="mt-1 text-lg font-serif font-bold">{selectedAudienceEvent.rsvpContacts}</div>
                     </div>
                   </div>
                 )}
@@ -1280,13 +1298,21 @@ export function AdminEventEmailCampaignComposer({
                   <Button type="button" size="sm" variant="ghost" onClick={() => setSourceEventId(event.id)}>
                     Use this event
                   </Button>
-                  {audienceOptions.find((audienceEvent) => audienceEvent.id !== event.id && audienceEvent.uniqueRecipients > 0) && (
+                  {audienceOptions.find(
+                    (audienceEvent) =>
+                      audienceEvent.id !== event.id &&
+                      (recipientSource === "RSVP_CONTACTS" ? audienceEvent.rsvpContacts > 0 : audienceEvent.uniqueRecipients > 0),
+                  ) && (
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        const previousEvent = audienceOptions.find((audienceEvent) => audienceEvent.id !== event.id && audienceEvent.uniqueRecipients > 0)
+                        const previousEvent = audienceOptions.find(
+                          (audienceEvent) =>
+                            audienceEvent.id !== event.id &&
+                            (recipientSource === "RSVP_CONTACTS" ? audienceEvent.rsvpContacts > 0 : audienceEvent.uniqueRecipients > 0),
+                        )
 
                         if (previousEvent) {
                           setSourceEventId(previousEvent.id)

@@ -74,6 +74,12 @@ enum MarketingEmailDeliveryStatus {
   SKIPPED
 }
 
+enum EventRsvpStatus {
+  GOING
+  INTERESTED
+  CANT_GO
+}
+
 enum WebsitePageStatus {
   DRAFT
   REVIEW
@@ -115,6 +121,7 @@ model Event {
   tickets            Ticket[]
   ticketTiers        TicketTier[]
   vouchers           Voucher[]
+  rsvps              EventRsvp[]
   marketingCampaigns MarketingCampaign[]
 }
 
@@ -219,6 +226,29 @@ model Voucher {
   orders          TicketOrder[]
 
   @@index([eventId, isActive])
+}
+
+model EventRsvp {
+  id              String          @id @default(cuid())
+  eventId         String
+  event           Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status          EventRsvpStatus
+  name            String?
+  email           String
+  phone           String?
+  emailOptIn      Boolean         @default(true)
+  smsOptIn        Boolean         @default(false)
+  source          String          @default("EVENT_PAGE")
+  notes           String?
+  userAgent       String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  lastSubmittedAt DateTime        @default(now())
+
+  @@unique([eventId, email])
+  @@index([eventId, status])
+  @@index([email])
+  @@index([phone])
 }
 
 model MarketingCampaign {

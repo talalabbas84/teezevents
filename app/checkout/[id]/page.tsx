@@ -5,6 +5,7 @@ import { Footer } from "@/components/footer"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { CheckoutForm } from "@/components/checkout-form"
+import { EventRsvpCapture } from "@/components/event-rsvp-capture"
 import { getCheckoutSetupIssue, getEventInventorySnapshot } from "@/lib/checkout"
 import { supportsCheckout } from "@/lib/events"
 import { getCheckoutEventById } from "@/lib/public-events"
@@ -56,17 +57,20 @@ export default async function CheckoutPage({
             <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
               <div className="rounded-[2rem] border border-border bg-card p-6 shadow-lg lg:p-8">
                 {inventory && !checkoutUnavailable ? (
-                  <CheckoutForm
-                    eventId={event.id}
-                    eventTitle={event.title}
-                    ticketPriceCents={event.ticketPriceCents}
-                    currency={event.currency}
-                    availableTickets={inventory.available}
-                    maxTicketsPerOrder={event.maxTicketsPerOrder}
-                    ticketTiers={inventory.ticketTiers}
-                    defaultTierId={inventory.defaultTierId}
-                    initialVoucherCode={voucher || ""}
-                  />
+                  <div className="space-y-6">
+                    <CheckoutForm
+                      eventId={event.id}
+                      eventTitle={event.title}
+                      ticketPriceCents={event.ticketPriceCents}
+                      currency={event.currency}
+                      availableTickets={inventory.available}
+                      maxTicketsPerOrder={event.maxTicketsPerOrder}
+                      ticketTiers={inventory.ticketTiers}
+                      defaultTierId={inventory.defaultTierId}
+                      initialVoucherCode={voucher || ""}
+                    />
+                    <EventRsvpCapture eventId={event.id} eventTitle={event.title} source="CHECKOUT" />
+                  </div>
                 ) : (
                   <div className="space-y-5">
                     <h2 className="text-3xl font-serif font-bold">
@@ -82,6 +86,7 @@ export default async function CheckoutPage({
                         <Link href={event.ticketsUrl}>{"Use Manual RSVP Instead"}</Link>
                       </Button>
                     )}
+                    <EventRsvpCapture eventId={event.id} eventTitle={event.title} source="CHECKOUT" />
                   </div>
                 )}
               </div>

@@ -29,7 +29,7 @@ type SendMarketingEmailInput = {
   testRecipient?: string
 }
 
-type RecipientSource = "EVENT_GUESTS" | "PASTED_EMAILS" | "BOTH"
+type RecipientSource = "EVENT_GUESTS" | "RSVP_CONTACTS" | "PASTED_EMAILS" | "BOTH"
 type EmailFormat = "BRANDED" | "CUSTOM_HTML"
 
 type MarketingEmailAttachment = {
@@ -945,6 +945,39 @@ export async function getEventMarketingRecipients(eventId: string) {
   return [...recipients.values()]
 }
 
+export async function getEventRsvpMarketingRecipients(eventId: string) {
+  const prisma = getPrismaClient()
+  const rsvps = await prisma.eventRsvp.findMany({
+    where: {
+      eventId,
+      emailOptIn: true,
+    },
+    orderBy: [{ lastSubmittedAt: "desc" }, { createdAt: "desc" }],
+    select: {
+      name: true,
+      email: true,
+      status: true,
+    },
+  })
+  const recipients = new Map<string, MarketingEmailRecipient>()
+
+  rsvps.forEach((rsvp) => {
+    const email = normalizeEmail(rsvp.email)
+
+    if (!email || recipients.has(email)) {
+      return
+    }
+
+    recipients.set(email, {
+      name: rsvp.name || email.split("@")[0] || "Guest",
+      email,
+      discountCount: 1,
+    })
+  })
+
+  return [...recipients.values()]
+}
+
 async function getTemplatedEmailRecipients(input: SendTemplatedMarketingEmailInput) {
   if (input.testRecipient) {
     return [
@@ -962,6 +995,14 @@ async function getTemplatedEmailRecipients(input: SendTemplatedMarketingEmailInp
     const guestRecipients = await getEventMarketingRecipients(input.sourceEventId || input.eventId)
 
     guestRecipients.forEach((recipient) => {
+      recipients.set(recipient.email, recipient)
+    })
+  }
+
+  if (input.recipientSource === "RSVP_CONTACTS") {
+    const rsvpRecipients = await getEventRsvpMarketingRecipients(input.sourceEventId || input.eventId)
+
+    rsvpRecipients.forEach((recipient) => {
       recipients.set(recipient.email, recipient)
     })
   }
@@ -1573,7 +1614,7 @@ function parseStoredDiscountCodes(value: unknown, fallback?: string | null) {
 }
 
 function parseRecipientSource(value: string): RecipientSource {
-  return value === "PASTED_EMAILS" || value === "BOTH" ? value : "EVENT_GUESTS"
+  return value === "PASTED_EMAILS" || value === "BOTH" || value === "RSVP_CONTACTS" ? value : "EVENT_GUESTS"
 }
 
 function parseEmailFormat(value: string): EmailFormat {

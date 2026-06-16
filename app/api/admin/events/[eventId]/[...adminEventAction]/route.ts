@@ -18,7 +18,7 @@ const optionalText = (max: number) =>
   )
 
 const emailCampaignSchema = z.object({
-  recipientSource: z.enum(["EVENT_GUESTS", "PASTED_EMAILS", "BOTH"]).default("EVENT_GUESTS"),
+  recipientSource: z.enum(["EVENT_GUESTS", "RSVP_CONTACTS", "PASTED_EMAILS", "BOTH"]).default("EVENT_GUESTS"),
   sourceEventId: optionalText(80),
   pastedEmails: z.string().max(200000).optional(),
   testRecipient: optionalEmail,

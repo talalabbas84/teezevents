@@ -114,6 +114,25 @@ type TicketOrderRecord = {
   updatedAt: Date
 }
 
+export type EventRsvpStatus = "GOING" | "INTERESTED" | "CANT_GO"
+
+type EventRsvpRecord = {
+  id: string
+  eventId: string
+  status: EventRsvpStatus
+  name: string | null
+  email: string
+  phone: string | null
+  emailOptIn: boolean
+  smsOptIn: boolean
+  source: string
+  notes: string | null
+  userAgent: string | null
+  createdAt: Date
+  updatedAt: Date
+  lastSubmittedAt: Date
+}
+
 type OrderWithEvent = TicketOrderRecord & {
   event: DbEventRecord
   tickets: TicketRecord[]
@@ -182,6 +201,7 @@ type AdminAudienceEvent = {
   paidOrders: number
   ticketsIssued: number
   uniqueRecipients: number
+  rsvpContacts: number
   revenueCents: number
 }
 
@@ -239,9 +259,15 @@ export type AdminEventOperationsData = {
     checkInRate: number
     deliveredOrders: number
     ticketDeliveryRate: number
+    rsvpGoing: number
+    rsvpInterested: number
+    rsvpCantGo: number
+    rsvpEmailOptIns: number
+    rsvpSmsOptIns: number
   }
   orders: OrderWithEvent[]
   tickets: TicketWithRelations[]
+  rsvps: EventRsvpRecord[]
   audienceEvents: AdminAudienceEvent[]
   ticketTiers: Array<TicketTierRecord & { soldCount: number; revenueCents: number }>
   vouchers: Array<VoucherRecord & { redemptionCount: number; discountCents: number }>
@@ -284,6 +310,19 @@ type UpdateAdminOrderInput = {
   notes?: string
   internalLabel?: string
   quantity?: number
+}
+
+type SaveEventRsvpInput = {
+  eventId: string
+  status: EventRsvpStatus
+  name?: string
+  email: string
+  phone?: string
+  emailOptIn?: boolean
+  smsOptIn?: boolean
+  source?: string
+  notes?: string
+  userAgent?: string
 }
 
 type CreatedOrder = {
@@ -375,6 +414,71 @@ export async function getCheckoutEvent(eventId: string) {
   return event
 }
 
+export async function saveEventRsvp(input: SaveEventRsvpInput) {
+  const prisma = getPrismaClient()
+  const email = normalizeEmail(input.email)
+  const phone = normalizePhone(input.phone)
+  const name = input.name?.trim().slice(0, 120) || null
+  const notes = input.notes?.trim().slice(0, 500) || null
+  const source = input.source?.trim().slice(0, 60) || "EVENT_PAGE"
+
+  if (!email) {
+    throw new Error("Email is required.")
+  }
+
+  if (input.smsOptIn && !phone) {
+    throw new Error("Add a phone number to opt in to text updates.")
+  }
+
+  const event = await prisma.event.findUnique({
+    where: {
+      id: input.eventId,
+    },
+    select: {
+      id: true,
+      title: true,
+      isActive: true,
+    },
+  })
+
+  if (!event || !event.isActive) {
+    throw new Error("This event is not accepting responses.")
+  }
+
+  return (await prisma.eventRsvp.upsert({
+    where: {
+      eventId_email: {
+        eventId: event.id,
+        email,
+      },
+    },
+    create: {
+      eventId: event.id,
+      status: input.status,
+      name,
+      email,
+      phone,
+      emailOptIn: input.emailOptIn ?? true,
+      smsOptIn: Boolean(input.smsOptIn && phone),
+      source,
+      notes,
+      userAgent: input.userAgent?.slice(0, 300) || null,
+      lastSubmittedAt: new Date(),
+    },
+    update: {
+      status: input.status,
+      name,
+      phone,
+      emailOptIn: input.emailOptIn ?? true,
+      smsOptIn: Boolean(input.smsOptIn && phone),
+      source,
+      notes,
+      userAgent: input.userAgent?.slice(0, 300) || null,
+      lastSubmittedAt: new Date(),
+    },
+  })) as EventRsvpRecord
+}
+
 function withOrderIncludes() {
   return {
     event: true,
@@ -447,6 +551,16 @@ function normalizeVoucherCode(value: string) {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()
+}
+
+function normalizePhone(value?: string) {
+  const trimmed = value?.trim()
+
+  if (!trimmed) {
+    return null
+  }
+
+  return trimmed.replace(/\s+/g, " ").slice(0, 40)
 }
 
 function getAssignedVoucherEmail(voucher: Pick<VoucherRecord, "description">) {
@@ -1858,6 +1972,9 @@ export async function getAdminEventOperationsData(eventId: string): Promise<Admi
         vouchers: {
           orderBy: [{ createdAt: "desc" }, { code: "asc" }],
         },
+        rsvps: {
+          orderBy: [{ lastSubmittedAt: "desc" }, { createdAt: "desc" }],
+        },
       },
     }),
     prisma.event.findMany({
@@ -1889,6 +2006,14 @@ export async function getAdminEventOperationsData(eventId: string): Promise<Admi
             holderEmail: true,
           },
         },
+        rsvps: {
+          where: {
+            emailOptIn: true,
+          },
+          select: {
+            email: true,
+          },
+        },
       },
     }),
   ])
@@ -1901,6 +2026,7 @@ export async function getAdminEventOperationsData(eventId: string): Promise<Admi
   const tickets = event.tickets as TicketWithRelations[]
   const ticketTiers = event.ticketTiers as TicketTierRecord[]
   const vouchers = event.vouchers as VoucherRecord[]
+  const rsvps = event.rsvps as EventRsvpRecord[]
   const paidOrders = orders.filter((order) => order.status === "PAID")
   const refundedOrders = orders.filter((order) => order.status === "REFUNDED")
   const pendingOrders = orders.filter((order) => order.status === "PENDING" && order.expiresAt && order.expiresAt > now)
@@ -1940,6 +2066,7 @@ export async function getAdminEventOperationsData(eventId: string): Promise<Admi
       paidOrders: audienceEvent.orders.length,
       ticketsIssued: audienceEvent.orders.reduce((total, order) => total + order.quantity, 0),
       uniqueRecipients: uniqueRecipients.size,
+      rsvpContacts: audienceEvent.rsvps.length,
       revenueCents: audienceEvent.orders.reduce((total, order) => total + order.totalPriceCents, 0),
     }
   })
@@ -1961,9 +2088,15 @@ export async function getAdminEventOperationsData(eventId: string): Promise<Admi
       checkInRate: clampRate(checkedInCount, ticketsSold),
       deliveredOrders: deliveredOrders.length,
       ticketDeliveryRate: clampRate(deliveredOrders.length, paidOrders.length),
+      rsvpGoing: rsvps.filter((rsvp) => rsvp.status === "GOING").length,
+      rsvpInterested: rsvps.filter((rsvp) => rsvp.status === "INTERESTED").length,
+      rsvpCantGo: rsvps.filter((rsvp) => rsvp.status === "CANT_GO").length,
+      rsvpEmailOptIns: rsvps.filter((rsvp) => rsvp.emailOptIn).length,
+      rsvpSmsOptIns: rsvps.filter((rsvp) => rsvp.smsOptIn && rsvp.phone).length,
     },
     orders,
     tickets,
+    rsvps,
     audienceEvents,
     ticketTiers: ticketTiers.map((tier) => {
       const tierOrders = paidOrders.filter((order) => order.ticketTierId === tier.id)
@@ -1998,6 +2131,22 @@ export async function getAdminOrderExports() {
     orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
     include: withOrderIncludes(),
   })) as OrderWithEvent[]
+}
+
+export async function getAdminRsvpExports(eventId?: string) {
+  const prisma = getPrismaClient()
+
+  return (await prisma.eventRsvp.findMany({
+    where: eventId
+      ? {
+          eventId,
+        }
+      : undefined,
+    orderBy: [{ lastSubmittedAt: "desc" }, { createdAt: "desc" }],
+    include: {
+      event: true,
+    },
+  })) as Array<EventRsvpRecord & { event: DbEventRecord }>
 }
 
 export async function getAdminTicketExports() {
