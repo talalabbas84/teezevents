@@ -440,7 +440,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                           </div>
                         )}
                       </div>
-                      {capacityPercent !== null && (
+                      {/* {capacityPercent !== null && (
                         <div className="mt-5 rounded-lg bg-background/80 p-4">
                           <div className="mb-3 flex items-center justify-between gap-4">
                             <span className="text-sm font-medium">{"Live availability"}</span>
@@ -455,7 +455,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                               : "Tickets are still early in release."}
                           </p>
                         </div>
-                      )}
+                      )} */}
                       <p className="mt-5 leading-relaxed text-muted-foreground">
                         {event.ticketNote || "Secure your spot for this upcoming event."}
                       </p>
