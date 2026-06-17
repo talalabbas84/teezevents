@@ -1,8 +1,6 @@
-import Link from "next/link"
-import { ArrowLeft, DoorOpen } from "lucide-react"
+import { DoorOpen } from "lucide-react"
 
 import { AdminCheckInConsole } from "@/components/admin-check-in-console"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { getAdminDashboardData, getCheckoutSetupIssue } from "@/lib/checkout"
 import { requireAdminSession } from "@/lib/admin-auth"
@@ -32,25 +30,14 @@ export default async function AdminCheckInPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7EDDB] px-4 py-10 lg:px-8">
+    <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">TEEZ Admin</div>
-            <h1 className="mt-2 text-5xl font-serif font-bold text-balance">Door Check-In</h1>
-            <p className="mt-3 max-w-2xl text-lg text-muted-foreground">
-              Scan QR tickets at the door, verify holders instantly, and update entry status against the live ticket database.
-            </p>
-          </div>
-
-          <Button asChild variant="outline" className="border-2 border-primary text-primary">
-            <Link href="/admin">
-              <span className="inline-flex items-center gap-2">
-                <ArrowLeft size={16} />
-                Back to Dashboard
-              </span>
-            </Link>
-          </Button>
+        <div className="mb-8">
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">TEEZ Admin</div>
+          <h1 className="mt-1.5 text-4xl font-serif font-bold">Door Check-In</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Scan QR tickets at the door, verify holders instantly, and update entry status in real time.
+          </p>
         </div>
 
         {setupIssue || !dashboard ? (

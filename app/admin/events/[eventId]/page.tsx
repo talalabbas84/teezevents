@@ -9,7 +9,6 @@ import {
   Mail,
   MessageSquareText,
   ReceiptText,
-  Settings2,
   Ticket,
   TicketPercent,
   Users,
@@ -22,33 +21,25 @@ import { AdminEventEmailActions } from "@/components/admin-event-email-actions"
 import { AdminEventEmailCampaignComposer } from "@/components/admin-event-email-campaign-composer"
 import { AdminEventMarketingKit } from "@/components/admin-event-marketing-kit"
 import { AdminOrderActions } from "@/components/admin-order-actions"
+import { EventEditorCard, type AdminManagedEventView } from "@/components/admin-event-studio"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireAdminSession } from "@/lib/admin-auth"
+import { getAdminManagedEvent } from "@/lib/admin-events"
 import { formatCurrency, getAdminEventOperationsData, getCheckoutSetupIssue } from "@/lib/checkout"
 import { getEventEmailCampaignHistory } from "@/lib/marketing"
 import { getTicketDeliverySetupIssue } from "@/lib/ticket-delivery"
 
 function formatEventDate(startsAt: Date | null) {
-  if (!startsAt) {
-    return "TBA"
-  }
-
-  return startsAt.toLocaleDateString("en-CA", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+  if (!startsAt) return "TBA"
+  return startsAt.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })
 }
 
 function formatLongDate(startsAt: Date | null) {
-  if (!startsAt) {
-    return "Date to be announced"
-  }
-
+  if (!startsAt) return "Date to be announced"
   return startsAt.toLocaleDateString("en-CA", {
     weekday: "long",
     month: "long",
@@ -62,14 +53,8 @@ function formatPercent(value: number) {
 }
 
 function statusVariant(status: string) {
-  if (status === "PAID") {
-    return "default" as const
-  }
-
-  if (status === "REFUNDED" || status === "CANCELED") {
-    return "destructive" as const
-  }
-
+  if (status === "PAID") return "default" as const
+  if (status === "REFUNDED" || status === "CANCELED") return "destructive" as const
   return "outline" as const
 }
 
@@ -83,16 +68,37 @@ export default async function AdminEventOperationsPage({
   const ticketDeliveryIssue = getTicketDeliverySetupIssue()
   let data: Awaited<ReturnType<typeof getAdminEventOperationsData>> | null = null
   let setupIssue: ReturnType<typeof getCheckoutSetupIssue> | null = null
+  let managedEvent: AdminManagedEventView | null = null
 
-  try {
-    data = await getAdminEventOperationsData(eventId)
-  } catch (error) {
-    setupIssue = getCheckoutSetupIssue(error)
+  const [opsResult, managedResult] = await Promise.allSettled([
+    getAdminEventOperationsData(eventId),
+    getAdminManagedEvent(eventId),
+  ])
+
+  if (opsResult.status === "rejected") {
+    setupIssue = getCheckoutSetupIssue(opsResult.reason)
+  } else {
+    data = opsResult.value
   }
 
-  if (!setupIssue && !data) {
-    notFound()
+  if (managedResult.status === "fulfilled" && managedResult.value) {
+    const raw = managedResult.value
+    managedEvent = {
+      ...raw,
+      startsAt: raw.startsAt?.toISOString() || null,
+      gallery: Array.isArray(raw.gallery) ? (raw.gallery as string[]) : [],
+      contentSections: Array.isArray(raw.contentSections)
+        ? (raw.contentSections as Array<{ title: string; body: string[] }>)
+        : [],
+      vouchers: raw.vouchers.map((v) => ({
+        ...v,
+        startsAt: v.startsAt?.toISOString() || null,
+        expiresAt: v.expiresAt?.toISOString() || null,
+      })),
+    }
   }
+
+  if (!setupIssue && !data) notFound()
 
   if (setupIssue || !data) {
     return (
@@ -116,220 +122,528 @@ export default async function AdminEventOperationsPage({
   const { event, summary, orders, tickets, rsvps, audienceEvents, ticketTiers, vouchers } = data
   const emailCampaignHistory = await getEventEmailCampaignHistory(event.id)
   const dateLabel = formatEventDate(event.startsAt)
-  const uniqueAudiencePool = audienceEvents.reduce((total, audienceEvent) => total + audienceEvent.uniqueRecipients, 0)
+  const uniqueAudiencePool = audienceEvents.reduce((total, ae) => total + ae.uniqueRecipients, 0)
   const unsentPaidOrders = Math.max(summary.paidOrders - summary.deliveredOrders, 0)
-  const averageOrderValueCents = summary.paidOrders > 0 ? Math.round(summary.revenueCents / summary.paidOrders) : 0
+  const averageOrderValueCents =
+    summary.paidOrders > 0 ? Math.round(summary.revenueCents / summary.paidOrders) : 0
+
+  const overviewStats = [
+    { label: "Net Sales", value: formatCurrency(summary.revenueCents, event.currency) },
+    { label: "Orders", value: summary.paidOrders },
+    { label: "Avg Order", value: formatCurrency(averageOrderValueCents, event.currency) },
+    { label: "Refunded", value: formatCurrency(summary.refundedCents, event.currency) },
+    { label: "Delivery", value: formatPercent(summary.ticketDeliveryRate) },
+    { label: "Emails Due", value: unsentPaidOrders },
+    { label: "Pending Holds", value: summary.pendingTickets },
+    { label: "Audience Pool", value: uniqueAudiencePool },
+    { label: "RSVP Leads", value: rsvps.length },
+    { label: "Text Opt-ins", value: summary.rsvpSmsOptIns },
+  ]
 
   return (
     <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button asChild variant="outline" className="border-2 border-primary text-primary">
-            <Link href="/admin">
-              <span className="inline-flex items-center gap-2">
-                <ArrowLeft size={16} />
-                Events
-              </span>
-            </Link>
-          </Button>
+      <div className="mx-auto max-w-7xl space-y-5">
 
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" className="border-2 border-primary text-primary">
-              <Link href="/admin/events">
-                <span className="inline-flex items-center gap-2">
-                  <Settings2 size={16} />
-                  Pricing and Settings
-                </span>
-              </Link>
-            </Button>
-            <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
-              <Link href="/admin/check-in">
-                <span className="inline-flex items-center gap-2">
-                  <DoorOpen size={16} />
-                  Check-In
-                </span>
-              </Link>
-            </Button>
-          </div>
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Link
+            href="/admin/events"
+            className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
+          >
+            <ArrowLeft size={14} />
+            Event Studio
+          </Link>
+          <span>/</span>
+          <span className="font-medium text-foreground">{event.title}</span>
         </div>
 
-        <section className="overflow-hidden rounded-3xl border border-border bg-background shadow-xl">
-          <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
-            <div className="p-6 lg:p-8">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={event.checkoutEnabled ? "default" : "outline"}>
+        {/* Event header card */}
+        <section className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-5 p-5 lg:p-6">
+            {/* Title + meta */}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant={event.checkoutEnabled ? "default" : "outline"} className="text-xs">
                   {event.checkoutEnabled ? "Checkout Live" : "Checkout Off"}
                 </Badge>
-                <Badge variant={event.isActive ? "secondary" : "outline"}>{event.isActive ? "Active" : "Archived"}</Badge>
-                <Badge variant="outline">{dateLabel}</Badge>
+                <Badge variant={event.isActive ? "secondary" : "outline"} className="text-xs">
+                  {event.isActive ? "Active" : "Archived"}
+                </Badge>
+                <Badge variant="outline" className="text-xs">{dateLabel}</Badge>
               </div>
-              <h1 className="mt-4 text-4xl font-serif font-bold text-balance lg:text-5xl">{event.title}</h1>
-              <div className="mt-4 grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
-                <div className="inline-flex items-center gap-2">
-                  <CalendarDays size={16} className="text-primary" />
+              <h1 className="mt-3 text-2xl font-serif font-bold lg:text-3xl">{event.title}</h1>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarDays size={13} className="text-primary" />
                   {formatLongDate(event.startsAt)}
-                </div>
-                <div>{event.venue || "Venue TBA"}</div>
-                <div>{event.address || "Address TBA"}</div>
+                </span>
+                {event.venue && <span>{event.venue}</span>}
+                {event.address && <span>{event.address}</span>}
               </div>
             </div>
 
-            <div className="border-t border-border bg-muted/30 p-6 lg:border-l lg:border-t-0">
-              <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Event Health</div>
-              <div className="mt-5 grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-2xl font-serif font-bold">{summary.ticketsSold}</div>
-                  <div className="text-xs text-muted-foreground">Tickets sold</div>
+            {/* Compact health stats */}
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
+              {[
+                { label: "Sold", value: summary.ticketsSold },
+                { label: "Remaining", value: summary.remainingCapacity },
+                { label: "Sell-through", value: formatPercent(summary.sellThroughRate) },
+                { label: "Checked in", value: formatPercent(summary.checkInRate) },
+              ].map((stat) => (
+                <div key={stat.label} className="text-sm">
+                  <div className="text-xl font-serif font-bold">{stat.value}</div>
+                  <div className="text-xs text-muted-foreground">{stat.label}</div>
                 </div>
-                <div>
-                  <div className="text-2xl font-serif font-bold">{summary.remainingCapacity}</div>
-                  <div className="text-xs text-muted-foreground">Spots left</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-serif font-bold">{formatPercent(summary.sellThroughRate)}</div>
-                  <div className="text-xs text-muted-foreground">Sell through</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-serif font-bold">{formatPercent(summary.checkInRate)}</div>
-                  <div className="text-xs text-muted-foreground">Checked in</div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </section>
 
-        <Tabs defaultValue="overview" className="space-y-6">
-          <div className="overflow-x-auto rounded-2xl border border-border bg-background p-2 shadow-sm">
-            <TabsList className="h-auto w-max min-w-full justify-start gap-1 bg-transparent p-0 md:min-w-0">
-              <TabsTrigger value="overview" className="px-4 py-2">Overview</TabsTrigger>
-              <TabsTrigger value="email" className="px-4 py-2">Email</TabsTrigger>
-              <TabsTrigger value="marketing" className="px-4 py-2">Marketing</TabsTrigger>
-              <TabsTrigger value="orders" className="px-4 py-2">{`Orders (${orders.length})`}</TabsTrigger>
-              <TabsTrigger value="rsvps" className="px-4 py-2">{`RSVPs (${rsvps.length})`}</TabsTrigger>
-              <TabsTrigger value="tickets" className="px-4 py-2">{`Tickets (${tickets.length})`}</TabsTrigger>
-              <TabsTrigger value="promotions" className="px-4 py-2">Promotions</TabsTrigger>
-              <TabsTrigger value="guest-list" className="px-4 py-2">Guest List</TabsTrigger>
-            </TabsList>
+        {/* Tabs — sticky so they stay visible while scrolling content */}
+        <Tabs defaultValue="overview" className="space-y-5">
+          <div className="sticky top-14 z-10 -mx-4 px-4 lg:-mx-8 lg:px-8 lg:top-0">
+            <div className="overflow-x-auto rounded-xl border border-border bg-background shadow-sm">
+              <TabsList className="h-auto min-w-max justify-start gap-0.5 bg-transparent p-1.5">
+                <TabsTrigger value="overview" className="rounded-lg px-3.5 py-1.5 text-sm">Overview</TabsTrigger>
+                <TabsTrigger value="orders" className="rounded-lg px-3.5 py-1.5 text-sm">{`Orders (${orders.length})`}</TabsTrigger>
+                <TabsTrigger value="tickets" className="rounded-lg px-3.5 py-1.5 text-sm">{`Tickets (${tickets.length})`}</TabsTrigger>
+                <TabsTrigger value="rsvps" className="rounded-lg px-3.5 py-1.5 text-sm">{`RSVPs (${rsvps.length})`}</TabsTrigger>
+                <TabsTrigger value="promotions" className="rounded-lg px-3.5 py-1.5 text-sm">Promotions</TabsTrigger>
+                <TabsTrigger value="email" className="rounded-lg px-3.5 py-1.5 text-sm">Email</TabsTrigger>
+                <TabsTrigger value="marketing" className="rounded-lg px-3.5 py-1.5 text-sm">Marketing</TabsTrigger>
+                <TabsTrigger value="guest-list" className="rounded-lg px-3.5 py-1.5 text-sm">Guest List</TabsTrigger>
+                <TabsTrigger value="settings" className="rounded-lg px-3.5 py-1.5 text-sm">Edit Event</TabsTrigger>
+              </TabsList>
+            </div>
           </div>
 
-          <TabsContent value="overview" className="space-y-6">
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <Wallet className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Net Sales</div>
-                  <div className="text-3xl font-serif font-bold">{formatCurrency(summary.revenueCents, event.currency)}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <ReceiptText className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Orders</div>
-                  <div className="text-3xl font-serif font-bold">{summary.paidOrders}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <Mail className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Delivery</div>
-                  <div className="text-3xl font-serif font-bold">{formatPercent(summary.ticketDeliveryRate)}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <TicketPercent className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Refunded</div>
-                  <div className="text-3xl font-serif font-bold">{formatCurrency(summary.refundedCents, event.currency)}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <Clock className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Pending Holds</div>
-                  <div className="text-3xl font-serif font-bold">{summary.pendingTickets}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <Users className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Audience Pool</div>
-                  <div className="text-3xl font-serif font-bold">{uniqueAudiencePool}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <Mail className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Ticket Emails Due</div>
-                  <div className="text-3xl font-serif font-bold">{unsentPaidOrders}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <ReceiptText className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Avg Order</div>
-                  <div className="text-3xl font-serif font-bold">{formatCurrency(averageOrderValueCents, event.currency)}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <MessageSquareText className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">RSVP Leads</div>
-                  <div className="text-3xl font-serif font-bold">{rsvps.length}</div>
-                </CardContent>
-              </Card>
-              <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
-                  <MessageSquareText className="text-primary" />
-                  <div className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Text Opt-ins</div>
-                  <div className="text-3xl font-serif font-bold">{summary.rsvpSmsOptIns}</div>
-                </CardContent>
-              </Card>
-            </section>
+          {/* ── OVERVIEW ── */}
+          <TabsContent value="overview">
+            <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+              {/* Header with quick-action links */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Event Metrics</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href="/api/admin/exports/orders"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted"
+                  >
+                    <Download size={12} />
+                    Orders CSV
+                  </a>
+                  <a
+                    href="/api/admin/exports/tickets"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted"
+                  >
+                    <Download size={12} />
+                    Attendees CSV
+                  </a>
+                  <Link
+                    href="/admin/check-in"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-accent"
+                  >
+                    <DoorOpen size={12} />
+                    Check-In
+                  </Link>
+                </div>
+              </div>
 
-            <Card className="border border-border shadow-xl">
-              <CardContent className="space-y-4 p-6">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Operations</div>
-                  <h2 className="mt-2 text-2xl font-serif font-bold">Exports and live tools</h2>
+              {/* Compact stat grid */}
+              <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3 lg:grid-cols-5">
+                {overviewStats.map((stat) => (
+                  <div key={stat.label} className="p-4">
+                    <div className="text-xl font-serif font-bold">{stat.value}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── ORDERS ── */}
+          <TabsContent value="orders">
+            <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Orders</span>
+                <span className="text-xs text-muted-foreground">{orders.length} total</span>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-9 px-4 text-xs">Order</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Status</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Customer</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Tier / Voucher</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Qty</TableHead>
+                      <TableHead className="h-9 px-4 text-right text-xs">Total</TableHead>
+                      <TableHead className="h-9 w-10" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell className="px-4 py-2.5 text-sm font-medium">{order.orderNumber}</TableCell>
+                        <TableCell className="px-4 py-2.5">
+                          <Badge variant={statusVariant(order.status)} className="text-xs">
+                            {order.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5">
+                          <div className="text-sm font-medium leading-tight">{order.customerName}</div>
+                          <div className="text-xs text-muted-foreground">{order.customerEmail}</div>
+                          <div className="text-xs text-muted-foreground/60">
+                            {order.ticketEmailLastSentAt
+                              ? `Sent → ${order.ticketEmailLastSentTo || order.customerEmail}`
+                              : "No email sent"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5">
+                          <div className="text-sm">
+                            {order.source === "ADMIN_COMP"
+                              ? "Complimentary"
+                              : order.ticketTierNameSnapshot || "General"}
+                          </div>
+                          {order.voucherCodeSnapshot && (
+                            <div className="font-mono text-xs text-muted-foreground">
+                              {order.voucherCodeSnapshot}
+                            </div>
+                          )}
+                          {order.internalLabel && (
+                            <div className="text-xs text-muted-foreground">{order.internalLabel}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5 text-sm">{order.quantity}</TableCell>
+                        <TableCell className="px-4 py-2.5 text-right">
+                          <div className="text-sm font-medium">
+                            {formatCurrency(order.totalPriceCents, order.currency)}
+                          </div>
+                          {order.discountAmountCents > 0 && (
+                            <div className="text-xs text-muted-foreground">
+                              {`−${formatCurrency(order.discountAmountCents, order.currency)}`}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="px-3 py-2.5">
+                          <AdminOrderActions
+                            orderId={order.id}
+                            accessToken={order.accessToken}
+                            defaultEmail={order.customerEmail}
+                            emailEnabled={!ticketDeliveryIssue && order.status === "PAID"}
+                            customerName={order.customerName}
+                            customerPhone={order.customerPhone}
+                            notes={order.notes}
+                            internalLabel={order.internalLabel}
+                            quantity={order.quantity}
+                            source={order.source}
+                            ticketTierName={order.ticketTierNameSnapshot}
+                            voucherCode={order.voucherCodeSnapshot}
+                            totalLabel={formatCurrency(order.totalPriceCents, order.currency)}
+                            status={order.status}
+                            canRefund={
+                              order.source === "CHECKOUT" &&
+                              order.status === "PAID" &&
+                              order.totalPriceCents > 0
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── TICKETS ── */}
+          <TabsContent value="tickets">
+            <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Tickets</span>
+                <span className="text-xs text-muted-foreground">{tickets.length} issued</span>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-9 px-4 text-xs">Code</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Holder</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Order</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Status</TableHead>
+                      <TableHead className="h-9 w-16" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tickets.map((ticket) => (
+                      <TableRow key={ticket.id}>
+                        <TableCell className="px-4 py-2.5 font-mono text-xs">{ticket.ticketCode}</TableCell>
+                        <TableCell className="px-4 py-2.5">
+                          <div className="text-sm font-medium leading-tight">{ticket.holderName}</div>
+                          <div className="text-xs text-muted-foreground">{ticket.holderEmail}</div>
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5 text-sm">{ticket.order.orderNumber}</TableCell>
+                        <TableCell className="px-4 py-2.5">
+                          <Badge
+                            variant={
+                              ticket.order.status === "PAID"
+                                ? ticket.checkedInAt
+                                  ? "secondary"
+                                  : "default"
+                                : "destructive"
+                            }
+                            className="text-xs"
+                          >
+                            {ticket.order.status === "PAID"
+                              ? ticket.checkedInAt
+                                ? "Checked In"
+                                : "Issued"
+                              : ticket.order.status}
+                          </Badge>
+                          {ticket.checkedInAt && (
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                              {ticket.checkedInAt.toLocaleString("en-CA", {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              })}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="px-3 py-2.5">
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className="h-7 border-primary px-2 text-xs text-primary"
+                          >
+                            <Link href={`/tickets/code/${ticket.ticketCode}`}>
+                              <Ticket size={12} className="mr-1" />
+                              View
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── RSVPs ── */}
+          <TabsContent value="rsvps">
+            <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">RSVPs</span>
+                  <Badge variant="outline" className="text-xs">{`${summary.rsvpGoing} going`}</Badge>
+                  <Badge variant="outline" className="text-xs">{`${summary.rsvpInterested} interested`}</Badge>
+                  <Badge variant="outline" className="text-xs">{`${summary.rsvpCantGo} can't go`}</Badge>
+                  <Badge variant="secondary" className="text-xs">{`${summary.rsvpEmailOptIns} email`}</Badge>
+                  <Badge variant="secondary" className="text-xs">{`${summary.rsvpSmsOptIns} sms`}</Badge>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button asChild variant="outline" className="border-primary text-primary">
-                    <a href="/api/admin/exports/orders">
-                      <span className="inline-flex items-center gap-2">
-                        <Download size={16} />
-                        Export Orders
-                      </span>
-                    </a>
-                  </Button>
-                  <Button asChild variant="outline" className="border-primary text-primary">
-                    <a href="/api/admin/exports/tickets">
-                      <span className="inline-flex items-center gap-2">
-                        <Download size={16} />
-                        Export Attendees
-                      </span>
-                    </a>
-                  </Button>
-                  <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
-                    <Link href="/admin/check-in">
-                      <span className="inline-flex items-center gap-2">
-                        <DoorOpen size={16} />
-                        Open Check-In
-                      </span>
-                    </Link>
-                  </Button>
+                <a
+                  href={`/api/admin/exports/rsvps?eventId=${encodeURIComponent(event.id)}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted"
+                >
+                  <Download size={12} />
+                  Export CSV
+                </a>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-9 px-4 text-xs">Status</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Contact</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Consent</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Source</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rsvps.length > 0 ? (
+                      rsvps.map((rsvp) => (
+                        <TableRow key={rsvp.id}>
+                          <TableCell className="px-4 py-2.5">
+                            <Badge
+                              variant={
+                                rsvp.status === "GOING"
+                                  ? "default"
+                                  : rsvp.status === "INTERESTED"
+                                    ? "secondary"
+                                    : "outline"
+                              }
+                              className="text-xs"
+                            >
+                              {rsvp.status === "CANT_GO" ? "CAN'T GO" : rsvp.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="px-4 py-2.5">
+                            <div className="text-sm font-medium leading-tight">{rsvp.name || "Guest"}</div>
+                            <div className="text-xs text-muted-foreground">{rsvp.email}</div>
+                            {rsvp.phone && (
+                              <div className="text-xs text-muted-foreground">{rsvp.phone}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="px-4 py-2.5">
+                            <div className="space-y-0.5 text-xs text-muted-foreground">
+                              <div>{rsvp.emailOptIn ? "✓ Email" : "✗ Email"}</div>
+                              <div>{rsvp.smsOptIn && rsvp.phone ? "✓ SMS" : "✗ SMS"}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-4 py-2.5 text-xs capitalize text-muted-foreground">
+                            {rsvp.source.replaceAll("_", " ").toLowerCase()}
+                          </TableCell>
+                          <TableCell className="px-4 py-2.5 text-xs text-muted-foreground">
+                            {rsvp.lastSubmittedAt.toLocaleString("en-CA", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                          No RSVP contacts captured yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── PROMOTIONS ── */}
+          <TabsContent value="promotions" className="space-y-5">
+
+            {/* Ticket tiers — compact table */}
+            <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Ticket Tiers</span>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-primary px-2.5 text-xs text-primary"
+                >
+                  <Link href="/admin/events">Edit in Studio</Link>
+                </Button>
+              </div>
+              {ticketTiers.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-9 px-4 text-xs">Tier</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Price</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Sold</TableHead>
+                      <TableHead className="h-9 px-4 text-right text-xs">Revenue</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ticketTiers.map((tier) => (
+                      <TableRow key={tier.id}>
+                        <TableCell className="px-4 py-2.5 text-sm font-medium">{tier.name}</TableCell>
+                        <TableCell className="px-4 py-2.5 text-sm">
+                          {formatCurrency(tier.priceCents, event.currency)}
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5 text-sm">{tier.soldCount}</TableCell>
+                        <TableCell className="px-4 py-2.5 text-right text-sm font-medium">
+                          {formatCurrency(tier.revenueCents, event.currency)}
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5">
+                          <Badge variant={tier.isActive ? "secondary" : "outline"} className="text-xs">
+                            {tier.isActive ? "Active" : "Off"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="px-5 py-5 text-sm text-muted-foreground">
+                  Using base ticket price — no tiers configured.
+                </p>
+              )}
+            </div>
+
+            {/* Vouchers — compact table */}
+            <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Vouchers</span>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-primary px-2.5 text-xs text-primary"
+                >
+                  <Link href="/admin/events">Generate in Studio</Link>
+                </Button>
+              </div>
+              {vouchers.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-9 px-4 text-xs">Code</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Discount</TableHead>
+                      <TableHead className="h-9 px-4 text-xs">Used</TableHead>
+                      <TableHead className="h-9 px-4 text-right text-xs">Discounted</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vouchers.map((voucher) => (
+                      <TableRow key={voucher.id}>
+                        <TableCell className="px-4 py-2.5 font-mono text-sm font-semibold">
+                          {voucher.code}
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5 text-sm">
+                          {voucher.discountType === "FIXED"
+                            ? `${formatCurrency(voucher.amountOffCents || 0, event.currency)} off`
+                            : `${voucher.percentOff || 0}% off`}
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5 text-sm">
+                          {`${voucher.redemptionCount}${voucher.maxRedemptions ? ` / ${voucher.maxRedemptions}` : ""}`}
+                        </TableCell>
+                        <TableCell className="px-4 py-2.5 text-right text-sm font-medium">
+                          {formatCurrency(voucher.discountCents, event.currency)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="px-5 py-5 text-sm text-muted-foreground">No vouchers created yet.</p>
+              )}
+            </div>
+
+            {/* Discount code generator */}
+            <Card className="border border-border shadow-sm">
+              <CardContent className="p-5">
+                <div className="mb-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Guest Discounts</div>
+                  <h2 className="mt-1 text-lg font-serif font-bold">Generate unique per-guest codes</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Paste guest emails or an orders CSV — one assigned code per guest.
+                  </p>
                 </div>
+                <AdminDiscountCodeGenerator eventId={event.id} />
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="email" className="space-y-6">
-            <Card className="border border-border shadow-xl">
-              <CardContent className="space-y-5 p-6">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Ticket Delivery</div>
-                  <h2 className="mt-2 text-2xl font-serif font-bold">Mass send ticket packs</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Send unsent ticket emails before the event, or resend every paid order when plans change.
+          {/* ── EMAIL ── */}
+          <TabsContent value="email" className="space-y-5">
+            <Card className="border border-border shadow-sm">
+              <CardContent className="p-5">
+                <div className="mb-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                    Ticket Delivery
+                  </div>
+                  <h2 className="mt-1 text-lg font-serif font-bold">Mass-send ticket packs</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Send unsent ticket emails before the event, or resend every paid order.
                   </p>
                 </div>
                 <AdminEventEmailActions eventId={event.id} emailEnabled={!ticketDeliveryIssue} />
@@ -347,22 +661,23 @@ export default async function AdminEventOperationsPage({
                 currency: event.currency,
                 rsvpContactCount: summary.rsvpEmailOptIns,
               }}
-              audienceEvents={audienceEvents.map((audienceEvent) => ({
-                id: audienceEvent.id,
-                title: audienceEvent.title,
-                startsAt: audienceEvent.startsAt?.toISOString() || null,
-                venue: audienceEvent.venue,
-                address: audienceEvent.address,
-                paidOrders: audienceEvent.paidOrders,
-                ticketsIssued: audienceEvent.ticketsIssued,
-                uniqueRecipients: audienceEvent.uniqueRecipients,
-                rsvpContacts: audienceEvent.rsvpContacts,
-                revenueCents: audienceEvent.revenueCents,
+              audienceEvents={audienceEvents.map((ae) => ({
+                id: ae.id,
+                title: ae.title,
+                startsAt: ae.startsAt?.toISOString() || null,
+                venue: ae.venue,
+                address: ae.address,
+                paidOrders: ae.paidOrders,
+                ticketsIssued: ae.ticketsIssued,
+                uniqueRecipients: ae.uniqueRecipients,
+                rsvpContacts: ae.rsvpContacts,
+                revenueCents: ae.revenueCents,
               }))}
               campaignHistory={emailCampaignHistory}
             />
           </TabsContent>
 
+          {/* ── MARKETING ── */}
           <TabsContent value="marketing">
             <AdminEventMarketingKit
               event={{
@@ -381,339 +696,23 @@ export default async function AdminEventOperationsPage({
             />
           </TabsContent>
 
-          <TabsContent value="orders">
-        <section id="orders" className="rounded-3xl border border-border bg-background shadow-xl">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
-            <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Orders</div>
-              <h2 className="mt-2 text-2xl font-serif font-bold">Sales, comps, and refunds</h2>
-            </div>
-            <Badge variant="outline">{`${orders.length} total orders`}</Badge>
-          </div>
-
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Buyer</TableHead>
-                  <TableHead>Tickets</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant(order.status)}>{order.status}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span>{order.source === "ADMIN_COMP" ? "Complimentary" : "Checkout"}</span>
-                        {order.ticketTierNameSnapshot && (
-                          <span className="text-xs text-muted-foreground">{order.ticketTierNameSnapshot}</span>
-                        )}
-                        {order.internalLabel && <span className="text-xs text-muted-foreground">{order.internalLabel}</span>}
-                        {order.voucherCodeSnapshot && (
-                          <span className="text-xs text-muted-foreground">{`Voucher ${order.voucherCodeSnapshot}`}</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span>{order.customerName}</span>
-                        <span className="text-xs text-muted-foreground">{order.customerEmail}</span>
-                        {order.ticketEmailLastSentAt ? (
-                          <span className="text-xs text-muted-foreground">{`Sent to ${order.ticketEmailLastSentTo || order.customerEmail}`}</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No ticket email sent</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{order.quantity}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span>{formatCurrency(order.totalPriceCents, order.currency)}</span>
-                        {order.discountAmountCents > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            {`Saved ${formatCurrency(order.discountAmountCents, order.currency)}`}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <AdminOrderActions
-                        orderId={order.id}
-                        accessToken={order.accessToken}
-                        defaultEmail={order.customerEmail}
-                        emailEnabled={!ticketDeliveryIssue && order.status === "PAID"}
-                        customerName={order.customerName}
-                        customerPhone={order.customerPhone}
-                        notes={order.notes}
-                        internalLabel={order.internalLabel}
-                        quantity={order.quantity}
-                        source={order.source}
-                        ticketTierName={order.ticketTierNameSnapshot}
-                        voucherCode={order.voucherCodeSnapshot}
-                        totalLabel={formatCurrency(order.totalPriceCents, order.currency)}
-                        status={order.status}
-                        canRefund={order.source === "CHECKOUT" && order.status === "PAID" && order.totalPriceCents > 0}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
-          </TabsContent>
-
-          <TabsContent value="rsvps">
-        <section id="rsvps" className="rounded-3xl border border-border bg-background shadow-xl">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
-            <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">RSVP Pipeline</div>
-              <h2 className="mt-2 text-2xl font-serif font-bold">Going, interested, and can't-go contacts</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Use these opt-ins for email campaigns, promo reminders, and SMS-ready exports.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 sm:items-end">
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">{`${summary.rsvpGoing} going`}</Badge>
-                <Badge variant="outline">{`${summary.rsvpInterested} interested`}</Badge>
-                <Badge variant="outline">{`${summary.rsvpCantGo} can't go`}</Badge>
-                <Badge variant="secondary">{`${summary.rsvpEmailOptIns} email opt-ins`}</Badge>
-                <Badge variant="secondary">{`${summary.rsvpSmsOptIns} text opt-ins`}</Badge>
-              </div>
-              <Button asChild variant="outline" className="border-primary text-primary">
-                <a href={`/api/admin/exports/rsvps?eventId=${encodeURIComponent(event.id)}`}>
-                  <span className="inline-flex items-center gap-2">
-                    <Download size={16} />
-                    Export RSVP CSV
-                  </span>
-                </a>
-              </Button>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Consent</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Last response</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rsvps.length > 0 ? (
-                  rsvps.map((rsvp) => (
-                    <TableRow key={rsvp.id}>
-                      <TableCell>
-                        <Badge variant={rsvp.status === "GOING" ? "default" : rsvp.status === "INTERESTED" ? "secondary" : "outline"}>
-                          {rsvp.status === "CANT_GO" ? "CAN'T GO" : rsvp.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span>{rsvp.name || "Guest"}</span>
-                          <span className="text-xs text-muted-foreground">{rsvp.email}</span>
-                          {rsvp.phone && <span className="text-xs text-muted-foreground">{rsvp.phone}</span>}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                          <span>{rsvp.emailOptIn ? "Email opt-in" : "Email opt-out"}</span>
-                          <span>{rsvp.smsOptIn && rsvp.phone ? "Text opt-in" : "No text opt-in"}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{rsvp.source.replaceAll("_", " ")}</TableCell>
-                      <TableCell>{rsvp.lastSubmittedAt.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}</TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                      No RSVP contacts have been captured for this event yet.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
-          </TabsContent>
-
+          {/* ── GUEST LIST ── */}
           <TabsContent value="guest-list">
-        <section id="guest-list">
-          <AdminCompOrderForm
-            events={[
-              {
-                id: event.id,
-                title: event.title,
-                dateLabel,
-              },
-            ]}
-            ticketEmailConfigured={!ticketDeliveryIssue}
-          />
-        </section>
+            <AdminCompOrderForm
+              events={[{ id: event.id, title: event.title, dateLabel }]}
+              ticketEmailConfigured={!ticketDeliveryIssue}
+            />
           </TabsContent>
 
-          <TabsContent value="promotions">
-        <section id="promotions" className="grid gap-6 xl:grid-cols-2">
-          <Card className="border border-border shadow-xl xl:col-span-2">
-            <CardContent className="space-y-5 p-6">
-              <div>
-                <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Guest Discounts</div>
-                <h2 className="mt-2 text-2xl font-serif font-bold">Generate unique future-event codes</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Paste Blossom guest emails or an exported orders CSV, choose the discount amount, and download one assigned code per guest.
-                </p>
+          {/* ── EDIT EVENT ── */}
+          <TabsContent value="settings">
+            {managedEvent ? (
+              <EventEditorCard initialEvent={managedEvent} mode="edit" />
+            ) : (
+              <div className="rounded-2xl border border-border bg-background p-8 text-center text-sm text-muted-foreground shadow-sm">
+                Event settings could not be loaded.
               </div>
-              <AdminDiscountCodeGenerator eventId={event.id} />
-            </CardContent>
-          </Card>
-
-          <Card className="border border-border shadow-xl">
-            <CardContent className="p-6">
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Ticket Tiers</div>
-                  <h2 className="mt-2 text-2xl font-serif font-bold">Pricing performance</h2>
-                </div>
-                <Button asChild size="sm" variant="outline" className="border-primary text-primary">
-                  <Link href="/admin/events">Edit</Link>
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {ticketTiers.length > 0 ? (
-                  ticketTiers.map((tier) => (
-                    <div key={tier.id} className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-muted/20 p-4">
-                      <div>
-                        <div className="font-medium">{tier.name}</div>
-                        <div className="text-sm text-muted-foreground">{`${tier.soldCount} sold at ${formatCurrency(tier.priceCents, event.currency)}`}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold">{formatCurrency(tier.revenueCents, event.currency)}</div>
-                        <Badge variant={tier.isActive ? "secondary" : "outline"}>{tier.isActive ? "Active" : "Off"}</Badge>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-5 text-sm text-muted-foreground">
-                    This event is using the base ticket price.
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-border shadow-xl">
-            <CardContent className="p-6">
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Vouchers</div>
-                  <h2 className="mt-2 text-2xl font-serif font-bold">Promo and one-time codes</h2>
-                </div>
-                <Button asChild size="sm" variant="outline" className="border-primary text-primary">
-                  <Link href="/admin/events">Generate</Link>
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {vouchers.length > 0 ? (
-                  vouchers.map((voucher) => (
-                    <div key={voucher.id} className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-muted/20 p-4">
-                      <div>
-                        <div className="font-mono text-sm font-semibold">{voucher.code}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {voucher.discountType === "FIXED"
-                            ? `${formatCurrency(voucher.amountOffCents || 0, event.currency)} off`
-                            : `${voucher.percentOff || 0}% off`}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold">{`${voucher.redemptionCount}${voucher.maxRedemptions ? ` / ${voucher.maxRedemptions}` : ""}`}</div>
-                        <div className="text-xs text-muted-foreground">{`${formatCurrency(voucher.discountCents, event.currency)} discounted`}</div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-5 text-sm text-muted-foreground">
-                    No vouchers have been created for this event yet.
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-          </TabsContent>
-
-          <TabsContent value="tickets">
-        <section id="tickets" className="rounded-3xl border border-border bg-background shadow-xl">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
-            <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Tickets</div>
-              <h2 className="mt-2 text-2xl font-serif font-bold">Attendee ticket feed</h2>
-            </div>
-            <Badge variant="outline">{`${tickets.length} issued ticket records`}</Badge>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ticket</TableHead>
-                  <TableHead>Holder</TableHead>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tickets.map((ticket) => (
-                  <TableRow key={ticket.id}>
-                    <TableCell className="font-mono text-xs">{ticket.ticketCode}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span>{ticket.holderName}</span>
-                        <span className="text-xs text-muted-foreground">{ticket.holderEmail}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{ticket.order.orderNumber}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <Badge variant={ticket.order.status === "PAID" ? (ticket.checkedInAt ? "secondary" : "default") : "destructive"}>
-                          {ticket.order.status === "PAID" ? (ticket.checkedInAt ? "Checked In" : "Issued") : ticket.order.status}
-                        </Badge>
-                        {ticket.checkedInAt && (
-                          <span className="text-xs text-muted-foreground">
-                            {ticket.checkedInAt.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button asChild size="sm" variant="outline" className="border-primary text-primary">
-                        <Link href={`/tickets/code/${ticket.ticketCode}`}>
-                          <span className="inline-flex items-center gap-1">
-                            <Ticket size={14} />
-                            View
-                          </span>
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
+            )}
           </TabsContent>
         </Tabs>
       </div>

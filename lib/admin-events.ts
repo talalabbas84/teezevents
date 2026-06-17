@@ -524,6 +524,63 @@ export async function upsertAdminEvent(input: UpsertManagedEventInput) {
   } as Parameters<typeof prisma.event.upsert>[0])
 }
 
+export async function getAdminManagedEvent(eventId: string): Promise<AdminManagedEvent | null> {
+  const prisma = getPrismaClient()
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      orders: {
+        select: {
+          id: true,
+          status: true,
+          quantity: true,
+          totalPriceCents: true,
+          discountAmountCents: true,
+          expiresAt: true,
+          ticketTierId: true,
+          ticketTierNameSnapshot: true,
+          voucherId: true,
+          voucherCodeSnapshot: true,
+        },
+      },
+      tickets: {
+        select: {
+          id: true,
+          checkedInAt: true,
+        },
+      },
+      ticketTiers: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      },
+      vouchers: {
+        orderBy: [{ createdAt: "asc" }, { code: "asc" }],
+      },
+    },
+  })
+
+  if (!event) return null
+
+  const orders = event.orders as ManagedOrderRecord[]
+  const tickets = event.tickets as ManagedTicketRecord[]
+  const ticketTiers = event.ticketTiers as ManagedTicketTierRecord[]
+  const vouchers = event.vouchers as ManagedVoucherRecord[]
+  const paidOrders = orders.filter((order) => order.status === "PAID")
+  const reservedTickets = getReservedTicketCount(orders)
+  const checkedInCount = tickets.filter((ticket) => Boolean(ticket.checkedInAt)).length
+
+  return {
+    ...(event as ManagedEventRecord),
+    paidOrders: paidOrders.length,
+    ticketsIssued: tickets.length,
+    checkedInCount,
+    reservedTickets,
+    spotsLeft: Math.max(event.capacity - reservedTickets, 0),
+    revenueCents: paidOrders.reduce((total, order) => total + order.totalPriceCents, 0),
+    ticketTiers: buildTierStats(event as ManagedEventRecord, orders, ticketTiers),
+    vouchers: buildVoucherStats(orders, vouchers),
+  } satisfies AdminManagedEvent
+}
+
 export async function deleteAdminEvent(eventId: string) {
   const prisma = getPrismaClient()
   const normalizedId = normalizeEventId(eventId)
