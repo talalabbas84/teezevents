@@ -113,10 +113,18 @@ model Event {
   checkoutEnabled    Boolean             @default(false)
   maxTicketsPerOrder Int                 @default(4)
   ticketNote         String?
-  featured           Boolean             @default(false)
-  isActive           Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  featured           Boolean              @default(false)
+  isActive           Boolean              @default(true)
+  // Planning metadata
+  planningStatus     EventPlanningStatus  @default(DRAFT)
+  endsAt             DateTime?
+  expectedAttendance Int?
+  ownerEmail         String?
+  tags               String[]             @default([])
+  internalNotes      String?
+  budgetTotalCents   Int?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
   orders             TicketOrder[]
   tickets            Ticket[]
   ticketTiers        TicketTier[]
@@ -132,6 +140,10 @@ model Event {
   timelineItems      PlanningTimelineItem[]
   risks              Risk[]
   activityLogs       PlanningActivityLog[]
+  notifications      Notification[]
+  files              EventFile[]
+  notes              EventNote[]
+  postEventReview    PostEventReview?
 }
 
 model TicketOrder {
@@ -801,4 +813,179 @@ model PlanningActivityLog {
   createdAt  DateTime @default(now())
 
   @@index([eventId, createdAt])
+}
+
+// ─── ENTERPRISE FEATURE ENUMS ─────────────────────────────────────────────────
+
+enum EventPlanningStatus {
+  DRAFT
+  PLANNING
+  READY
+  LIVE
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_DUE_SOON
+  TASK_OVERDUE
+  TASK_COMPLETED
+  CHECKLIST_ITEM_DONE
+  COMMENT_MENTION
+  BUDGET_ALERT
+  VENDOR_STATUS_CHANGED
+  RISK_ESCALATED
+  BLUEPRINT_APPLIED
+  FILE_UPLOADED
+  EVENT_STATUS_CHANGED
+  AUTOMATION_TRIGGERED
+  REMINDER
+  GENERAL
+}
+
+enum EventFileCategory {
+  CONTRACT
+  RECEIPT
+  FLOOR_PLAN
+  POSTER
+  MARKETING_ASSET
+  VENDOR_DOCUMENT
+  STAFF_INSTRUCTIONS
+  RUN_SHEET
+  PHOTO
+  OTHER
+}
+
+enum AutomationTrigger {
+  EVENT_CREATED
+  EVENT_STATUS_CHANGED
+  BLUEPRINT_APPLIED
+  TASK_OVERDUE
+  TASK_COMPLETED
+  VENDOR_NOT_CONFIRMED
+  BUDGET_LIMIT_EXCEEDED
+  EVENT_DAYS_BEFORE
+  CHECKLIST_COMPLETED
+  EVENT_COMPLETED
+}
+
+enum AutomationAction {
+  CREATE_TASK
+  SEND_NOTIFICATION
+  SEND_EMAIL
+  UPDATE_STATUS
+  CREATE_CHECKLIST
+  ADD_COMMENT
+}
+
+// ─── ENTERPRISE FEATURE MODELS ────────────────────────────────────────────────
+
+model Notification {
+  id          String           @id @default(cuid())
+  eventId     String?
+  event       Event?           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  type        NotificationType @default(GENERAL)
+  title       String
+  body        String?
+  link        String?
+  actorEmail  String?
+  isRead      Boolean          @default(false)
+  readAt      DateTime?
+  entityType  String?
+  entityId    String?
+  createdAt   DateTime         @default(now())
+
+  @@index([isRead, createdAt])
+  @@index([eventId])
+}
+
+model EventFile {
+  id          String            @id @default(cuid())
+  eventId     String
+  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  category    EventFileCategory @default(OTHER)
+  name        String
+  url         String
+  mimeType    String?
+  sizeBytes   Int?
+  uploadedBy  String
+  taskId      String?
+  vendorId    String?
+  description String?
+  createdAt   DateTime          @default(now())
+
+  @@index([eventId, category])
+}
+
+model EventNote {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  body        String
+  authorEmail String
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId, isPinned])
+}
+
+model PostEventReview {
+  id                  String   @id @default(cuid())
+  eventId             String   @unique
+  event               Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  actualAttendance    Int?
+  actualRevenueCents  Int?
+  vendorRatings       Json?
+  teamFeedback        String?
+  whatWentWell        String?
+  whatWentWrong       String?
+  lessonsLearned      String?
+  improvementNotes    String?
+  overallRating       Int?
+  npsScore            Int?
+  savedToBlueprint    Boolean  @default(false)
+  createdByEmail      String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AutomationRule {
+  id              String            @id @default(cuid())
+  name            String
+  description     String?
+  isActive        Boolean           @default(true)
+  trigger         AutomationTrigger
+  triggerValue    String?
+  action          AutomationAction
+  actionPayload   Json?
+  eventId         String?
+  daysBeforeEvent Int?
+  lastRunAt       DateTime?
+  runCount        Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([trigger, isActive])
+  @@index([eventId])
+}
+
+model GlobalVendor {
+  id          String     @id @default(cuid())
+  name        String
+  vendorType  VendorType
+  contactName String?
+  email       String?
+  phone       String?
+  website     String?
+  notes       String?
+  tags        String[]   @default([])
+  rating      Int?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([vendorType, isActive])
 }

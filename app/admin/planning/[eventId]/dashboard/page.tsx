@@ -1,6 +1,8 @@
 import Link from "next/link"
 import { AlertTriangle, Building2, CheckSquare, DollarSign } from "lucide-react"
 import { getPlanningDashboard } from "@/lib/planning/queries"
+import { calculateReadinessScore } from "@/lib/planning/readiness"
+import { getPrismaClient } from "@/lib/prisma"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -27,9 +29,17 @@ export default async function PlanningDashboardPage({
   params: Promise<{ eventId: string }>
 }) {
   const { eventId } = await params
-  const data = await getPlanningDashboard(eventId)
+  const [data, readiness, event] = await Promise.all([
+    getPlanningDashboard(eventId),
+    calculateReadinessScore(eventId),
+    getPrismaClient().event.findUnique({
+      where: { id: eventId },
+      select: { title: true, planningStatus: true, startsAt: true },
+    }),
+  ])
 
   const { tasks, budget, vendors, risks, timeline, recentActivity } = data
+  const { score, breakdown } = readiness
 
   return (
     <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
@@ -40,11 +50,44 @@ export default async function PlanningDashboardPage({
           <div className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
             Planning
           </div>
-          <h1 className="mt-1.5 font-serif text-4xl font-bold">Dashboard</h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-3">
+            <h1 className="font-serif text-4xl font-bold">Dashboard</h1>
+            {event?.planningStatus && (
+              <Badge variant="secondary" className="text-xs font-semibold uppercase tracking-[0.18em]">
+                {event.planningStatus}
+              </Badge>
+            )}
+          </div>
           <p className="mt-1.5 text-sm text-muted-foreground">
             A live overview of your event planning progress.
           </p>
         </div>
+
+        {/* ── Readiness Score ───────────────────────────────────────────────── */}
+        <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Planning Readiness</div>
+                <div className={`mt-1 font-serif text-5xl font-bold ${score >= 75 ? "text-green-600" : score >= 50 ? "text-amber-600" : "text-destructive"}`}>{score}%</div>
+                <div className="mt-1 text-xs text-muted-foreground">Event Readiness Score</div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                {Object.entries(breakdown).map(([key, item]) => (
+                  <div key={key} className="space-y-0.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">{item.label}</span>
+                      <span className="font-medium">{Math.round(item.score)}</span>
+                    </div>
+                    <div className="h-1 overflow-hidden rounded-full bg-muted">
+                      <div className="h-1 bg-primary rounded-full" style={{ width: `${(item.score / 20) * 100}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ── Stat cards ────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

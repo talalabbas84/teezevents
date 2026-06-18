@@ -4,9 +4,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   AlertTriangle,
+  BarChart3,
   Building2,
   CalendarDays,
   CheckSquare,
+  ClipboardCheck,
   ClipboardList,
   DollarSign,
   LayoutDashboard,
@@ -25,6 +27,8 @@ const SUB_NAV_ITEMS = [
   { label: "Vendors", icon: Building2, slug: "vendors" },
   { label: "Run Sheet", icon: ClipboardList, slug: "run-sheet" },
   { label: "Risks", icon: AlertTriangle, slug: "risks" },
+  { label: "Reports", icon: BarChart3, slug: "reports" },
+  { label: "Post-Event", icon: ClipboardCheck, slug: "post-event" },
 ]
 
 interface PlanningWorkspaceShellProps {

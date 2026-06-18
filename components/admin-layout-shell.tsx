@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import {
   BarChart3,
+  Bell,
   ClipboardList,
   DoorOpen,
   Download,
@@ -13,6 +14,8 @@ import {
   LogOut,
   Menu,
   Settings2,
+  Store,
+  Users,
   X,
 } from "lucide-react"
 
@@ -21,6 +24,9 @@ const NAV_ITEMS = [
   { label: "Event Studio", href: "/admin/events", icon: Settings2 },
   { label: "Planning", href: "/admin/planning", icon: ClipboardList },
   { label: "Blueprints", href: "/admin/blueprints", icon: LayoutTemplate },
+  { label: "Team", href: "/admin/team", icon: Users },
+  { label: "Vendors", href: "/admin/vendors", icon: Store },
+  { label: "Notifications", href: "/admin/notifications", icon: Bell },
   { label: "Check-In", href: "/admin/check-in", icon: DoorOpen },
   { label: "Website CMS", href: "/admin/cms", icon: Globe2 },
 ]
