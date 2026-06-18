@@ -1,0 +1,1047 @@
+"use server";
+
+import { getPrismaClient } from "@/lib/prisma";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+// ─── Tasks ───────────────────────────────────────────────────────────────────
+
+const TaskSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  status: z.enum(["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "NEEDS_REVIEW", "COMPLETED", "CANCELLED"]).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+  category: z.string().optional(),
+  assignedTo: z.string().optional(),
+  dueDate: z.coerce.date().optional(),
+  parentTaskId: z.string().optional(),
+});
+
+export async function createTask(
+  eventId: string,
+  data: {
+    title: string;
+    description?: string;
+    status?: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "NEEDS_REVIEW" | "COMPLETED" | "CANCELLED";
+    priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+    category?: string;
+    assignedTo?: string;
+    dueDate?: Date;
+    parentTaskId?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = TaskSchema.parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.planningTask.create({
+      data: { ...parsed, eventId },
+    });
+    revalidatePath(`/admin/planning/${eventId}/tasks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateTask(
+  taskId: string,
+  data: {
+    title?: string;
+    description?: string;
+    status?: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "NEEDS_REVIEW" | "COMPLETED" | "CANCELLED";
+    priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+    category?: string;
+    assignedTo?: string;
+    dueDate?: Date;
+    parentTaskId?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = TaskSchema.partial().parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.planningTask.update({ where: { id: taskId }, data: parsed });
+    revalidatePath(`/admin/planning/${result.eventId}/tasks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteTask(taskId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.planningTask.delete({ where: { id: taskId } });
+    revalidatePath(`/admin/planning/${result.eventId}/tasks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateTaskStatus(
+  taskId: string,
+  status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "NEEDS_REVIEW" | "COMPLETED" | "CANCELLED"
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.planningTask.update({ where: { id: taskId }, data: { status } });
+    revalidatePath(`/admin/planning/${result.eventId}/tasks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function addTaskComment(taskId: string, body: string, authorEmail: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    z.object({ body: z.string().min(1), authorEmail: z.string().email() }).parse({ body, authorEmail });
+    const prisma = getPrismaClient();
+    const result = await prisma.taskComment.create({ data: { taskId, body, authorEmail } });
+    const task = await prisma.planningTask.findUnique({ where: { id: taskId }, select: { eventId: true } });
+    if (task) revalidatePath(`/admin/planning/${task.eventId}/tasks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Checklists ───────────────────────────────────────────────────────────────
+
+const ChecklistSchema = z.object({
+  title: z.string().min(1),
+  category: z.enum(["VENUE", "VENDORS", "MARKETING", "TICKETING", "STAFF", "PERFORMERS", "BUDGET", "LEGAL", "SOUND_LIGHTS", "SECURITY", "DECORATIONS", "FOOD_DRINKS", "DAY_OF_EVENT", "POST_EVENT", "GENERAL"]).optional(),
+  description: z.string().optional(),
+});
+
+export async function createChecklist(
+  eventId: string,
+  data: {
+    title: string;
+    category?: "VENUE" | "VENDORS" | "MARKETING" | "TICKETING" | "STAFF" | "PERFORMERS" | "BUDGET" | "LEGAL" | "SOUND_LIGHTS" | "SECURITY" | "DECORATIONS" | "FOOD_DRINKS" | "DAY_OF_EVENT" | "POST_EVENT" | "GENERAL";
+    description?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = ChecklistSchema.parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.checklist.create({ data: { ...parsed, eventId } });
+    revalidatePath(`/admin/planning/${eventId}/checklists`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateChecklist(
+  checklistId: string,
+  data: {
+    title?: string;
+    category?: "VENUE" | "VENDORS" | "MARKETING" | "TICKETING" | "STAFF" | "PERFORMERS" | "BUDGET" | "LEGAL" | "SOUND_LIGHTS" | "SECURITY" | "DECORATIONS" | "FOOD_DRINKS" | "DAY_OF_EVENT" | "POST_EVENT" | "GENERAL";
+    description?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = ChecklistSchema.partial().parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.checklist.update({ where: { id: checklistId }, data: parsed });
+    revalidatePath(`/admin/planning/${result.eventId}/checklists`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteChecklist(checklistId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.checklist.delete({ where: { id: checklistId } });
+    revalidatePath(`/admin/planning/${result.eventId}/checklists`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function addChecklistItem(
+  checklistId: string,
+  data: {
+    title: string;
+    sectionId?: string;
+    notes?: string;
+    assignedTo?: string;
+    dueDate?: Date;
+    priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = z.object({
+      title: z.string().min(1),
+      sectionId: z.string().optional(),
+      notes: z.string().optional(),
+      assignedTo: z.string().optional(),
+      dueDate: z.coerce.date().optional(),
+      priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+    }).parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.checklistItem.create({ data: { ...parsed, checklistId } });
+    const checklist = await prisma.checklist.findUnique({ where: { id: checklistId }, select: { eventId: true } });
+    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function toggleChecklistItem(itemId: string, isCompleted: boolean, completedBy?: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.checklistItem.update({
+      where: { id: itemId },
+      data: {
+        isCompleted,
+        completedBy: isCompleted ? completedBy : null,
+        completedAt: isCompleted ? new Date() : null,
+      },
+    });
+    const checklist = await prisma.checklist.findUnique({ where: { id: result.checklistId }, select: { eventId: true } });
+    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteChecklistItem(itemId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.checklistItem.delete({ where: { id: itemId } });
+    const checklist = await prisma.checklist.findUnique({ where: { id: result.checklistId }, select: { eventId: true } });
+    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function createChecklistSection(checklistId: string, title: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    z.string().min(1).parse(title);
+    const prisma = getPrismaClient();
+    const result = await prisma.checklistSection.create({ data: { checklistId, title } });
+    const checklist = await prisma.checklist.findUnique({ where: { id: checklistId }, select: { eventId: true } });
+    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteChecklistSection(sectionId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.checklistSection.delete({ where: { id: sectionId } });
+    const checklist = await prisma.checklist.findUnique({ where: { id: result.checklistId }, select: { eventId: true } });
+    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Budget ───────────────────────────────────────────────────────────────────
+
+const BudgetItemSchema = z.object({
+  category: z.enum(["VENUE", "DJ_MUSIC", "PERFORMERS", "STAFF", "MARKETING", "DECORATIONS", "FOOD_DRINKS", "SECURITY", "EQUIPMENT", "PHOTOGRAPHY", "VIDEOGRAPHY", "MISCELLANEOUS"]),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  estimatedCents: z.number().int().optional(),
+  actualCents: z.number().int().optional(),
+  paidCents: z.number().int().optional(),
+  status: z.enum(["ESTIMATED", "CONFIRMED", "PAID", "OVERDUE", "CANCELLED"]).optional(),
+  vendorName: z.string().optional(),
+  assignedTo: z.string().optional(),
+  notes: z.string().optional(),
+  dueDate: z.coerce.date().optional(),
+});
+
+export async function createBudgetItem(
+  eventId: string,
+  data: {
+    category: "VENUE" | "DJ_MUSIC" | "PERFORMERS" | "STAFF" | "MARKETING" | "DECORATIONS" | "FOOD_DRINKS" | "SECURITY" | "EQUIPMENT" | "PHOTOGRAPHY" | "VIDEOGRAPHY" | "MISCELLANEOUS";
+    title: string;
+    description?: string;
+    estimatedCents?: number;
+    actualCents?: number;
+    paidCents?: number;
+    status?: "ESTIMATED" | "CONFIRMED" | "PAID" | "OVERDUE" | "CANCELLED";
+    vendorName?: string;
+    assignedTo?: string;
+    notes?: string;
+    dueDate?: Date;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = BudgetItemSchema.parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.budgetItem.create({ data: { ...parsed, eventId } });
+    revalidatePath(`/admin/planning/${eventId}/budget`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateBudgetItem(
+  itemId: string,
+  data: {
+    category?: "VENUE" | "DJ_MUSIC" | "PERFORMERS" | "STAFF" | "MARKETING" | "DECORATIONS" | "FOOD_DRINKS" | "SECURITY" | "EQUIPMENT" | "PHOTOGRAPHY" | "VIDEOGRAPHY" | "MISCELLANEOUS";
+    title?: string;
+    description?: string;
+    estimatedCents?: number;
+    actualCents?: number;
+    paidCents?: number;
+    status?: "ESTIMATED" | "CONFIRMED" | "PAID" | "OVERDUE" | "CANCELLED";
+    vendorName?: string;
+    assignedTo?: string;
+    notes?: string;
+    dueDate?: Date;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = BudgetItemSchema.partial().parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.budgetItem.update({ where: { id: itemId }, data: parsed });
+    revalidatePath(`/admin/planning/${result.eventId}/budget`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteBudgetItem(itemId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.budgetItem.delete({ where: { id: itemId } });
+    revalidatePath(`/admin/planning/${result.eventId}/budget`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Vendors ──────────────────────────────────────────────────────────────────
+
+const VendorSchema = z.object({
+  vendorType: z.enum(["VENUE", "DJ", "PHOTOGRAPHER", "VIDEOGRAPHER", "SECURITY", "CATERING", "DECOR", "LIGHTING", "SOUND", "PERFORMER", "SPONSOR", "OTHER"]),
+  name: z.string().min(1),
+  contactName: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  website: z.string().optional(),
+  status: z.enum(["PENDING", "CONTACTED", "CONFIRMED", "CANCELLED", "REJECTED"]).optional(),
+  quoteCents: z.number().int().optional(),
+  notes: z.string().optional(),
+});
+
+export async function createVendor(
+  eventId: string,
+  data: {
+    vendorType: "VENUE" | "DJ" | "PHOTOGRAPHER" | "VIDEOGRAPHER" | "SECURITY" | "CATERING" | "DECOR" | "LIGHTING" | "SOUND" | "PERFORMER" | "SPONSOR" | "OTHER";
+    name: string;
+    contactName?: string;
+    email?: string;
+    phone?: string;
+    website?: string;
+    status?: "PENDING" | "CONTACTED" | "CONFIRMED" | "CANCELLED" | "REJECTED";
+    quoteCents?: number;
+    notes?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = VendorSchema.parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.eventVendor.create({ data: { ...parsed, eventId } });
+    revalidatePath(`/admin/planning/${eventId}/vendors`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateVendor(
+  vendorId: string,
+  data: {
+    vendorType?: "VENUE" | "DJ" | "PHOTOGRAPHER" | "VIDEOGRAPHER" | "SECURITY" | "CATERING" | "DECOR" | "LIGHTING" | "SOUND" | "PERFORMER" | "SPONSOR" | "OTHER";
+    name?: string;
+    contactName?: string;
+    email?: string;
+    phone?: string;
+    website?: string;
+    status?: "PENDING" | "CONTACTED" | "CONFIRMED" | "CANCELLED" | "REJECTED";
+    quoteCents?: number;
+    notes?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = VendorSchema.partial().parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.eventVendor.update({ where: { id: vendorId }, data: parsed });
+    revalidatePath(`/admin/planning/${result.eventId}/vendors`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteVendor(vendorId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.eventVendor.delete({ where: { id: vendorId } });
+    revalidatePath(`/admin/planning/${result.eventId}/vendors`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateVendorStatus(
+  vendorId: string,
+  status: "PENDING" | "CONTACTED" | "CONFIRMED" | "CANCELLED" | "REJECTED"
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.eventVendor.update({ where: { id: vendorId }, data: { status } });
+    revalidatePath(`/admin/planning/${result.eventId}/vendors`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Run Sheet ────────────────────────────────────────────────────────────────
+
+const RunSheetItemSchema = z.object({
+  time: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  ownerName: z.string().optional(),
+  location: z.string().optional(),
+  durationMins: z.number().int().optional(),
+  notes: z.string().optional(),
+});
+
+export async function createRunSheetItem(
+  eventId: string,
+  data: {
+    time: string;
+    title: string;
+    description?: string;
+    ownerName?: string;
+    location?: string;
+    durationMins?: number;
+    notes?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = RunSheetItemSchema.parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.runSheetItem.create({ data: { ...parsed, eventId } });
+    revalidatePath(`/admin/planning/${eventId}/run-sheet`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateRunSheetItem(
+  itemId: string,
+  data: {
+    time?: string;
+    title?: string;
+    description?: string;
+    ownerName?: string;
+    location?: string;
+    durationMins?: number;
+    notes?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = RunSheetItemSchema.partial().parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.runSheetItem.update({ where: { id: itemId }, data: parsed });
+    revalidatePath(`/admin/planning/${result.eventId}/run-sheet`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteRunSheetItem(itemId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.runSheetItem.delete({ where: { id: itemId } });
+    revalidatePath(`/admin/planning/${result.eventId}/run-sheet`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateRunSheetItemStatus(
+  itemId: string,
+  status: "UPCOMING" | "IN_PROGRESS" | "DONE" | "DELAYED" | "CANCELLED"
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.runSheetItem.update({ where: { id: itemId }, data: { status } });
+    revalidatePath(`/admin/planning/${result.eventId}/run-sheet`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function reorderRunSheetItems(eventId: string, orderedIds: string[]) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    await prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.runSheetItem.update({ where: { id }, data: { sortOrder: index } })
+      )
+    );
+    revalidatePath(`/admin/planning/${eventId}/run-sheet`);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Timeline ─────────────────────────────────────────────────────────────────
+
+const TimelineItemSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  dueDate: z.coerce.date(),
+  isMilestone: z.boolean().optional(),
+  assignedTo: z.string().optional(),
+});
+
+export async function createTimelineItem(
+  eventId: string,
+  data: {
+    title: string;
+    description?: string;
+    category?: string;
+    dueDate: Date;
+    isMilestone?: boolean;
+    assignedTo?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = TimelineItemSchema.parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.planningTimelineItem.create({ data: { ...parsed, eventId } });
+    revalidatePath(`/admin/planning/${eventId}/timeline`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateTimelineItem(
+  itemId: string,
+  data: {
+    title?: string;
+    description?: string;
+    category?: string;
+    dueDate?: Date;
+    isMilestone?: boolean;
+    assignedTo?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = TimelineItemSchema.partial().parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.planningTimelineItem.update({ where: { id: itemId }, data: parsed });
+    revalidatePath(`/admin/planning/${result.eventId}/timeline`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteTimelineItem(itemId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.planningTimelineItem.delete({ where: { id: itemId } });
+    revalidatePath(`/admin/planning/${result.eventId}/timeline`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function toggleTimelineItem(itemId: string, isCompleted: boolean) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.planningTimelineItem.update({
+      where: { id: itemId },
+      data: { isCompleted, completedAt: isCompleted ? new Date() : null },
+    });
+    revalidatePath(`/admin/planning/${result.eventId}/timeline`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Risks ────────────────────────────────────────────────────────────────────
+
+const RiskSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  severity: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
+  probability: z.enum(["UNLIKELY", "POSSIBLE", "LIKELY", "ALMOST_CERTAIN"]).optional(),
+  status: z.enum(["OPEN", "MITIGATED", "RESOLVED", "ACCEPTED"]).optional(),
+  mitigationPlan: z.string().optional(),
+  assignedTo: z.string().optional(),
+});
+
+export async function createRisk(
+  eventId: string,
+  data: {
+    title: string;
+    description?: string;
+    category?: string;
+    severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    probability?: "UNLIKELY" | "POSSIBLE" | "LIKELY" | "ALMOST_CERTAIN";
+    status?: "OPEN" | "MITIGATED" | "RESOLVED" | "ACCEPTED";
+    mitigationPlan?: string;
+    assignedTo?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = RiskSchema.parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.risk.create({ data: { ...parsed, eventId } });
+    revalidatePath(`/admin/planning/${eventId}/risks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateRisk(
+  riskId: string,
+  data: {
+    title?: string;
+    description?: string;
+    category?: string;
+    severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    probability?: "UNLIKELY" | "POSSIBLE" | "LIKELY" | "ALMOST_CERTAIN";
+    status?: "OPEN" | "MITIGATED" | "RESOLVED" | "ACCEPTED";
+    mitigationPlan?: string;
+    assignedTo?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = RiskSchema.partial().parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.risk.update({ where: { id: riskId }, data: parsed });
+    revalidatePath(`/admin/planning/${result.eventId}/risks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteRisk(riskId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.risk.delete({ where: { id: riskId } });
+    revalidatePath(`/admin/planning/${result.eventId}/risks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateRiskStatus(
+  riskId: string,
+  status: "OPEN" | "MITIGATED" | "RESOLVED" | "ACCEPTED"
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.risk.update({ where: { id: riskId }, data: { status } });
+    revalidatePath(`/admin/planning/${result.eventId}/risks`);
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Blueprints ───────────────────────────────────────────────────────────────
+
+const BlueprintSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+});
+
+export async function createBlueprint(data: {
+  name: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+}) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = BlueprintSchema.parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.eventBlueprint.create({ data: parsed });
+    revalidatePath("/admin/blueprints");
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateBlueprint(
+  blueprintId: string,
+  data: { name?: string; description?: string; category?: string; tags?: string[] }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = BlueprintSchema.partial().parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.eventBlueprint.update({ where: { id: blueprintId }, data: parsed });
+    revalidatePath("/admin/blueprints");
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteBlueprint(blueprintId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.eventBlueprint.delete({ where: { id: blueprintId } });
+    revalidatePath("/admin/blueprints");
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function addBlueprintTask(
+  blueprintId: string,
+  data: {
+    title: string;
+    description?: string;
+    priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+    category?: string;
+    daysBeforeEvent?: number;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+      category: z.string().optional(),
+      daysBeforeEvent: z.number().int().optional(),
+    }).parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.blueprintTask.create({ data: { ...parsed, blueprintId } });
+    revalidatePath("/admin/blueprints");
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function addBlueprintChecklistItem(
+  blueprintId: string,
+  data: {
+    title: string;
+    section?: string;
+    priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+    category?: string;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = z.object({
+      title: z.string().min(1),
+      section: z.string().optional(),
+      priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+      category: z.enum(["VENUE", "VENDORS", "MARKETING", "TICKETING", "STAFF", "PERFORMERS", "BUDGET", "LEGAL", "SOUND_LIGHTS", "SECURITY", "DECORATIONS", "FOOD_DRINKS", "DAY_OF_EVENT", "POST_EVENT", "GENERAL"]).optional(),
+    }).parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.blueprintChecklistItem.create({ data: { ...parsed, blueprintId } });
+    revalidatePath("/admin/blueprints");
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function addBlueprintBudgetItem(
+  blueprintId: string,
+  data: {
+    category: "VENUE" | "DJ_MUSIC" | "PERFORMERS" | "STAFF" | "MARKETING" | "DECORATIONS" | "FOOD_DRINKS" | "SECURITY" | "EQUIPMENT" | "PHOTOGRAPHY" | "VIDEOGRAPHY" | "MISCELLANEOUS";
+    title: string;
+    estimatedCents?: number;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = z.object({
+      category: z.enum(["VENUE", "DJ_MUSIC", "PERFORMERS", "STAFF", "MARKETING", "DECORATIONS", "FOOD_DRINKS", "SECURITY", "EQUIPMENT", "PHOTOGRAPHY", "VIDEOGRAPHY", "MISCELLANEOUS"]),
+      title: z.string().min(1),
+      estimatedCents: z.number().int().optional(),
+    }).parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.blueprintBudgetItem.create({ data: { ...parsed, blueprintId } });
+    revalidatePath("/admin/blueprints");
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function addBlueprintRunSheetItem(
+  blueprintId: string,
+  data: {
+    time: string;
+    title: string;
+    description?: string;
+    durationMins?: number;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = z.object({
+      time: z.string().min(1),
+      title: z.string().min(1),
+      description: z.string().optional(),
+      durationMins: z.number().int().optional(),
+    }).parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.blueprintRunSheetItem.create({ data: { ...parsed, blueprintId } });
+    revalidatePath("/admin/blueprints");
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function addBlueprintTimelineItem(
+  blueprintId: string,
+  data: {
+    title: string;
+    description?: string;
+    category?: string;
+    daysBeforeEvent: number;
+    isMilestone?: boolean;
+  }
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const parsed = z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      category: z.string().optional(),
+      daysBeforeEvent: z.number().int(),
+      isMilestone: z.boolean().optional(),
+    }).parse(data);
+    const prisma = getPrismaClient();
+    const result = await prisma.blueprintTimelineItem.create({ data: { ...parsed, blueprintId } });
+    revalidatePath("/admin/blueprints");
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function applyBlueprintToEvent(eventId: string, blueprintId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+
+    const [blueprint, event] = await Promise.all([
+      prisma.eventBlueprint.findUniqueOrThrow({
+        where: { id: blueprintId },
+        include: {
+          tasks: true,
+          checklistItems: true,
+          budgetItems: true,
+          runSheetItems: true,
+          timelineItems: true,
+        },
+      }),
+      prisma.event.findUniqueOrThrow({ where: { id: eventId }, select: { startsAt: true } }),
+    ]);
+
+    const eventStart = event.startsAt ?? null;
+
+    const calcDueDate = (daysBeforeEvent: number | null | undefined): Date | undefined => {
+      if (!eventStart || daysBeforeEvent == null) return undefined;
+      const d = new Date(eventStart);
+      d.setDate(d.getDate() - daysBeforeEvent);
+      return d;
+    };
+
+    await prisma.$transaction(async (tx) => {
+      if (blueprint.tasks.length > 0) {
+        await tx.planningTask.createMany({
+          data: blueprint.tasks.map((t) => ({
+            eventId,
+            title: t.title,
+            description: t.description ?? undefined,
+            priority: t.priority ?? undefined,
+            category: t.category ?? undefined,
+            dueDate: calcDueDate(t.daysBeforeEvent),
+          })),
+        });
+      }
+
+      if (blueprint.checklistItems.length > 0) {
+        const checklist = await tx.checklist.create({
+          data: { eventId, title: blueprint.name },
+        });
+        await tx.checklistItem.createMany({
+          data: blueprint.checklistItems.map((item) => ({
+            checklistId: checklist.id,
+            title: item.title,
+            priority: item.priority ?? undefined,
+          })),
+        });
+      }
+
+      if (blueprint.budgetItems.length > 0) {
+        await tx.budgetItem.createMany({
+          data: blueprint.budgetItems.map((item) => ({
+            eventId,
+            category: item.category,
+            title: item.title,
+            estimatedCents: item.estimatedCents ?? undefined,
+          })),
+        });
+      }
+
+      if (blueprint.runSheetItems.length > 0) {
+        await tx.runSheetItem.createMany({
+          data: blueprint.runSheetItems.map((item) => ({
+            eventId,
+            time: item.time,
+            title: item.title,
+            description: item.description ?? undefined,
+            durationMins: item.durationMins ?? undefined,
+          })),
+        });
+      }
+
+      if (blueprint.timelineItems.length > 0) {
+        const timelineData = blueprint.timelineItems
+          .map((item) => {
+            const dueDate = calcDueDate(item.daysBeforeEvent);
+            if (!dueDate) return null;
+            return {
+              eventId,
+              title: item.title,
+              description: item.description ?? undefined,
+              category: item.category ?? undefined,
+              dueDate,
+              isMilestone: item.isMilestone ?? undefined,
+            };
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null);
+
+        if (timelineData.length > 0) {
+          await tx.planningTimelineItem.createMany({ data: timelineData });
+        }
+      }
+    });
+
+    revalidatePath(`/admin/planning/${eventId}/tasks`);
+    revalidatePath(`/admin/planning/${eventId}/checklists`);
+    revalidatePath(`/admin/planning/${eventId}/budget`);
+    revalidatePath(`/admin/planning/${eventId}/run-sheet`);
+    revalidatePath(`/admin/planning/${eventId}/timeline`);
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+
+export async function logActivity(
+  eventId: string | null,
+  actorEmail: string,
+  action: string,
+  entityType?: string,
+  entityId?: string,
+  entityName?: string,
+  details?: Record<string, unknown>
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const prisma = getPrismaClient();
+    const result = await prisma.planningActivityLog.create({
+      data: {
+        eventId: eventId ?? undefined,
+        actorEmail,
+        action,
+        entityType: entityType ?? undefined,
+        entityId: entityId ?? undefined,
+        entityName: entityName ?? undefined,
+        details: (details ?? undefined) as never,
+      },
+    });
+    return { success: true, data: result };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}

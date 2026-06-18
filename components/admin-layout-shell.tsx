@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import {
   BarChart3,
+  ClipboardList,
   DoorOpen,
   Download,
   Globe2,
+  LayoutTemplate,
   LogOut,
   Menu,
   Settings2,
@@ -17,6 +19,8 @@ import {
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/admin", icon: BarChart3, exact: true },
   { label: "Event Studio", href: "/admin/events", icon: Settings2 },
+  { label: "Planning", href: "/admin/planning", icon: ClipboardList },
+  { label: "Blueprints", href: "/admin/blueprints", icon: LayoutTemplate },
   { label: "Check-In", href: "/admin/check-in", icon: DoorOpen },
   { label: "Website CMS", href: "/admin/cms", icon: Globe2 },
 ]

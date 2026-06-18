@@ -123,6 +123,15 @@ model Event {
   vouchers           Voucher[]
   rsvps              EventRsvp[]
   marketingCampaigns MarketingCampaign[]
+  // Planning relations
+  planningTasks      PlanningTask[]
+  checklists         Checklist[]
+  budgetItems        BudgetItem[]
+  eventVendors       EventVendor[]
+  runSheetItems      RunSheetItem[]
+  timelineItems      PlanningTimelineItem[]
+  risks              Risk[]
+  activityLogs       PlanningActivityLog[]
 }
 
 model TicketOrder {
@@ -390,4 +399,406 @@ model WebsitePageRevision {
   createdAt   DateTime    @default(now())
 
   @@index([pageId, createdAt])
+}
+
+// ─── PLANNING ENUMS ─────────────────────────────────────────────────────────
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  BLOCKED
+  NEEDS_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ChecklistCategory {
+  VENUE
+  VENDORS
+  MARKETING
+  TICKETING
+  STAFF
+  PERFORMERS
+  BUDGET
+  LEGAL
+  SOUND_LIGHTS
+  SECURITY
+  DECORATIONS
+  FOOD_DRINKS
+  DAY_OF_EVENT
+  POST_EVENT
+  GENERAL
+}
+
+enum BudgetCategory {
+  VENUE
+  DJ_MUSIC
+  PERFORMERS
+  STAFF
+  MARKETING
+  DECORATIONS
+  FOOD_DRINKS
+  SECURITY
+  EQUIPMENT
+  PHOTOGRAPHY
+  VIDEOGRAPHY
+  MISCELLANEOUS
+}
+
+enum BudgetItemStatus {
+  ESTIMATED
+  CONFIRMED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum VendorType {
+  VENUE
+  DJ
+  PHOTOGRAPHER
+  VIDEOGRAPHER
+  SECURITY
+  CATERING
+  DECOR
+  LIGHTING
+  SOUND
+  PERFORMER
+  SPONSOR
+  OTHER
+}
+
+enum VendorStatus {
+  PENDING
+  CONTACTED
+  CONFIRMED
+  CANCELLED
+  REJECTED
+}
+
+enum RunSheetStatus {
+  UPCOMING
+  IN_PROGRESS
+  DONE
+  DELAYED
+  CANCELLED
+}
+
+enum RiskSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskProbability {
+  UNLIKELY
+  POSSIBLE
+  LIKELY
+  ALMOST_CERTAIN
+}
+
+enum RiskStatus {
+  OPEN
+  MITIGATED
+  RESOLVED
+  ACCEPTED
+}
+
+// ─── PLANNING MODELS ─────────────────────────────────────────────────────────
+
+model PlanningTask {
+  id              String        @id @default(cuid())
+  eventId         String
+  event           Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  status          TaskStatus    @default(NOT_STARTED)
+  priority        TaskPriority  @default(MEDIUM)
+  category        String?
+  assignedTo      String?
+  dueDate         DateTime?
+  completedAt     DateTime?
+  sortOrder       Int           @default(0)
+  parentTaskId    String?
+  parentTask      PlanningTask? @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks        PlanningTask[] @relation("TaskSubtasks")
+  comments        TaskComment[]
+  blueprintTaskId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([eventId, status])
+  @@index([assignedTo])
+  @@index([dueDate])
+}
+
+model TaskComment {
+  id          String       @id @default(cuid())
+  taskId      String
+  task        PlanningTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorEmail String
+  body        String
+  createdAt   DateTime     @default(now())
+
+  @@index([taskId])
+}
+
+model Checklist {
+  id          String            @id @default(cuid())
+  eventId     String
+  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title       String
+  category    ChecklistCategory @default(GENERAL)
+  description String?
+  sortOrder   Int               @default(0)
+  sections    ChecklistSection[]
+  items       ChecklistItem[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([eventId])
+}
+
+model ChecklistSection {
+  id          String          @id @default(cuid())
+  checklistId String
+  checklist   Checklist       @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  title       String
+  sortOrder   Int             @default(0)
+  items       ChecklistItem[]
+  createdAt   DateTime        @default(now())
+
+  @@index([checklistId])
+}
+
+model ChecklistItem {
+  id          String            @id @default(cuid())
+  checklistId String
+  checklist   Checklist         @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  sectionId   String?
+  section     ChecklistSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  title       String
+  notes       String?
+  assignedTo  String?
+  dueDate     DateTime?
+  priority    TaskPriority      @default(MEDIUM)
+  isCompleted Boolean           @default(false)
+  completedAt DateTime?
+  completedBy String?
+  sortOrder   Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([checklistId, isCompleted])
+  @@index([sectionId])
+}
+
+model BudgetItem {
+  id             String           @id @default(cuid())
+  eventId        String
+  event          Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  category       BudgetCategory
+  title          String
+  description    String?
+  estimatedCents Int              @default(0)
+  actualCents    Int              @default(0)
+  paidCents      Int              @default(0)
+  status         BudgetItemStatus @default(ESTIMATED)
+  vendorName     String?
+  assignedTo     String?
+  receiptUrl     String?
+  notes          String?
+  dueDate        DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([eventId, category])
+  @@index([status])
+}
+
+model EventVendor {
+  id           String       @id @default(cuid())
+  eventId      String
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  vendorType   VendorType
+  name         String
+  contactName  String?
+  email        String?
+  phone        String?
+  website      String?
+  status       VendorStatus @default(PENDING)
+  confirmedAt  DateTime?
+  contractUrl  String?
+  quoteCents   Int?
+  paidCents    Int          @default(0)
+  notes        String?
+  rating       Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([eventId, vendorType])
+  @@index([status])
+}
+
+model RunSheetItem {
+  id           String         @id @default(cuid())
+  eventId      String
+  event        Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  time         String
+  title        String
+  description  String?
+  ownerName    String?
+  location     String?
+  durationMins Int?
+  status       RunSheetStatus @default(UPCOMING)
+  notes        String?
+  sortOrder    Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([eventId, sortOrder])
+}
+
+model PlanningTimelineItem {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  category    String?
+  dueDate     DateTime
+  isMilestone Boolean  @default(false)
+  isCompleted Boolean  @default(false)
+  completedAt DateTime?
+  assignedTo  String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId, dueDate])
+}
+
+model Risk {
+  id             String          @id @default(cuid())
+  eventId        String
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  category       String?
+  severity       RiskSeverity    @default(MEDIUM)
+  probability    RiskProbability @default(POSSIBLE)
+  status         RiskStatus      @default(OPEN)
+  mitigationPlan String?
+  assignedTo     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([eventId, status])
+  @@index([severity])
+}
+
+model EventBlueprint {
+  id             String                  @id @default(cuid())
+  name           String
+  description    String?
+  category       String?
+  tags           String[]                @default([])
+  isActive       Boolean                 @default(true)
+  tasks          BlueprintTask[]
+  checklistItems BlueprintChecklistItem[]
+  budgetItems    BlueprintBudgetItem[]
+  runSheetItems  BlueprintRunSheetItem[]
+  timelineItems  BlueprintTimelineItem[]
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+}
+
+model BlueprintTask {
+  id              String         @id @default(cuid())
+  blueprintId     String
+  blueprint       EventBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  priority        TaskPriority   @default(MEDIUM)
+  category        String?
+  daysBeforeEvent Int?
+  sortOrder       Int            @default(0)
+
+  @@index([blueprintId])
+}
+
+model BlueprintChecklistItem {
+  id          String            @id @default(cuid())
+  blueprintId String
+  blueprint   EventBlueprint    @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  section     String?
+  title       String
+  priority    TaskPriority      @default(MEDIUM)
+  category    ChecklistCategory @default(GENERAL)
+  sortOrder   Int               @default(0)
+
+  @@index([blueprintId])
+}
+
+model BlueprintBudgetItem {
+  id             String         @id @default(cuid())
+  blueprintId    String
+  blueprint      EventBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  category       BudgetCategory
+  title          String
+  estimatedCents Int            @default(0)
+  sortOrder      Int            @default(0)
+
+  @@index([blueprintId])
+}
+
+model BlueprintRunSheetItem {
+  id          String         @id @default(cuid())
+  blueprintId String
+  blueprint   EventBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  time        String
+  title       String
+  description String?
+  durationMins Int?
+  sortOrder   Int            @default(0)
+
+  @@index([blueprintId])
+}
+
+model BlueprintTimelineItem {
+  id              String         @id @default(cuid())
+  blueprintId     String
+  blueprint       EventBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  category        String?
+  daysBeforeEvent Int
+  isMilestone     Boolean        @default(false)
+  sortOrder       Int            @default(0)
+
+  @@index([blueprintId])
+}
+
+model PlanningActivityLog {
+  id         String   @id @default(cuid())
+  eventId    String?
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  actorEmail String
+  action     String
+  entityType String?
+  entityId   String?
+  entityName String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([eventId, createdAt])
 }
