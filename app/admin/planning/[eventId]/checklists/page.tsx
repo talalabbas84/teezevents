@@ -1,6 +1,9 @@
 import { getEventChecklists } from "@/lib/planning/queries"
 import type { ChecklistSerialized } from "@/lib/planning/types"
+import { requireAdminSession } from "@/lib/admin-auth"
+import { getPrismaClient } from "@/lib/prisma"
 import { ChecklistsPanelClient } from "@/components/planning/checklists-panel"
+import type { TeamMemberOption } from "@/components/planning/assignee-select"
 
 export default async function ChecklistsPage({
   params,
@@ -8,7 +11,34 @@ export default async function ChecklistsPage({
   params: Promise<{ eventId: string }>
 }) {
   const { eventId } = await params
-  const checklists = await getEventChecklists(eventId)
+  const db = getPrismaClient()
+  const [checklists, session, members] = await Promise.all([
+    getEventChecklists(eventId),
+    requireAdminSession(),
+    db.teamMember.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+      select: { id: true, email: true, name: true, role: true, avatarColor: true },
+    }),
+  ])
+
+  const assignees: TeamMemberOption[] = members.map((member) => ({
+    id: member.id,
+    email: member.email,
+    name: member.name,
+    role: member.role,
+    avatarColor: member.avatarColor,
+  }))
+
+  if (!assignees.some((member) => member.email === session.email)) {
+    assignees.unshift({
+      id: "current-admin",
+      email: session.email,
+      name: "Current Admin",
+      role: "SUPER_ADMIN",
+      avatarColor: "#c57a3a",
+    })
+  }
 
   return (
     <div className="min-h-screen bg-[#F7EDDB]">
@@ -22,7 +52,12 @@ export default async function ChecklistsPage({
           </p>
         </div>
 
-        <ChecklistsPanelClient eventId={eventId} initialChecklists={checklists} />
+        <ChecklistsPanelClient
+          eventId={eventId}
+          initialChecklists={checklists}
+          currentEmail={session.email}
+          assignees={assignees}
+        />
       </div>
     </div>
   )

@@ -28,6 +28,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Download,
   PlayCircle,
   Plus,
   Printer,
@@ -174,6 +175,13 @@ export function RunSheetClient({ eventId, initialItems }: RunSheetClientProps) {
           </p>
         </div>
         <div className="flex gap-2 print:hidden">
+          <a
+            href={`/api/admin/planning/${eventId}/export/run-sheet`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+          >
+            <Download size={12} />
+            Export CSV
+          </a>
           <Button
             variant="outline"
             size="sm"
@@ -205,7 +213,7 @@ export function RunSheetClient({ eventId, initialItems }: RunSheetClientProps) {
       ) : (
         <div className="relative space-y-0">
           {/* Vertical line */}
-          <div className="absolute left-[5.5rem] top-0 h-full w-px bg-[#c57a3a]/20 print:hidden" />
+          <div className="absolute left-22 top-0 h-full w-px bg-[#c57a3a]/20 print:hidden" />
 
           {sorted.map((item) => {
             const badge = statusBadgeProps(item.status)

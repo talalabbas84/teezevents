@@ -1,8 +1,12 @@
 "use server"
 
-import { isAdminAuthenticated } from "@/lib/admin-auth"
+import { getCurrentTeamContext } from "@/lib/team-access"
 import { getPrismaClient } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+
+function notificationScope(email: string, isSuperAdmin: boolean) {
+  return isSuperAdmin ? {} : { OR: [{ recipientEmail: null }, { recipientEmail: email }] }
+}
 
 /**
  * Marks a single notification as read.
@@ -11,15 +15,14 @@ export async function markNotificationRead(
   notificationId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const authed = await isAdminAuthenticated()
-    if (!authed) {
-      return { success: false, error: "Unauthorized" }
-    }
-
+    const currentUser = await getCurrentTeamContext()
     const prisma = getPrismaClient()
 
-    await prisma.notification.update({
-      where: { id: notificationId },
+    await prisma.notification.updateMany({
+      where: {
+        id: notificationId,
+        ...notificationScope(currentUser.email, currentUser.role === "SUPER_ADMIN"),
+      },
       data: {
         isRead: true,
         readAt: new Date(),
@@ -47,15 +50,14 @@ export async function markAllNotificationsRead(): Promise<{
   error?: string
 }> {
   try {
-    const authed = await isAdminAuthenticated()
-    if (!authed) {
-      return { success: false, error: "Unauthorized" }
-    }
-
+    const currentUser = await getCurrentTeamContext()
     const prisma = getPrismaClient()
 
     await prisma.notification.updateMany({
-      where: { isRead: false },
+      where: {
+        isRead: false,
+        ...notificationScope(currentUser.email, currentUser.role === "SUPER_ADMIN"),
+      },
       data: {
         isRead: true,
         readAt: new Date(),
@@ -84,15 +86,14 @@ export async function deleteNotification(
   notificationId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const authed = await isAdminAuthenticated()
-    if (!authed) {
-      return { success: false, error: "Unauthorized" }
-    }
-
+    const currentUser = await getCurrentTeamContext()
     const prisma = getPrismaClient()
 
-    await prisma.notification.delete({
-      where: { id: notificationId },
+    await prisma.notification.deleteMany({
+      where: {
+        id: notificationId,
+        ...notificationScope(currentUser.email, currentUser.role === "SUPER_ADMIN"),
+      },
     })
 
     revalidatePath("/admin/notifications")

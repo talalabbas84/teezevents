@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Trash2, Pencil, DollarSign } from "lucide-react"
+import { Plus, Trash2, Pencil, DollarSign, Download } from "lucide-react"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -232,13 +232,22 @@ export function BudgetClient({ eventId, initialItems }: BudgetClientProps) {
         <h1 className="font-serif text-2xl font-semibold tracking-wide text-[#c57a3a]">
           Budget
         </h1>
-        <Button
-          onClick={openAddDialog}
-          className="bg-[#c57a3a] text-white hover:bg-[#a8652e]"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Budget Item
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/admin/planning/${eventId}/export/budget`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+          >
+            <Download size={12} />
+            Export CSV
+          </a>
+          <Button
+            onClick={openAddDialog}
+            className="bg-[#c57a3a] text-white hover:bg-[#a8652e]"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Budget Item
+          </Button>
+        </div>
       </div>
 
       {/* Summary cards */}

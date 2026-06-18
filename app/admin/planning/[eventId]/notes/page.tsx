@@ -1,4 +1,5 @@
 import { getPrismaClient } from "@/lib/prisma"
+import { getCurrentTeamContext } from "@/lib/team-access"
 import { NotesClient } from "@/components/planning/notes-client"
 
 export default async function NotesPage({
@@ -8,6 +9,7 @@ export default async function NotesPage({
 }) {
   const { eventId } = await params
   const prisma = getPrismaClient()
+  const currentUser = await getCurrentTeamContext()
 
   const [notes, event] = await Promise.all([
     prisma.eventNote.findMany({
@@ -39,7 +41,7 @@ export default async function NotesPage({
             Notes
           </h1>
         </div>
-        <NotesClient eventId={eventId} initialNotes={serialized} />
+        <NotesClient eventId={eventId} initialNotes={serialized} authorEmail={currentUser.email} />
       </div>
     </main>
   )

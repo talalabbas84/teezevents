@@ -1,8 +1,9 @@
 import "server-only"
 
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { getPrismaClient } from "@/lib/prisma"
 
 const ADMIN_SESSION_COOKIE = "teez_admin_session"
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12
@@ -43,6 +44,14 @@ function safeCompare(left: string, right: string) {
   return timingSafeEqual(leftBuffer, rightBuffer)
 }
 
+function safeCompareBuffers(left: Buffer, right: Buffer) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return timingSafeEqual(left, right)
+}
+
 function encodePayload(payload: AdminSessionPayload) {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url")
 }
@@ -73,10 +82,46 @@ function parsePayload(token: string, secret: string) {
   }
 }
 
-export function validateAdminCredentials(email: string, password: string) {
-  const config = getAdminConfig()
+export function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex")
+  const hash = scryptSync(password, salt, 64).toString("hex")
+  return `scrypt:${salt}:${hash}`
+}
 
-  return email.trim().toLowerCase() === config.email && password === config.password
+function verifyPassword(password: string, storedHash: string | null) {
+  if (!storedHash) {
+    return false
+  }
+
+  const [scheme, salt, hash] = storedHash.split(":")
+  if (scheme !== "scrypt" || !salt || !hash) {
+    return false
+  }
+
+  try {
+    const expected = Buffer.from(hash, "hex")
+    const actual = scryptSync(password, salt, 64)
+    return safeCompareBuffers(actual, expected)
+  } catch {
+    return false
+  }
+}
+
+export async function validateAdminCredentials(email: string, password: string) {
+  const config = getAdminConfig()
+  const normalizedEmail = email.trim().toLowerCase()
+
+  if (normalizedEmail === config.email && password === config.password) {
+    return true
+  }
+
+  const prisma = getPrismaClient()
+  const member = await prisma.teamMember.findUnique({
+    where: { email: normalizedEmail },
+    select: { passwordHash: true, status: true },
+  })
+
+  return member?.status === "ACTIVE" && verifyPassword(password, member.passwordHash)
 }
 
 export function getAdminSetupIssue() {
@@ -93,10 +138,6 @@ export async function createAdminSession(email: string) {
   const store = await cookies()
   const normalizedEmail = email.trim().toLowerCase()
 
-  if (normalizedEmail !== config.email) {
-    throw new Error("Invalid admin email.")
-  }
-
   const payload: AdminSessionPayload = {
     email: normalizedEmail,
     exp: Math.floor(Date.now() / 1000) + ADMIN_SESSION_TTL_SECONDS,
@@ -111,6 +152,16 @@ export async function createAdminSession(email: string) {
     path: "/",
     maxAge: ADMIN_SESSION_TTL_SECONDS,
   })
+
+  if (normalizedEmail !== config.email) {
+    const prisma = getPrismaClient()
+    await prisma.teamMember
+      .update({
+        where: { email: normalizedEmail },
+        data: { lastActiveAt: new Date() },
+      })
+      .catch(() => undefined)
+  }
 }
 
 export async function clearAdminSession() {
@@ -137,11 +188,27 @@ export async function getAdminSession() {
 
     const payload = parsePayload(token, config.sessionSecret)
 
-    if (!payload || payload.email !== config.email) {
+    if (!payload) {
       return null
     }
 
-    return payload
+    const normalizedEmail = payload.email.trim().toLowerCase()
+
+    if (normalizedEmail === config.email) {
+      return { ...payload, email: normalizedEmail }
+    }
+
+    const prisma = getPrismaClient()
+    const member = await prisma.teamMember.findUnique({
+      where: { email: normalizedEmail },
+      select: { status: true },
+    })
+
+    if (member?.status !== "ACTIVE") {
+      return null
+    }
+
+    return { ...payload, email: normalizedEmail }
   } catch {
     return null
   }

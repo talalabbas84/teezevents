@@ -5,6 +5,7 @@ import { calculateReadinessScore } from "@/lib/planning/readiness"
 import { getPrismaClient } from "@/lib/prisma"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DashboardActionsBar } from "@/components/planning/dashboard-actions-bar"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,12 +30,16 @@ export default async function PlanningDashboardPage({
   params: Promise<{ eventId: string }>
 }) {
   const { eventId } = await params
-  const [data, readiness, event] = await Promise.all([
+  const prisma = getPrismaClient()
+  const [data, readiness, event, blueprints] = await Promise.all([
     getPlanningDashboard(eventId),
     calculateReadinessScore(eventId),
-    getPrismaClient().event.findUnique({
+    prisma.event.findUnique({
       where: { id: eventId },
       select: { title: true, planningStatus: true, startsAt: true },
+    }),
+    prisma.eventBlueprint.findMany({
+      select: { id: true, name: true, description: true, category: true },
     }),
   ])
 
@@ -243,6 +248,7 @@ export default async function PlanningDashboardPage({
               <AlertTriangle className="h-4 w-4 text-primary" />
               Run Sheet
             </Link>
+            <DashboardActionsBar eventId={eventId} eventTitle={event?.title ?? "Event"} blueprints={blueprints} />
           </div>
         </div>
 

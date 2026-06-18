@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid login request." }, { status: 400 })
     }
 
-    if (!validateAdminCredentials(parsed.data.email, parsed.data.password)) {
+    if (!(await validateAdminCredentials(parsed.data.email, parsed.data.password))) {
       return NextResponse.json({ error: "Invalid admin credentials." }, { status: 401 })
     }
 

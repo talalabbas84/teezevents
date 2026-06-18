@@ -89,7 +89,7 @@ enum WebsitePageStatus {
 }
 
 model Event {
-  id                 String              @id
+  id                 String                 @id
   title              String
   startsAt           DateTime?
   venue              String?
@@ -105,26 +105,28 @@ model Event {
   faqs               Json?
   policies           Json?
   shareText          String?
-  category           EventCategory       @default(UPCOMING)
-  eventKind          EventKind           @default(SOCIAL)
-  currency           String              @default("cad")
+  category           EventCategory          @default(UPCOMING)
+  eventKind          EventKind              @default(SOCIAL)
+  currency           String                 @default("cad")
   ticketPriceCents   Int
   capacity           Int
-  checkoutEnabled    Boolean             @default(false)
-  maxTicketsPerOrder Int                 @default(4)
+  checkoutEnabled    Boolean                @default(false)
+  maxTicketsPerOrder Int                    @default(4)
   ticketNote         String?
-  featured           Boolean              @default(false)
-  isActive           Boolean              @default(true)
+  featured           Boolean                @default(false)
+  isActive           Boolean                @default(true)
   // Planning metadata
-  planningStatus     EventPlanningStatus  @default(DRAFT)
+  planningStatus     EventPlanningStatus    @default(DRAFT)
   endsAt             DateTime?
   expectedAttendance Int?
   ownerEmail         String?
-  tags               String[]             @default([])
+  tags               String[]               @default([])
   internalNotes      String?
   budgetTotalCents   Int?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  workspaceId        String?
+  workspace          TeamWorkspace?         @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
   orders             TicketOrder[]
   tickets            Ticket[]
   ticketTiers        TicketTier[]
@@ -142,8 +144,13 @@ model Event {
   activityLogs       PlanningActivityLog[]
   notifications      Notification[]
   files              EventFile[]
+  fileFolders        EventFileFolder[]
   notes              EventNote[]
   postEventReview    PostEventReview?
+  comments           EventComment[]
+  teamAccess         EventTeamAccess[]
+
+  @@index([workspaceId])
 }
 
 model TicketOrder {
@@ -527,25 +534,26 @@ enum RiskStatus {
 // ─── PLANNING MODELS ─────────────────────────────────────────────────────────
 
 model PlanningTask {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   eventId         String
-  event           Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event           Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   title           String
   description     String?
-  status          TaskStatus    @default(NOT_STARTED)
-  priority        TaskPriority  @default(MEDIUM)
+  status          TaskStatus     @default(NOT_STARTED)
+  priority        TaskPriority   @default(MEDIUM)
   category        String?
   assignedTo      String?
+  assigneeEmails  String[]       @default([])
   dueDate         DateTime?
   completedAt     DateTime?
-  sortOrder       Int           @default(0)
+  sortOrder       Int            @default(0)
   parentTaskId    String?
-  parentTask      PlanningTask? @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  parentTask      PlanningTask?  @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
   subtasks        PlanningTask[] @relation("TaskSubtasks")
   comments        TaskComment[]
   blueprintTaskId String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([eventId, status])
   @@index([assignedTo])
@@ -564,17 +572,17 @@ model TaskComment {
 }
 
 model Checklist {
-  id          String            @id @default(cuid())
+  id          String             @id @default(cuid())
   eventId     String
-  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event       Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   title       String
-  category    ChecklistCategory @default(GENERAL)
+  category    ChecklistCategory  @default(GENERAL)
   description String?
-  sortOrder   Int               @default(0)
+  sortOrder   Int                @default(0)
   sections    ChecklistSection[]
   items       ChecklistItem[]
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   @@index([eventId])
 }
@@ -637,24 +645,24 @@ model BudgetItem {
 }
 
 model EventVendor {
-  id           String       @id @default(cuid())
-  eventId      String
-  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  vendorType   VendorType
-  name         String
-  contactName  String?
-  email        String?
-  phone        String?
-  website      String?
-  status       VendorStatus @default(PENDING)
-  confirmedAt  DateTime?
-  contractUrl  String?
-  quoteCents   Int?
-  paidCents    Int          @default(0)
-  notes        String?
-  rating       Int?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id          String       @id @default(cuid())
+  eventId     String
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  vendorType  VendorType
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  website     String?
+  status      VendorStatus @default(PENDING)
+  confirmedAt DateTime?
+  contractUrl String?
+  quoteCents  Int?
+  paidCents   Int          @default(0)
+  notes       String?
+  rating      Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@index([eventId, vendorType])
   @@index([status])
@@ -680,20 +688,20 @@ model RunSheetItem {
 }
 
 model PlanningTimelineItem {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   eventId     String
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   title       String
   description String?
   category    String?
   dueDate     DateTime
-  isMilestone Boolean  @default(false)
-  isCompleted Boolean  @default(false)
+  isMilestone Boolean   @default(false)
+  isCompleted Boolean   @default(false)
   completedAt DateTime?
   assignedTo  String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([eventId, dueDate])
 }
@@ -719,19 +727,19 @@ model Risk {
 }
 
 model EventBlueprint {
-  id             String                  @id @default(cuid())
+  id             String                   @id @default(cuid())
   name           String
   description    String?
   category       String?
-  tags           String[]                @default([])
-  isActive       Boolean                 @default(true)
+  tags           String[]                 @default([])
+  isActive       Boolean                  @default(true)
   tasks          BlueprintTask[]
   checklistItems BlueprintChecklistItem[]
   budgetItems    BlueprintBudgetItem[]
   runSheetItems  BlueprintRunSheetItem[]
   timelineItems  BlueprintTimelineItem[]
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
 }
 
 model BlueprintTask {
@@ -774,14 +782,14 @@ model BlueprintBudgetItem {
 }
 
 model BlueprintRunSheetItem {
-  id          String         @id @default(cuid())
-  blueprintId String
-  blueprint   EventBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
-  time        String
-  title       String
-  description String?
+  id           String         @id @default(cuid())
+  blueprintId  String
+  blueprint    EventBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  time         String
+  title        String
+  description  String?
   durationMins Int?
-  sortOrder   Int            @default(0)
+  sortOrder    Int            @default(0)
 
   @@index([blueprintId])
 }
@@ -855,7 +863,14 @@ enum EventFileCategory {
   STAFF_INSTRUCTIONS
   RUN_SHEET
   PHOTO
+  LINK
   OTHER
+}
+
+enum ResourceVisibility {
+  EVENT_TEAM
+  WORKSPACE
+  ADMINS_ONLY
 }
 
 enum AutomationTrigger {
@@ -883,29 +898,38 @@ enum AutomationAction {
 // ─── ENTERPRISE FEATURE MODELS ────────────────────────────────────────────────
 
 model Notification {
-  id          String           @id @default(cuid())
-  eventId     String?
-  event       Event?           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  type        NotificationType @default(GENERAL)
-  title       String
-  body        String?
-  link        String?
-  actorEmail  String?
-  isRead      Boolean          @default(false)
-  readAt      DateTime?
-  entityType  String?
-  entityId    String?
-  createdAt   DateTime         @default(now())
+  id             String           @id @default(cuid())
+  eventId        String?
+  event          Event?           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  recipientEmail String?
+  type           NotificationType @default(GENERAL)
+  title          String
+  body           String?
+  link           String?
+  actorEmail     String?
+  isRead         Boolean          @default(false)
+  readAt         DateTime?
+  entityType     String?
+  entityId       String?
+  createdAt      DateTime         @default(now())
 
   @@index([isRead, createdAt])
+  @@index([recipientEmail, isRead, createdAt])
   @@index([eventId])
 }
 
 model EventFile {
-  id          String            @id @default(cuid())
+  id          String             @id @default(cuid())
   eventId     String
-  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  category    EventFileCategory @default(OTHER)
+  event       Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   TeamWorkspace?     @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  category    EventFileCategory  @default(OTHER)
+  visibility  ResourceVisibility @default(EVENT_TEAM)
+  folderId    String?
+  folderRef   EventFileFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folder      String             @default("Resources")
+  isImportant Boolean            @default(false)
   name        String
   url         String
   mimeType    String?
@@ -914,9 +938,31 @@ model EventFile {
   taskId      String?
   vendorId    String?
   description String?
-  createdAt   DateTime          @default(now())
+  createdAt   DateTime           @default(now())
 
   @@index([eventId, category])
+  @@index([folderId])
+  @@index([eventId, folder])
+  @@index([eventId, isImportant])
+  @@index([workspaceId, visibility])
+}
+
+model EventFileFolder {
+  id        String            @id @default(cuid())
+  eventId   String
+  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    EventFileFolder?  @relation("EventFileFolderChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children  EventFileFolder[] @relation("EventFileFolderChildren")
+  name      String
+  path      String
+  createdBy String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  files     EventFile[]
+
+  @@unique([eventId, path])
+  @@index([eventId, parentId])
 }
 
 model EventNote {
@@ -933,23 +979,23 @@ model EventNote {
 }
 
 model PostEventReview {
-  id                  String   @id @default(cuid())
-  eventId             String   @unique
-  event               Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  actualAttendance    Int?
-  actualRevenueCents  Int?
-  vendorRatings       Json?
-  teamFeedback        String?
-  whatWentWell        String?
-  whatWentWrong       String?
-  lessonsLearned      String?
-  improvementNotes    String?
-  overallRating       Int?
-  npsScore            Int?
-  savedToBlueprint    Boolean  @default(false)
-  createdByEmail      String
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  eventId            String   @unique
+  event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  actualAttendance   Int?
+  actualRevenueCents Int?
+  vendorRatings      Json?
+  teamFeedback       String?
+  whatWentWell       String?
+  whatWentWrong      String?
+  lessonsLearned     String?
+  improvementNotes   String?
+  overallRating      Int?
+  npsScore           Int?
+  savedToBlueprint   Boolean  @default(false)
+  createdByEmail     String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 model AutomationRule {
@@ -988,4 +1034,119 @@ model GlobalVendor {
   updatedAt   DateTime   @updatedAt
 
   @@index([vendorType, isActive])
+}
+
+// ─── TEAM & COLLABORATION MODELS ─────────────────────────────────────────────
+
+enum TeamRole {
+  SUPER_ADMIN
+  ADMIN
+  PLANNER
+  VIEWER
+}
+
+enum TeamMemberStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum EventAccessLevel {
+  VIEW
+  COMMENT
+  EDIT
+  MANAGE
+}
+
+enum WorkspaceMemberStatus {
+  ACTIVE
+  DISABLED
+}
+
+model TeamMember {
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  name                 String?
+  role                 TeamRole              @default(PLANNER)
+  status               TeamMemberStatus      @default(INVITED)
+  invitedBy            String?
+  inviteToken          String?               @unique
+  passwordHash         String?
+  lastActiveAt         DateTime?
+  avatarColor          String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  workspaceMemberships TeamWorkspaceMember[]
+  eventAccess          EventTeamAccess[]
+
+  @@index([email])
+  @@index([status, role])
+}
+
+model TeamWorkspace {
+  id          String                @id @default(cuid())
+  name        String
+  description String?
+  ownerEmail  String?
+  isDefault   Boolean               @default(false)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  members     TeamWorkspaceMember[]
+  events      Event[]
+  resources   EventFile[]
+
+  @@index([isDefault])
+}
+
+model TeamWorkspaceMember {
+  id          String                @id @default(cuid())
+  workspaceId String
+  workspace   TeamWorkspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  memberId    String
+  member      TeamMember            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role        TeamRole              @default(PLANNER)
+  status      WorkspaceMemberStatus @default(ACTIVE)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([workspaceId, memberId])
+  @@index([memberId])
+}
+
+model EventTeamAccess {
+  id              String           @id @default(cuid())
+  eventId         String
+  event           Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  memberId        String
+  member          TeamMember       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  accessLevel     EventAccessLevel @default(EDIT)
+  canManageBudget Boolean          @default(false)
+  canManageTeam   Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([eventId, memberId])
+  @@index([memberId, accessLevel])
+}
+
+model EventComment {
+  id          String         @id @default(cuid())
+  eventId     String
+  event       Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  authorEmail String
+  authorName  String?
+  body        String
+  entityType  String?
+  entityId    String?
+  mentions    String[]       @default([])
+  isEdited    Boolean        @default(false)
+  isPinned    Boolean        @default(false)
+  parentId    String?
+  parent      EventComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     EventComment[] @relation("CommentThread")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([eventId, entityType])
+  @@index([authorEmail])
 }

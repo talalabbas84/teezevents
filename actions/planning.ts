@@ -2,6 +2,7 @@
 
 import { getPrismaClient } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { publishRealtimeEvent } from "@/lib/realtime";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -14,9 +15,31 @@ const TaskSchema = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   category: z.string().optional(),
   assignedTo: z.string().optional(),
+  assigneeEmails: z.array(z.string().email()).optional(),
   dueDate: z.coerce.date().optional(),
   parentTaskId: z.string().optional(),
 });
+
+const UpdateTaskSchema = TaskSchema.partial().extend({
+  assignedTo: z.string().optional().nullable(),
+  assigneeEmails: z.array(z.string().email()).optional(),
+  dueDate: z.union([z.coerce.date(), z.null()]).optional(),
+});
+
+function normalizeAssigneeEmails(value: string[] | undefined) {
+  if (!value) return undefined
+  return Array.from(new Set(value.map((email) => email.trim().toLowerCase()).filter(Boolean)))
+}
+
+function emitPlanningRealtime(eventId: string, action: string, entityType: string, entityId?: string) {
+  publishRealtimeEvent({
+    type: "planning:update",
+    eventId,
+    action,
+    entityType,
+    entityId,
+  })
+}
 
 export async function createTask(
   eventId: string,
@@ -27,6 +50,7 @@ export async function createTask(
     priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
     category?: string;
     assignedTo?: string;
+    assigneeEmails?: string[];
     dueDate?: Date;
     parentTaskId?: string;
   }
@@ -35,10 +59,17 @@ export async function createTask(
     if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
     const parsed = TaskSchema.parse(data);
     const prisma = getPrismaClient();
+    const assigneeEmails = normalizeAssigneeEmails(parsed.assigneeEmails);
     const result = await prisma.planningTask.create({
-      data: { ...parsed, eventId },
+      data: {
+        ...parsed,
+        eventId,
+        assigneeEmails: assigneeEmails ?? (parsed.assignedTo ? [parsed.assignedTo.trim().toLowerCase()] : []),
+        assignedTo: assigneeEmails?.[0] ?? parsed.assignedTo?.trim().toLowerCase() ?? null,
+      },
     });
     revalidatePath(`/admin/planning/${eventId}/tasks`);
+    emitPlanningRealtime(eventId, "TASK_CREATED", "PlanningTask", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -53,17 +84,30 @@ export async function updateTask(
     status?: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "NEEDS_REVIEW" | "COMPLETED" | "CANCELLED";
     priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
     category?: string;
-    assignedTo?: string;
-    dueDate?: Date;
+    assignedTo?: string | null;
+    assigneeEmails?: string[];
+    dueDate?: Date | null;
     parentTaskId?: string;
   }
 ) {
   try {
     if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
-    const parsed = TaskSchema.partial().parse(data);
+    const parsed = UpdateTaskSchema.parse(data);
+    const assigneeEmails = normalizeAssigneeEmails(parsed.assigneeEmails);
+    const updateData = {
+      ...parsed,
+      assigneeEmails,
+      assignedTo:
+        assigneeEmails
+          ? assigneeEmails[0] ?? null
+          : Object.prototype.hasOwnProperty.call(parsed, "assignedTo")
+          ? parsed.assignedTo?.trim().toLowerCase() || null
+          : undefined,
+    };
     const prisma = getPrismaClient();
-    const result = await prisma.planningTask.update({ where: { id: taskId }, data: parsed });
+    const result = await prisma.planningTask.update({ where: { id: taskId }, data: updateData });
     revalidatePath(`/admin/planning/${result.eventId}/tasks`);
+    emitPlanningRealtime(result.eventId, "TASK_UPDATED", "PlanningTask", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -76,6 +120,7 @@ export async function deleteTask(taskId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.planningTask.delete({ where: { id: taskId } });
     revalidatePath(`/admin/planning/${result.eventId}/tasks`);
+    emitPlanningRealtime(result.eventId, "TASK_DELETED", "PlanningTask", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -91,6 +136,7 @@ export async function updateTaskStatus(
     const prisma = getPrismaClient();
     const result = await prisma.planningTask.update({ where: { id: taskId }, data: { status } });
     revalidatePath(`/admin/planning/${result.eventId}/tasks`);
+    emitPlanningRealtime(result.eventId, "TASK_STATUS_UPDATED", "PlanningTask", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -104,10 +150,54 @@ export async function addTaskComment(taskId: string, body: string, authorEmail: 
     const prisma = getPrismaClient();
     const result = await prisma.taskComment.create({ data: { taskId, body, authorEmail } });
     const task = await prisma.planningTask.findUnique({ where: { id: taskId }, select: { eventId: true } });
-    if (task) revalidatePath(`/admin/planning/${task.eventId}/tasks`);
+    if (task) {
+      revalidatePath(`/admin/planning/${task.eventId}/tasks`);
+      emitPlanningRealtime(task.eventId, "TASK_COMMENT_ADDED", "TaskComment", result.id);
+    }
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
+  }
+}
+
+export async function getTaskCommentsAction(taskId: string) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false as const, data: [], error: "Not authorized." }
+    const prisma = getPrismaClient()
+    const comments = await prisma.taskComment.findMany({
+      where: { taskId },
+      orderBy: { createdAt: "asc" },
+    })
+    return {
+      success: true as const,
+      data: comments.map((c: (typeof comments)[number]) => ({
+        id: c.id,
+        taskId: c.taskId,
+        body: c.body,
+        authorEmail: c.authorEmail,
+        createdAt: c.createdAt.toISOString(),
+      })),
+    }
+  } catch (e: any) {
+    return { success: false as const, data: [], error: e.message }
+  }
+}
+
+export async function updateEventPlanningStatus(
+  eventId: string,
+  status: "DRAFT" | "PLANNING" | "READY" | "LIVE" | "COMPLETED" | "CANCELLED" | "ARCHIVED"
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." }
+    const prisma = getPrismaClient()
+    await prisma.event.update({ where: { id: eventId }, data: { planningStatus: status } })
+    revalidatePath(`/admin/planning/${eventId}`)
+    revalidatePath(`/admin/planning/${eventId}/dashboard`)
+    revalidatePath(`/admin/planning`)
+    emitPlanningRealtime(eventId, "EVENT_STATUS_UPDATED", "Event", eventId)
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e.message }
   }
 }
 
@@ -133,6 +223,7 @@ export async function createChecklist(
     const prisma = getPrismaClient();
     const result = await prisma.checklist.create({ data: { ...parsed, eventId } });
     revalidatePath(`/admin/planning/${eventId}/checklists`);
+    emitPlanningRealtime(eventId, "CHECKLIST_CREATED", "Checklist", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -153,6 +244,7 @@ export async function updateChecklist(
     const prisma = getPrismaClient();
     const result = await prisma.checklist.update({ where: { id: checklistId }, data: parsed });
     revalidatePath(`/admin/planning/${result.eventId}/checklists`);
+    emitPlanningRealtime(result.eventId, "CHECKLIST_UPDATED", "Checklist", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -165,6 +257,7 @@ export async function deleteChecklist(checklistId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.checklist.delete({ where: { id: checklistId } });
     revalidatePath(`/admin/planning/${result.eventId}/checklists`);
+    emitPlanningRealtime(result.eventId, "CHECKLIST_DELETED", "Checklist", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -195,7 +288,10 @@ export async function addChecklistItem(
     const prisma = getPrismaClient();
     const result = await prisma.checklistItem.create({ data: { ...parsed, checklistId } });
     const checklist = await prisma.checklist.findUnique({ where: { id: checklistId }, select: { eventId: true } });
-    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    if (checklist) {
+      revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+      emitPlanningRealtime(checklist.eventId, "CHECKLIST_ITEM_CREATED", "ChecklistItem", result.id);
+    }
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -215,7 +311,10 @@ export async function toggleChecklistItem(itemId: string, isCompleted: boolean, 
       },
     });
     const checklist = await prisma.checklist.findUnique({ where: { id: result.checklistId }, select: { eventId: true } });
-    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    if (checklist) {
+      revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+      emitPlanningRealtime(checklist.eventId, "CHECKLIST_ITEM_TOGGLED", "ChecklistItem", result.id);
+    }
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -228,7 +327,10 @@ export async function deleteChecklistItem(itemId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.checklistItem.delete({ where: { id: itemId } });
     const checklist = await prisma.checklist.findUnique({ where: { id: result.checklistId }, select: { eventId: true } });
-    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    if (checklist) {
+      revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+      emitPlanningRealtime(checklist.eventId, "CHECKLIST_ITEM_DELETED", "ChecklistItem", result.id);
+    }
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -1043,5 +1145,121 @@ export async function logActivity(
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
+  }
+}
+
+// ─── Save Event as Blueprint ───────────────────────────────────────────────────
+
+export async function saveEventAsBlueprint(
+  eventId: string,
+  blueprintName: string,
+  blueprintDescription?: string
+) {
+  try {
+    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." }
+    if (!blueprintName.trim()) return { success: false, error: "Blueprint name is required." }
+
+    const prisma = getPrismaClient()
+
+    // Fetch all event planning data
+    const [event, tasks, checklists, budgetItems, runSheetItems] = await Promise.all([
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, category: true } }),
+      prisma.planningTask.findMany({
+        where: { eventId, parentTaskId: null },
+        select: { title: true, description: true, priority: true, category: true },
+      }),
+      prisma.checklist.findMany({
+        where: { eventId },
+        select: {
+          title: true,
+          category: true,
+          items: { select: { title: true, priority: true } },
+        },
+      }),
+      prisma.budgetItem.findMany({
+        where: { eventId },
+        select: { title: true, category: true, estimatedCents: true },
+      }),
+      prisma.runSheetItem.findMany({
+        where: { eventId },
+        orderBy: { sortOrder: "asc" },
+        select: { time: true, title: true, description: true, durationMins: true, sortOrder: true },
+      }),
+    ])
+
+    if (!event) return { success: false, error: "Event not found." }
+
+    // Create blueprint in a transaction
+    const blueprint = await prisma.$transaction(async (tx) => {
+      const bp = await tx.eventBlueprint.create({
+        data: {
+          name: blueprintName.trim(),
+          description: blueprintDescription?.trim() || `Blueprint created from "${event.title}"`,
+          category: String(event.category),
+          isActive: true,
+        },
+      })
+
+      // Copy tasks
+      if (tasks.length > 0) {
+        await tx.blueprintTask.createMany({
+          data: tasks.map((t) => ({
+            blueprintId: bp.id,
+            title: t.title,
+            description: t.description ?? undefined,
+            priority: t.priority,
+            category: t.category ?? undefined,
+          })),
+        })
+      }
+
+      // Copy checklist items — each item becomes a BlueprintChecklistItem
+      for (const cl of checklists) {
+        for (const item of cl.items) {
+          await tx.blueprintChecklistItem.create({
+            data: {
+              blueprintId: bp.id,
+              title: item.title,
+              category: cl.category ?? "GENERAL",
+              priority: item.priority,
+              section: cl.title,
+            },
+          })
+        }
+      }
+
+      // Copy budget items
+      if (budgetItems.length > 0) {
+        await tx.blueprintBudgetItem.createMany({
+          data: budgetItems.map((b) => ({
+            blueprintId: bp.id,
+            title: b.title,
+            category: b.category,
+            estimatedCents: b.estimatedCents,
+          })),
+        })
+      }
+
+      // Copy run sheet items
+      if (runSheetItems.length > 0) {
+        await tx.blueprintRunSheetItem.createMany({
+          data: runSheetItems.map((r) => ({
+            blueprintId: bp.id,
+            time: r.time,
+            title: r.title,
+            description: r.description ?? undefined,
+            durationMins: r.durationMins ?? undefined,
+            sortOrder: r.sortOrder,
+          })),
+        })
+      }
+
+      return bp
+    })
+
+    revalidatePath("/admin/blueprints")
+    return { success: true, data: { blueprintId: blueprint.id, name: blueprint.name } }
+  } catch (e: any) {
+    return { success: false, error: e.message }
   }
 }

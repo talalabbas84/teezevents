@@ -114,7 +114,7 @@ const BLANK_FORM = {
   website: "",
   notes: "",
   tags: "",
-  rating: "",
+  rating: "none",
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -170,7 +170,7 @@ export function GlobalVendorsClient({ initialVendors }: Props) {
       website: vendor.website ?? "",
       notes: vendor.notes ?? "",
       tags: vendor.tags.join(", "),
-      rating: vendor.rating != null ? String(vendor.rating) : "",
+      rating: vendor.rating != null ? String(vendor.rating) : "none",
     })
     setFormError(null)
     setDialogOpen(true)
@@ -200,7 +200,7 @@ export function GlobalVendorsClient({ initialVendors }: Props) {
       tags: form.tags
         ? form.tags.split(",").map((t) => t.trim()).filter(Boolean)
         : undefined,
-      rating: form.rating ? Number(form.rating) : undefined,
+      rating: form.rating && form.rating !== "none" ? Number(form.rating) : undefined,
     }
 
     startTransition(async () => {
@@ -490,7 +490,7 @@ export function GlobalVendorsClient({ initialVendors }: Props) {
                   <SelectValue placeholder="No rating" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No rating</SelectItem>
+                  <SelectItem value="none">No rating</SelectItem>
                   {[1, 2, 3, 4, 5].map((r) => (
                     <SelectItem key={r} value={String(r)}>
                       {"★".repeat(r)}{"☆".repeat(5 - r)} ({r})

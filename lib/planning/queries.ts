@@ -97,6 +97,7 @@ type RawTask = {
   priority: string
   category: string | null
   assignedTo: string | null
+  assigneeEmails?: string[]
   dueDate: Date | null
   completedAt: Date | null
   sortOrder: number
@@ -118,6 +119,12 @@ function serializeTask(task: RawTask): PlanningTaskSerialized {
     priority: task.priority as import("./types").TaskPriority,
     category: task.category,
     assignedTo: task.assignedTo,
+    assigneeEmails:
+      task.assigneeEmails && task.assigneeEmails.length > 0
+        ? task.assigneeEmails
+        : task.assignedTo
+          ? [task.assignedTo]
+          : [],
     dueDate: toIso(task.dueDate),
     completedAt: toIso(task.completedAt),
     sortOrder: task.sortOrder,
@@ -171,6 +178,7 @@ export async function getPlanningDashboard(eventId: string): Promise<PlanningDas
         priority: true,
         category: true,
         assignedTo: true,
+        assigneeEmails: true,
         dueDate: true,
         completedAt: true,
         sortOrder: true,
@@ -188,6 +196,7 @@ export async function getPlanningDashboard(eventId: string): Promise<PlanningDas
             priority: true,
             category: true,
             assignedTo: true,
+            assigneeEmails: true,
             dueDate: true,
             completedAt: true,
             sortOrder: true,
@@ -398,6 +407,7 @@ export async function getEventTasks(eventId: string): Promise<PlanningTaskSerial
       priority: true,
       category: true,
       assignedTo: true,
+      assigneeEmails: true,
       dueDate: true,
       completedAt: true,
       sortOrder: true,
@@ -416,6 +426,7 @@ export async function getEventTasks(eventId: string): Promise<PlanningTaskSerial
           priority: true,
           category: true,
           assignedTo: true,
+          assigneeEmails: true,
           dueDate: true,
           completedAt: true,
           sortOrder: true,

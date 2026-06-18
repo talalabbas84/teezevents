@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
-import { requireAdminSession } from "@/lib/admin-auth"
 import { getPrismaClient } from "@/lib/prisma"
+import { requireEventAccess } from "@/lib/team-access"
 import { PlanningWorkspaceShell } from "@/components/planning-workspace-shell"
 
 export default async function PlanningLayout({
@@ -10,12 +10,12 @@ export default async function PlanningLayout({
   children: React.ReactNode
   params: Promise<{ eventId: string }>
 }) {
-  await requireAdminSession()
   const { eventId } = await params
+  await requireEventAccess(eventId, "VIEW")
   const db = getPrismaClient()
   const event = await db.event.findUnique({
     where: { id: eventId },
-    select: { id: true, title: true, startsAt: true },
+    select: { id: true, title: true, startsAt: true, planningStatus: true },
   })
   if (!event) notFound()
 
@@ -24,6 +24,7 @@ export default async function PlanningLayout({
       eventId={event.id}
       eventTitle={event.title}
       eventDate={event.startsAt?.toISOString() ?? null}
+      planningStatus={event.planningStatus}
     >
       {children}
     </PlanningWorkspaceShell>

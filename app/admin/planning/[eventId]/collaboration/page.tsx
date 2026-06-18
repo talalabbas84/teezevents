@@ -1,0 +1,181 @@
+import { notFound } from "next/navigation"
+
+import { CollaborationClient } from "@/components/planning/collaboration-client"
+import type {
+  CollaborationActivitySerialized,
+  CollaborationCommentSerialized,
+  CollaborationMemberSerialized,
+  CollaborationResourceSerialized,
+} from "@/components/planning/collaboration-client"
+import { getPrismaClient } from "@/lib/prisma"
+import { getCurrentTeamContext } from "@/lib/team-access"
+
+type RawComment = {
+  id: string
+  eventId: string
+  authorEmail: string
+  authorName: string | null
+  body: string
+  entityType: string | null
+  entityId: string | null
+  mentions: string[]
+  isEdited: boolean
+  isPinned: boolean
+  parentId: string | null
+  createdAt: Date
+  updatedAt: Date
+  replies?: RawComment[]
+}
+
+function serializeComment(comment: RawComment): CollaborationCommentSerialized {
+  return {
+    id: comment.id,
+    eventId: comment.eventId,
+    authorEmail: comment.authorEmail,
+    authorName: comment.authorName,
+    body: comment.body,
+    entityType: comment.entityType,
+    entityId: comment.entityId,
+    mentions: comment.mentions,
+    isEdited: comment.isEdited,
+    isPinned: comment.isPinned,
+    parentId: comment.parentId,
+    createdAt: comment.createdAt.toISOString(),
+    updatedAt: comment.updatedAt.toISOString(),
+    replies: (comment.replies ?? []).map((reply) => ({
+      ...serializeComment(reply),
+      replies: [],
+    })),
+  }
+}
+
+export default async function CollaborationPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>
+}) {
+  const { eventId } = await params
+  const currentUser = await getCurrentTeamContext()
+  const prisma = getPrismaClient()
+
+  const [event, comments, members, activity, resources] = await Promise.all([
+    prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, title: true },
+    }),
+    prisma.eventComment.findMany({
+      where: { eventId, parentId: null },
+      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+      include: {
+        replies: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
+      take: 100,
+    }),
+    prisma.teamMember.findMany({
+      where: { status: { not: "DISABLED" } },
+      include: {
+        eventAccess: {
+          where: { eventId },
+          select: { accessLevel: true },
+        },
+      },
+      orderBy: [{ status: "asc" }, { name: "asc" }, { email: "asc" }],
+    }),
+    prisma.planningActivityLog.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        actorEmail: true,
+        action: true,
+        entityType: true,
+        entityName: true,
+        createdAt: true,
+      },
+    }),
+    prisma.eventFile.findMany({
+      where: { eventId },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        category: true,
+        uploadedBy: true,
+        createdAt: true,
+      },
+    }),
+  ])
+
+  if (!event) notFound()
+
+  const serializedMembers: CollaborationMemberSerialized[] = members.map((member) => ({
+    id: member.id,
+    email: member.email,
+    name: member.name,
+    role: member.role,
+    status: member.status,
+    avatarColor: member.avatarColor,
+    lastActiveAt: member.lastActiveAt?.toISOString() ?? null,
+    accessLevel:
+      member.eventAccess[0]?.accessLevel ??
+      (member.role === "SUPER_ADMIN" || member.role === "ADMIN" ? "MANAGE" : null),
+  }))
+
+  if (!serializedMembers.some((member) => member.email === currentUser.email)) {
+    serializedMembers.unshift({
+      id: currentUser.id,
+      email: currentUser.email,
+      name: currentUser.name,
+      role: currentUser.role,
+      status: currentUser.status,
+      avatarColor: "#c57a3a",
+      lastActiveAt: new Date().toISOString(),
+      accessLevel: "MANAGE",
+    })
+  }
+
+  const serializedActivity: CollaborationActivitySerialized[] = activity.map((item) => ({
+    id: item.id,
+    actorEmail: item.actorEmail,
+    action: item.action,
+    entityType: item.entityType,
+    entityName: item.entityName,
+    createdAt: item.createdAt.toISOString(),
+  }))
+
+  const serializedResources: CollaborationResourceSerialized[] = resources.map((resource) => ({
+    id: resource.id,
+    name: resource.name,
+    url: resource.url,
+    category: resource.category,
+    uploadedBy: resource.uploadedBy,
+    createdAt: resource.createdAt.toISOString(),
+  }))
+
+  return (
+    <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Planning</div>
+          <h1 className="mt-1.5 font-serif text-4xl font-bold">Collaboration</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">{event.title}</p>
+        </div>
+
+        <CollaborationClient
+          eventId={event.id}
+          eventTitle={event.title}
+          currentEmail={currentUser.email}
+          initialComments={comments.map((comment) => serializeComment(comment as RawComment))}
+          teamMembers={serializedMembers}
+          activity={serializedActivity}
+          resources={serializedResources}
+        />
+      </div>
+    </main>
+  )
+}

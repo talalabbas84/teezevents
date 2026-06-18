@@ -111,9 +111,11 @@ function NoteCard({
 export function NotesClient({
   eventId,
   initialNotes,
+  authorEmail,
 }: {
   eventId: string
   initialNotes: NoteSerialized[]
+  authorEmail: string
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -138,7 +140,7 @@ export function NotesClient({
         const created: NoteSerialized = {
           id: (res.data as { id: string }).id,
           body: body.trim(),
-          authorEmail: "admin",
+          authorEmail,
           isPinned: false,
           createdAt: new Date().toISOString(),
         }

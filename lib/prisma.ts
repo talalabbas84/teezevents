@@ -11,7 +11,12 @@ function hasCurrentGeneratedDelegates(client: PrismaClient) {
       client.marketingEmailCampaignDetail &&
       client.marketingEmailDelivery &&
       client.websitePage &&
-      client.websitePageRevision,
+      client.websitePageRevision &&
+      client.teamMember &&
+      client.eventComment &&
+      client.eventFileFolder &&
+      client.teamWorkspace &&
+      client.eventTeamAccess,
   )
 }
 
@@ -22,6 +27,12 @@ export function getPrismaClient() {
     }
 
     globalForPrisma.prisma = new PrismaClient()
+  }
+
+  if (!hasCurrentGeneratedDelegates(globalForPrisma.prisma)) {
+    throw new Error(
+      "Prisma Client is missing generated delegates for the current schema. Run `pnpm prisma generate` and restart the Next.js dev server.",
+    )
   }
 
   return globalForPrisma.prisma

@@ -107,6 +107,7 @@ export type PlanningTaskSerialized = {
   priority: TaskPriority
   category: string | null
   assignedTo: string | null
+  assigneeEmails: string[]
   dueDate: string | null
   completedAt: string | null
   sortOrder: number

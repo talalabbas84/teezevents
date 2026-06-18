@@ -1,13 +1,14 @@
-import { requireAdminSession } from "@/lib/admin-auth"
 import { getNotifications, getUnreadCount } from "@/lib/notifications"
+import { getCurrentTeamContext } from "@/lib/team-access"
 import { NotificationsClient } from "@/components/admin/notifications-client"
 
 export default async function AdminNotificationsPage() {
-  await requireAdminSession()
+  const currentUser = await getCurrentTeamContext()
+  const recipientEmail = currentUser.role === "SUPER_ADMIN" ? undefined : currentUser.email
 
   const [notifications, unreadCount] = await Promise.all([
-    getNotifications(100),
-    getUnreadCount(),
+    getNotifications(100, recipientEmail),
+    getUnreadCount(recipientEmail),
   ])
 
   return (

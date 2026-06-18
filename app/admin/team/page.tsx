@@ -1,7 +1,7 @@
-import { requireAdminSession } from "@/lib/admin-auth"
 import { getPrismaClient } from "@/lib/prisma"
+import { getCurrentTeamContext } from "@/lib/team-access"
+import { TeamManagementClient } from "@/components/admin/team-management-client"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
@@ -48,18 +48,64 @@ function entityBadgeVariant(entityType: string | null) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function AdminTeamPage() {
-  const session = await requireAdminSession()
+  const currentUser = await getCurrentTeamContext()
   const db = getPrismaClient()
 
-  const activityLogs = await db.planningActivityLog.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    include: {
-      event: {
-        select: { id: true, title: true },
+  const [members, activityLogs, activityCounts] = await Promise.all([
+    db.teamMember.findMany({
+      orderBy: { createdAt: "desc" },
+    }),
+    db.planningActivityLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: {
+        event: {
+          select: { id: true, title: true },
+        },
       },
-    },
+    }),
+    db.planningActivityLog.groupBy({
+      by: ["actorEmail"],
+      _count: { id: true },
+    }),
+  ])
+
+  const activityCountByEmail = new Map(
+    activityCounts.map((row) => [row.actorEmail, row._count.id]),
+  )
+  const currentMember = members.find((member) => member.email === currentUser.email)
+
+  const serializeMember = (member: (typeof members)[number]) => ({
+    id: member.id,
+    email: member.email,
+    name: member.name,
+    role: member.role,
+    status: member.status,
+    invitedBy: member.invitedBy,
+    inviteToken: member.inviteToken,
+    lastActiveAt: member.lastActiveAt?.toISOString() ?? null,
+    avatarColor: member.avatarColor,
+    createdAt: member.createdAt.toISOString(),
+    activityCount: activityCountByEmail.get(member.email) ?? 0,
   })
+
+  const serializedMembers = members.map(serializeMember)
+  const currentAdmin =
+    currentMember
+      ? serializeMember(currentMember)
+      : {
+          id: currentUser.id,
+          email: currentUser.email,
+          name: currentUser.name,
+          role: currentUser.role,
+          status: currentUser.status,
+          invitedBy: null,
+          inviteToken: null,
+          lastActiveAt: new Date().toISOString(),
+          avatarColor: "#c57a3a",
+          createdAt: new Date().toISOString(),
+          activityCount: activityCountByEmail.get(currentUser.email) ?? 0,
+        }
 
   return (
     <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
@@ -83,11 +129,11 @@ export default async function AdminTeamPage() {
 
             <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-muted/20 px-5 py-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 font-serif text-xl font-bold text-primary">
-                {session.email.charAt(0).toUpperCase()}
+                {currentUser.email.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1">
-                <div className="font-semibold">{session.email}</div>
-                <div className="text-sm text-muted-foreground">Super Admin</div>
+                <div className="font-semibold">{currentUser.email}</div>
+                <div className="text-sm text-muted-foreground">{currentUser.role.replace("_", " ")}</div>
               </div>
               <Badge className="bg-primary/10 text-primary border border-primary/20">
                 Active
@@ -96,30 +142,19 @@ export default async function AdminTeamPage() {
           </CardContent>
         </Card>
 
-        {/* Team members (placeholder) */}
+        {/* Team members */}
         <Card className="border border-border shadow-lg">
           <CardContent className="space-y-4 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Team</div>
-                <h2 className="mt-1 font-serif text-2xl font-bold">Team Members</h2>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled
-                className="border-primary text-primary"
-              >
-                Invite Member
-              </Button>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Team</div>
+              <h2 className="mt-1 font-serif text-2xl font-bold">Team Members</h2>
             </div>
-
-            <div className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
-              <p className="font-serif text-lg font-bold text-muted-foreground">Multi-user team management</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Team member invitations and role management will be available in a future release.
-              </p>
-            </div>
+            <TeamManagementClient
+              members={serializedMembers}
+              currentAdminEmail={currentUser.email}
+              currentAdmin={currentAdmin}
+              canManageTeam={currentUser.role === "SUPER_ADMIN"}
+            />
           </CardContent>
         </Card>
 

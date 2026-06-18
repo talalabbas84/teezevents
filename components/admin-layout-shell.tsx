@@ -17,6 +17,7 @@ import {
   Store,
   Users,
   X,
+  Zap,
 } from "lucide-react"
 
 const NAV_ITEMS = [
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { label: "Blueprints", href: "/admin/blueprints", icon: LayoutTemplate },
   { label: "Team", href: "/admin/team", icon: Users },
   { label: "Vendors", href: "/admin/vendors", icon: Store },
+  { label: "Automations", href: "/admin/automations", icon: Zap },
   { label: "Notifications", href: "/admin/notifications", icon: Bell },
   { label: "Check-In", href: "/admin/check-in", icon: DoorOpen },
   { label: "Website CMS", href: "/admin/cms", icon: Globe2 },
@@ -132,7 +134,7 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  if (pathname === "/admin/login") {
+  if (pathname === "/admin/login" || pathname === "/admin/accept-invite") {
     return <>{children}</>
   }
 

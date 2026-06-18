@@ -34,7 +34,23 @@ import {
   Building2,
   AlertTriangle,
   DollarSign,
+  Download,
+  BarChart2,
 } from "lucide-react"
+
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -83,6 +99,26 @@ function formatDate(iso: string | null): string {
     month: "long",
     day: "numeric",
   })
+}
+
+function downloadBudgetCSV(items: BudgetItemSerialized[]) {
+  const headers = ["Name", "Category", "Estimated (CAD)", "Actual (CAD)", "Status", "Vendor"]
+  const rows = items.map((item) => [
+    item.title,
+    item.category || "",
+    ((item.estimatedCents || 0) / 100).toFixed(2),
+    ((item.actualCents || 0) / 100).toFixed(2),
+    item.status || "",
+    item.vendorName || "",
+  ])
+  const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n")
+  const blob = new Blob([csv], { type: "text/csv" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "budget-report.csv"
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 const TASK_STATUS_ORDER: TaskStatus[] = [
@@ -141,6 +177,25 @@ const RISK_STATUS_BADGE: Record<RiskStatus, string> = {
   ACCEPTED: "border-blue-200 bg-blue-50 text-blue-700",
 }
 
+const BUDGET_CHART_COLORS = [
+  "#c57a3a",
+  "#8B5A2B",
+  "#D4956A",
+  "#E8B896",
+  "#F0D4B8",
+  "#6B4226",
+  "#A0522D",
+  "#CD853F",
+]
+
+const VENDOR_DONUT_COLORS: Record<VendorStatus, string> = {
+  CONFIRMED: "#10b981",
+  PENDING: "#f59e0b",
+  CONTACTED: "#3b82f6",
+  CANCELLED: "#9ca3af",
+  REJECTED: "#ef4444",
+}
+
 // ─── Summary Card ──────────────────────────────────────────────────────────────
 
 function SummaryCard({
@@ -183,6 +238,53 @@ function SummaryCard({
   )
 }
 
+// ─── Readiness Metric Card ─────────────────────────────────────────────────────
+
+function ReadinessMetricCard({
+  label,
+  pct,
+  color,
+}: {
+  label: string
+  pct: number
+  color: string
+}) {
+  const radius = 28
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference - (pct / 100) * circumference
+
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-xl border border-stone-100 bg-white/60 px-4 py-4">
+      <svg width="72" height="72" className="-rotate-90">
+        <circle
+          cx="36"
+          cy="36"
+          r={radius}
+          fill="none"
+          stroke="#e7e5e4"
+          strokeWidth="6"
+        />
+        <circle
+          cx="36"
+          cy="36"
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          style={{ transition: "stroke-dashoffset 0.5s ease" }}
+        />
+      </svg>
+      <div className="text-center -mt-12 mb-4">
+        <p className="text-lg font-bold text-stone-900">{pct}%</p>
+      </div>
+      <p className="text-center text-xs font-medium text-stone-600 leading-tight">{label}</p>
+    </div>
+  )
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export function ReportsClient({ eventId, data }: ReportsClientProps) {
@@ -211,12 +313,67 @@ export function ReportsClient({ eventId, data }: ReportsClientProps) {
   // ── Risk stats ──
   const riskOpen = risks.filter((r) => r.status === "OPEN").length
   const riskResolved = risks.filter((r) => r.status === "RESOLVED").length
+  const riskMitigated = risks.filter((r) => r.status === "MITIGATED" || r.status === "RESOLVED").length
+  const riskMitigatedPct =
+    risks.length > 0 ? Math.round((riskMitigated / risks.length) * 100) : 100
 
   // ── Checklist items across all checklists ──
   function getChecklistItems(cl: ChecklistSerialized) {
     const sectionItems = cl.sections.flatMap((s) => s.items)
     return [...cl.items, ...sectionItems]
   }
+
+  // ── Budget Pie Chart data (by category) ──
+  const budgetByCategory: Record<string, number> = {}
+  for (const item of budget) {
+    const cat = item.category || "GENERAL"
+    budgetByCategory[cat] = (budgetByCategory[cat] ?? 0) + item.estimatedCents
+  }
+  const budgetPieData = Object.entries(budgetByCategory).map(([name, value]) => ({
+    name,
+    value: Math.round(value / 100),
+  }))
+
+  // ── Task Bar Chart data ──
+  const taskBarData = TASK_STATUS_ORDER.filter((s) => (taskByStatus[s] ?? 0) > 0).map((s) => ({
+    status: TASK_STATUS_LABELS[s],
+    Total: taskByStatus[s] ?? 0,
+    Completed: s === "COMPLETED" ? taskByStatus[s] ?? 0 : 0,
+  }))
+
+  // Build a single grouped bar: categories vs total/completed
+  const taskCategoryData = [
+    {
+      name: "All Tasks",
+      Total: taskTotal,
+      Completed: taskCompleted,
+    },
+    ...TASK_STATUS_ORDER.filter((s) => (taskByStatus[s] ?? 0) > 0 && s !== "COMPLETED").map(
+      (s) => ({
+        name: TASK_STATUS_LABELS[s],
+        Total: taskByStatus[s] ?? 0,
+        Completed: 0,
+      })
+    ),
+  ]
+
+  // ── Vendor Donut data ──
+  const vendorDonutData = VENDOR_STATUS_ORDER.filter(
+    (s) => vendors.filter((v) => v.status === s).length > 0
+  ).map((s) => ({
+    name: s.charAt(0) + s.slice(1).toLowerCase(),
+    value: vendors.filter((v) => v.status === s).length,
+    color: VENDOR_DONUT_COLORS[s],
+  }))
+
+  // ── Budget tracked pct (items with actual > 0) ──
+  const budgetTrackedPct =
+    budget.length > 0
+      ? Math.round((budget.filter((b) => b.actualCents > 0).length / budget.length) * 100)
+      : 0
+
+  const vendorConfirmedPct =
+    vendorTotal > 0 ? Math.round((vendorConfirmed / vendorTotal) * 100) : 0
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 print:max-w-none">
@@ -245,7 +402,7 @@ export function ReportsClient({ eventId, data }: ReportsClientProps) {
             className="border-[#c57a3a] text-[#c57a3a] hover:bg-[#c57a3a]/10"
           >
             <Printer className="mr-2 h-4 w-4" />
-            Print
+            Print Report
           </Button>
         </div>
       </div>
@@ -288,12 +445,199 @@ export function ReportsClient({ eventId, data }: ReportsClientProps) {
         />
       </div>
 
+      {/* ── Charts & Insights ─────────────────────────────────────────────────── */}
+      <Card className="border-stone-200 bg-white/70">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold text-stone-800">
+            <BarChart2 className="h-4 w-4 text-[#c57a3a]" />
+            Charts &amp; Insights
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* LEFT column: Budget Pie + Vendor Donut */}
+            <div className="space-y-6">
+              {/* Budget Breakdown Pie Chart */}
+              <div>
+                <p className="mb-2 text-sm font-medium text-stone-700">Budget by Category</p>
+                {budgetPieData.length === 0 ? (
+                  <p className="text-sm text-stone-500">No budget data.</p>
+                ) : (
+                  <div>
+                    <ResponsiveContainer width="100%" aspect={1.6}>
+                      <PieChart>
+                        <Pie
+                          data={budgetPieData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name, percent }) =>
+                            `${name} ${(percent * 100).toFixed(0)}%`
+                          }
+                          labelLine={false}
+                        >
+                          {budgetPieData.map((_, index) => (
+                            <Cell
+                              key={`budget-cell-${index}`}
+                              fill={BUDGET_CHART_COLORS[index % BUDGET_CHART_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number) =>
+                            new Intl.NumberFormat("en-CA", {
+                              style: "currency",
+                              currency: "CAD",
+                            }).format(value)
+                          }
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="mt-2 flex justify-between rounded-lg bg-stone-50 px-4 py-2 text-xs text-stone-600">
+                      <span>
+                        Estimated:{" "}
+                        <strong className="text-stone-800">{formatCAD(budgetEstimatedTotal)}</strong>
+                      </span>
+                      <span>
+                        Actual:{" "}
+                        <strong
+                          className={
+                            budgetVariance > 0 ? "text-red-600" : "text-emerald-600"
+                          }
+                        >
+                          {formatCAD(budgetActualTotal)}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Vendor Status Donut */}
+              <div>
+                <p className="mb-2 text-sm font-medium text-stone-700">Vendor Status</p>
+                {vendorDonutData.length === 0 ? (
+                  <p className="text-sm text-stone-500">No vendor data.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" aspect={1.6}>
+                    <PieChart>
+                      <Pie
+                        data={vendorDonutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={80}
+                        dataKey="value"
+                        paddingAngle={3}
+                      >
+                        {vendorDonutData.map((entry, index) => (
+                          <Cell key={`vendor-cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* RIGHT column: Task Bar + Readiness metrics */}
+            <div className="space-y-6">
+              {/* Task Completion Bar Chart */}
+              <div>
+                <p className="mb-2 text-sm font-medium text-stone-700">Task Completion Overview</p>
+                {taskTotal === 0 ? (
+                  <p className="text-sm text-stone-500">No task data.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" aspect={1.6}>
+                    <BarChart
+                      data={taskCategoryData}
+                      margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 10, fill: "#78716c" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: "#78716c" }}
+                        tickLine={false}
+                        axisLine={false}
+                        allowDecimals={false}
+                      />
+                      <Tooltip />
+                      <Bar dataKey="Total" fill="#c57a3a" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Completed" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              {/* Planning Readiness Metric Cards */}
+              <div>
+                <p className="mb-3 text-sm font-medium text-stone-700">Planning Readiness</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <ReadinessMetricCard
+                    label="Tasks Complete"
+                    pct={taskCompletePct}
+                    color={
+                      taskCompletePct >= 80
+                        ? "#10b981"
+                        : taskCompletePct >= 50
+                        ? "#f59e0b"
+                        : "#ef4444"
+                    }
+                  />
+                  <ReadinessMetricCard
+                    label="Budget Tracked"
+                    pct={budgetTrackedPct}
+                    color={
+                      budgetTrackedPct >= 80
+                        ? "#10b981"
+                        : budgetTrackedPct >= 50
+                        ? "#f59e0b"
+                        : "#c57a3a"
+                    }
+                  />
+                  <ReadinessMetricCard
+                    label="Vendors Confirmed"
+                    pct={vendorConfirmedPct}
+                    color={
+                      vendorConfirmedPct >= 80
+                        ? "#10b981"
+                        : vendorConfirmedPct >= 50
+                        ? "#f59e0b"
+                        : "#ef4444"
+                    }
+                  />
+                  <ReadinessMetricCard
+                    label="Risks Mitigated"
+                    pct={riskMitigatedPct}
+                    color={
+                      riskMitigatedPct >= 80
+                        ? "#10b981"
+                        : riskMitigatedPct >= 50
+                        ? "#f59e0b"
+                        : "#ef4444"
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Ticket / Revenue summary */}
       <Card className="border-stone-200 bg-white/70">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base font-semibold text-stone-800">
             <DollarSign className="h-4 w-4 text-[#c57a3a]" />
-            Ticket Sales & Revenue
+            Ticket Sales &amp; Revenue
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
@@ -377,10 +721,23 @@ export function ReportsClient({ eventId, data }: ReportsClientProps) {
       {/* Budget breakdown table */}
       <Card className="border-stone-200 bg-white/70">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold text-stone-800">
-            <DollarSign className="h-4 w-4 text-[#c57a3a]" />
-            Budget Breakdown
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-stone-800">
+              <DollarSign className="h-4 w-4 text-[#c57a3a]" />
+              Budget Breakdown
+            </CardTitle>
+            {budget.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadBudgetCSV(budget)}
+                className="print:hidden border-stone-300 text-stone-600 hover:bg-stone-50"
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                Download CSV
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {budget.length === 0 ? (
