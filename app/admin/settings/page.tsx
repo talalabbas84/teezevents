@@ -86,28 +86,44 @@ export default async function AdminSettingsPage() {
 
             <Separator />
 
-            {/* Notifications toggle */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="font-medium">Admin Notifications</div>
-                  <p className="text-sm text-muted-foreground">
-                    Receive in-app notifications for planning activity and alerts.
-                  </p>
-                </div>
-                <Switch defaultChecked disabled />
-              </div>
-
-              <PushNotificationManager
-                publicKey={getWebPushPublicKey()}
-                activeSubscriptionCount={activePushSubscriptionCount}
-              />
-              {webPushSetupIssue ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  {webPushSetupIssue} Generate VAPID keys with <code>pnpm exec web-push generate-vapid-keys</code>.
+            {/* In-app notifications toggle */}
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="font-medium">In-App Notifications</div>
+                <p className="text-sm text-muted-foreground">
+                  Receive in-app notifications for planning activity and alerts.
                 </p>
-              ) : null}
+              </div>
+              <Switch defaultChecked disabled />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Push Notifications */}
+        <Card className="border border-border shadow-lg">
+          <CardContent className="space-y-6 p-6">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Push Notifications</div>
+              <h2 className="mt-1 font-serif text-2xl font-bold">Phone Push</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Get instant push notifications on your phone or desktop for new orders, planning alerts, and team activity.
+                Install this site as a PWA (Add to Home Screen in Safari on iOS) to enable push on mobile.
+              </p>
+            </div>
+
+            <Separator />
+
+            <PushNotificationManager
+              publicKey={getWebPushPublicKey()}
+              activeSubscriptionCount={activePushSubscriptionCount}
+            />
+
+            {webPushSetupIssue ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                ⚠️ {webPushSetupIssue} Generate VAPID keys with{" "}
+                <code className="rounded bg-amber-100 px-1">pnpm exec web-push generate-vapid-keys</code>.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 

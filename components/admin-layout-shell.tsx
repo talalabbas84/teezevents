@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   MoreHorizontal,
+  Settings,
   Settings2,
   Store,
   Users,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { label: "Notifications", href: "/admin/notifications", icon: Bell },
   { label: "Check-In", href: "/admin/check-in", icon: DoorOpen },
   { label: "Website CMS", href: "/admin/cms", icon: Globe2 },
+  { label: "Settings", href: "/admin/settings", icon: Settings },
 ]
 
 const MOBILE_PRIMARY_ITEMS = [
