@@ -35,7 +35,6 @@ import {
 
 const SUB_NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, slug: "dashboard" },
-  { label: "Distribution", icon: Share2, slug: "distribution" },
   { label: "Tasks", icon: CheckSquare, slug: "tasks" },
   { label: "Collaboration", icon: MessageSquare, slug: "collaboration" },
   { label: "Checklists", icon: ListChecks, slug: "checklists" },
@@ -48,6 +47,8 @@ const SUB_NAV_ITEMS = [
   { label: "Risks", icon: AlertTriangle, slug: "risks" },
   { label: "Reports", icon: BarChart3, slug: "reports" },
   { label: "Post-Event", icon: ClipboardCheck, slug: "post-event" },
+  { label: "Distribution", icon: Share2, slug: "distribution" },
+
   { label: "AI Assistant", icon: Sparkles, slug: "ai" },
 ]
 
