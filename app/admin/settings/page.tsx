@@ -1,7 +1,9 @@
 import { requireAdminSession } from "@/lib/admin-auth"
 import { getPrismaClient } from "@/lib/prisma"
 import { getWebPushPublicKey, getWebPushSetupIssue } from "@/lib/web-push"
+import { getNotificationPreferences } from "@/actions/notification-preferences"
 import { PushNotificationManager } from "@/components/admin/push-notification-manager"
+import { NotificationPreferencesClient } from "@/components/admin/notification-preferences-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,7 +14,7 @@ import { Switch } from "@/components/ui/switch"
 export default async function AdminSettingsPage() {
   const session = await requireAdminSession()
   const prisma = getPrismaClient()
-  const [activePushSubscriptionCount, webPushSetupIssue] = await Promise.all([
+  const [activePushSubscriptionCount, webPushSetupIssue, notificationPreferences] = await Promise.all([
     prisma.pushSubscription.count({
       where: {
         userEmail: session.email,
@@ -20,6 +22,7 @@ export default async function AdminSettingsPage() {
       },
     }),
     Promise.resolve(getWebPushSetupIssue()),
+    getNotificationPreferences(),
   ])
 
   return (
@@ -124,6 +127,24 @@ export default async function AdminSettingsPage() {
                 <code className="rounded bg-amber-100 px-1">pnpm exec web-push generate-vapid-keys</code>.
               </p>
             ) : null}
+          </CardContent>
+        </Card>
+
+        {/* Notification preferences */}
+        <Card className="border border-border shadow-lg">
+          <CardContent className="space-y-6 p-6">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Notifications</div>
+              <h2 className="mt-1 font-serif text-2xl font-bold">Notification Preferences</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Choose which events trigger a push notification to your phone and which send you an email.
+                Push is on by default. Email is off by default.
+              </p>
+            </div>
+
+            <Separator />
+
+            <NotificationPreferencesClient initialPreferences={notificationPreferences} />
           </CardContent>
         </Card>
 

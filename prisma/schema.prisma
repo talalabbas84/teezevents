@@ -1376,3 +1376,14 @@ model EventComment {
   @@index([eventId, entityType])
   @@index([authorEmail])
 }
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userEmail String   @unique
+  push      Json     @default("{}")
+  email     Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userEmail])
+}
