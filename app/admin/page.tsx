@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 
 import { AdminInsightsDashboard } from "@/components/admin-insights-dashboard"
-import { Badge } from "@/components/ui/badge"
+import { AdminEventsTable } from "@/components/admin/admin-events-table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -259,83 +259,31 @@ export default async function AdminDashboardPage() {
               {/* Events tab */}
               <TabsContent value="events" className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">Tap an event to manage it.</p>
+                  <p className="text-sm text-muted-foreground">Search, filter, and sort all events.</p>
                   <Button asChild variant="outline" size="sm" className="border-primary text-primary">
                     <Link href="/admin/events">
                       <span className="inline-flex items-center gap-1.5">
-                        All Events
+                        Event Studio
                         <ArrowRight size={13} />
                       </span>
                     </Link>
                   </Button>
                 </div>
-
-                <div className="space-y-3">
-                  {dashboard.events.slice(0, 8).map((event) => (
-                    <Card key={event.id} className="border border-border shadow-sm">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          {/* Date chip */}
-                          <div className="flex w-12 shrink-0 flex-col items-center rounded-2xl bg-primary/10 py-2 text-center">
-                            <span className="text-[10px] font-semibold uppercase text-primary">
-                              {event.startsAt
-                                ? event.startsAt.toLocaleDateString("en-CA", { month: "short" })
-                                : "TBA"}
-                            </span>
-                            <span className="font-serif text-xl font-bold text-primary">
-                              {event.startsAt ? event.startsAt.getDate() : "—"}
-                            </span>
-                          </div>
-
-                          {/* Info */}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <h3 className="font-serif text-base font-bold leading-tight">{event.title}</h3>
-                              {isToday(event.startsAt) && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">
-                                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-                                  Today
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                              <span>{event.ticketsIssued} tickets</span>
-                              <span>{event.checkedInCount} in</span>
-                              <span>{formatCurrency(event.revenueCents, "cad")}</span>
-                              <span className={event.remainingCapacity > 0 ? "text-emerald-600" : "text-destructive"}>
-                                {event.remainingCapacity > 0 ? `${event.remainingCapacity} left` : "Sold out"}
-                              </span>
-                            </div>
-
-                            {/* Action row */}
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <Link
-                                href={`/admin/events/${event.id}`}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-                              >
-                                Manage
-                              </Link>
-                              <Link
-                                href={`/admin/planning/${event.id}/dashboard`}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-                              >
-                                <ClipboardList size={12} />
-                                Planning
-                              </Link>
-                              <Link
-                                href="/admin/check-in"
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-                              >
-                                <DoorOpen size={12} />
-                                Check-In
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <AdminEventsTable
+                  events={dashboard.events.map((e) => ({
+                    id: e.id,
+                    title: e.title,
+                    startsAt: e.startsAt,
+                    capacity: e.capacity,
+                    paidOrders: e.paidOrders,
+                    ticketsIssued: e.ticketsIssued,
+                    checkedInCount: e.checkedInCount,
+                    remainingCapacity: e.remainingCapacity,
+                    revenueCents: e.revenueCents,
+                    sellThroughRate: e.sellThroughRate,
+                    checkInRate: e.checkInRate,
+                  }))}
+                />
               </TabsContent>
 
               {/* Analytics tab */}
