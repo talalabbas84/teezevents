@@ -4,12 +4,12 @@ import { useActionState, useEffect, useState } from "react"
 import { Bell, CheckSquare, ListChecks, Loader2, Mail, MessageSquare, Save, Settings, Smartphone, Users } from "lucide-react"
 import { toast } from "sonner"
 
+import { updateNotificationPreferences } from "@/actions/notification-preferences"
 import {
-  updateNotificationPreferences,
+  NOTIFICATION_TYPES,
   type NotificationPreferences,
   type NotifType,
-  NOTIFICATION_TYPES,
-} from "@/actions/notification-preferences"
+} from "@/lib/notification-types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"

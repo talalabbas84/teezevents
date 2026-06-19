@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useTransition, useMemo, useCallback } from "react"
+import { useState, useTransition, useMemo, useCallback, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import type { PlanningTaskSerialized, TaskStatus, TaskPriority } from "@/lib/planning/types"
 import { createTask, updateTaskStatus, deleteTask } from "@/actions/planning"
+import { addTaskAttachment } from "@/actions/attachments"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -11,6 +12,7 @@ import {
   areValidAssignees,
   type TeamMemberOption,
 } from "@/components/planning/assignee-select"
+import { AttachmentUploader } from "@/components/planning/attachment-uploader"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -51,6 +53,8 @@ import {
   CheckCircle2,
   Loader2,
   GripVertical,
+  X,
+  Paperclip,
 } from "lucide-react"
 
 import { TaskDetailDrawer } from "@/components/planning/task-detail-drawer"
@@ -242,6 +246,168 @@ function FieldError({ message }: { message?: string }) {
       <AlertCircle className="h-3.5 w-3.5" />
       {message}
     </p>
+  )
+}
+
+// ─── Task Mention Textarea ────────────────────────────────────────────────────
+
+function getTaskAvatarColor(member: TeamMemberOption): string {
+  return member.avatarColor ?? "#c57a3a"
+}
+
+function TaskMentionTextarea({
+  value,
+  onChange,
+  placeholder,
+  members,
+  rows = 3,
+  className,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  members: TeamMemberOption[]
+  rows?: number
+  className?: string
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionStart, setMentionStart] = useState(0)
+  const [activeIdx, setActiveIdx] = useState(0)
+
+  const filteredMembers =
+    mentionQuery !== null
+      ? members.filter(
+          (m) =>
+            (m.name ?? "").toLowerCase().includes(mentionQuery.toLowerCase()) ||
+            m.email.toLowerCase().includes(mentionQuery.toLowerCase())
+        )
+      : []
+
+  function detectMentionAt(currentValue: string, cursorPos: number) {
+    const before = currentValue.slice(0, cursorPos)
+    const match = before.match(/@([a-zA-Z0-9._%+\-]*)$/)
+    if (match) {
+      const typed = match[1]
+      if (typed.includes("@")) {
+        setMentionQuery(null)
+        return
+      }
+      setMentionQuery(typed)
+      setMentionStart(cursorPos - typed.length - 1)
+      setActiveIdx(0)
+    } else {
+      setMentionQuery(null)
+    }
+  }
+
+  function insertMention(member: TeamMemberOption) {
+    const el = ref.current
+    if (!el) return
+    const pos = el.selectionStart
+    const newVal =
+      value.slice(0, mentionStart) + `@${member.email}` + value.slice(pos) + " "
+    onChange(newVal)
+    setMentionQuery(null)
+    setTimeout(() => {
+      if (el) {
+        const newPos = mentionStart + member.email.length + 2
+        el.focus()
+        el.setSelectionRange(newPos, newPos)
+      }
+    }, 0)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionQuery !== null && filteredMembers.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        setActiveIdx((i) => Math.min(i + 1, filteredMembers.length - 1))
+        return
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault()
+        setActiveIdx((i) => Math.max(i - 1, 0))
+        return
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault()
+        insertMention(filteredMembers[activeIdx])
+        return
+      }
+      if (e.key === "Escape") {
+        e.preventDefault()
+        setMentionQuery(null)
+        return
+      }
+    }
+  }
+
+  // Auto-resize
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = el.scrollHeight + "px"
+  }, [value])
+
+  return (
+    <div className="relative">
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value)
+          detectMentionAt(e.target.value, e.target.selectionStart)
+        }}
+        onKeyDown={handleKeyDown}
+        onSelect={(e) => {
+          const el = e.currentTarget
+          detectMentionAt(el.value, el.selectionStart)
+        }}
+        onKeyUp={(e) => {
+          const el = e.currentTarget
+          detectMentionAt(el.value, el.selectionStart)
+        }}
+        placeholder={placeholder}
+        rows={rows}
+        className={cn(
+          "w-full resize-none bg-white border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-[#c57a3a]/50 focus:outline-none focus:ring-2 focus:ring-[#c57a3a]/30 focus-visible:ring-[#c57a3a]/40",
+          className
+        )}
+      />
+      {mentionQuery !== null && filteredMembers.length > 0 && (
+        <div className="absolute z-9999 left-0 top-full mt-1 w-72 rounded-xl border border-border bg-white shadow-xl max-h-60 overflow-y-auto">
+          {filteredMembers.map((m, i) => (
+            <button
+              key={m.id}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                insertMention(m)
+              }}
+              className={cn(
+                "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-muted/40 transition-colors",
+                i === activeIdx && "bg-[#c57a3a]/10"
+              )}
+            >
+              <span
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                style={{ backgroundColor: getTaskAvatarColor(m) }}
+              >
+                {(m.name ?? m.email).charAt(0).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <div className="font-medium leading-tight truncate">{m.name ?? m.email}</div>
+                {m.name && (
+                  <div className="text-xs text-muted-foreground truncate">{m.email}</div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -566,6 +732,9 @@ export function TasksBoardClient({
   const [fieldErrors, setFieldErrors] = useState<TaskFormErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [pendingAttachments, setPendingAttachments] = useState<
+    Array<{ url: string; name: string; mimeType: string; sizeBytes: number }>
+  >([])
 
   // ─── DnD sensors ──────────────────────────────────────────────────
 
@@ -806,9 +975,20 @@ export function TasksBoardClient({
         setFormError(result.error ?? "Failed to create task.")
         return
       }
+      // Upload any pending attachments
+      const taskId = (result.data as { id: string } | undefined)?.id
+      if (taskId && pendingAttachments.length > 0) {
+        for (const att of pendingAttachments) {
+          const attRes = await addTaskAttachment(taskId, att)
+          if (!attRes.success) {
+            toast.error(`Failed to save attachment: ${att.name}`)
+          }
+        }
+      }
       setAddDialogOpen(false)
       setDialogTab("basic")
       setFieldErrors({})
+      setPendingAttachments([])
       setForm({
         title: "",
         description: "",
@@ -834,6 +1014,7 @@ export function TasksBoardClient({
       setDialogTab("basic")
       setFormError(null)
       setFieldErrors({})
+      setPendingAttachments([])
     }
   }
 
@@ -1104,13 +1285,12 @@ export function TasksBoardClient({
                   <Label htmlFor="task-desc" className="text-sm font-medium text-foreground">
                     Description
                   </Label>
-                  <Textarea
-                    id="task-desc"
-                    placeholder="Add more context or details..."
-                    rows={3}
+                  <TaskMentionTextarea
                     value={form.description}
-                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                    className="bg-white border-border focus-visible:ring-[#c57a3a]/40 resize-none"
+                    onChange={(v) => setForm((f) => ({ ...f, description: v }))}
+                    placeholder="Add more context or details… type @ to mention a team member"
+                    members={assignees}
+                    rows={3}
                   />
                 </div>
 
@@ -1214,6 +1394,49 @@ export function TasksBoardClient({
                     />
                   </div>
                   <FieldError message={fieldErrors.dueDate} />
+                </div>
+
+                {/* Attachments */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-foreground">
+                    Attach files
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <AttachmentUploader
+                      compact
+                      onUpload={(file) => {
+                        setPendingAttachments((prev) => [...prev, file])
+                      }}
+                    />
+                    {pendingAttachments.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {pendingAttachments.length} file{pendingAttachments.length > 1 ? "s" : ""} ready to attach
+                      </span>
+                    )}
+                  </div>
+                  {pendingAttachments.length > 0 && (
+                    <ul className="mt-1 space-y-1">
+                      {pendingAttachments.map((att, i) => (
+                        <li
+                          key={i}
+                          className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="flex-1 truncate text-foreground">{att.name}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPendingAttachments((prev) => prev.filter((_, j) => j !== i))
+                            }
+                            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                            aria-label={`Remove ${att.name}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>

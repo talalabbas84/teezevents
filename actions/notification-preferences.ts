@@ -5,38 +5,12 @@ import { z } from "zod"
 
 import { requireAdminSession } from "@/lib/admin-auth"
 import { getPrismaClient } from "@/lib/prisma"
-
-export const NOTIFICATION_TYPES = [
-  "TASK_ASSIGNED",
-  "TASK_DUE_SOON",
-  "TASK_OVERDUE",
-  "TASK_COMPLETED",
-  "CHECKLIST_ITEM_DONE",
-  "COMMENT_MENTION",
-  "BUDGET_ALERT",
-  "VENDOR_STATUS_CHANGED",
-  "RISK_ESCALATED",
-  "BLUEPRINT_APPLIED",
-  "FILE_UPLOADED",
-  "EVENT_STATUS_CHANGED",
-  "AUTOMATION_TRIGGERED",
-  "REMINDER",
-  "GENERAL",
-] as const
-
-export type NotifType = (typeof NOTIFICATION_TYPES)[number]
-
-export type NotificationPreferences = {
-  push: Record<NotifType, boolean>
-  email: Record<NotifType, boolean>
-}
-
-// Push: all ON by default. Email: all OFF by default.
-export function defaultPreferences(): NotificationPreferences {
-  const push = Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t, true])) as Record<NotifType, boolean>
-  const email = Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t, false])) as Record<NotifType, boolean>
-  return { push, email }
-}
+import {
+  NOTIFICATION_TYPES,
+  defaultPreferences,
+  type NotifType,
+  type NotificationPreferences,
+} from "@/lib/notification-types"
 
 function mergeWithDefaults(raw: unknown): NotificationPreferences {
   const defaults = defaultPreferences()
@@ -118,7 +92,7 @@ export async function shouldSendNotification(
   })
 
   if (!row) {
-    return channel === "push" // push on by default, email off by default
+    return channel === "push"
   }
 
   const prefs = mergeWithDefaults({ push: row.push, email: row.email })

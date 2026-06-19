@@ -222,11 +222,8 @@ function MentionTextarea({
         )
       : []
 
-  const detectMention = useCallback(() => {
-    const el = ref.current
-    if (!el) return
-    const pos = el.selectionStart
-    const before = el.value.slice(0, pos)
+  function detectMentionAt(currentValue: string, cursorPos: number) {
+    const before = currentValue.slice(0, cursorPos)
     const match = before.match(/@([a-zA-Z0-9._%+\-]*)$/)
     if (match) {
       const typed = match[1]
@@ -236,12 +233,12 @@ function MentionTextarea({
         return
       }
       setMentionQuery(typed)
-      setMentionStart(pos - typed.length - 1)
+      setMentionStart(cursorPos - typed.length - 1)
       setActiveIdx(0)
     } else {
       setMentionQuery(null)
     }
-  }, [])
+  }
 
   const insertMention = useCallback(
     (member: CollaborationMemberSerialized) => {
@@ -307,11 +304,17 @@ function MentionTextarea({
         value={value}
         onChange={(e) => {
           onChange(e.target.value)
-          detectMention()
+          detectMentionAt(e.target.value, e.target.selectionStart)
         }}
         onKeyDown={handleKeyDown}
-        onSelect={detectMention}
-        onKeyUp={detectMention}
+        onSelect={(e) => {
+          const el = e.currentTarget
+          detectMentionAt(el.value, el.selectionStart)
+        }}
+        onKeyUp={(e) => {
+          const el = e.currentTarget
+          detectMentionAt(el.value, el.selectionStart)
+        }}
         placeholder={placeholder}
         rows={rows}
         // eslint-disable-next-line jsx-a11y/no-autofocus
@@ -322,7 +325,7 @@ function MentionTextarea({
         )}
       />
       {mentionQuery !== null && filteredMembers.length > 0 && (
-        <div className="absolute z-50 left-0 top-full mt-1 w-72 rounded-xl border border-border bg-white shadow-xl max-h-60 overflow-y-auto">
+        <div className="absolute z-9999 left-0 top-full mt-1 w-72 rounded-xl border border-border bg-white shadow-xl max-h-60 overflow-y-auto">
           {filteredMembers.map((m, i) => (
             <button
               key={m.id}

@@ -32,6 +32,8 @@ import {
   Users,
   ChevronDown,
   SlidersHorizontal,
+  Plus,
+  Flag,
 } from "lucide-react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -65,9 +67,9 @@ const DUE_DATE_OPTIONS: { value: DueDateFilter; label: string }[] = [
 ]
 
 const VIEW_OPTIONS: { value: ViewType; label: string; icon: React.ReactNode }[] = [
-  { value: "board", label: "Board", icon: <LayoutGrid className="h-4 w-4" /> },
-  { value: "list", label: "List", icon: <List className="h-4 w-4" /> },
-  { value: "timeline", label: "Timeline", icon: <GanttChartSquare className="h-4 w-4" /> },
+  { value: "board", label: "Board", icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+  { value: "list", label: "List", icon: <List className="h-3.5 w-3.5" /> },
+  { value: "timeline", label: "Timeline", icon: <GanttChartSquare className="h-3.5 w-3.5" /> },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -105,7 +107,6 @@ function AssigneeFilterDropdown({
   onChange: (val: string[]) => void
   currentUserEmail: string
 }) {
-  // selected: [] = all, ["ME"] = my tasks, ["UNASSIGNED"] = unassigned, or array of emails
   const isMyTasks = selected.length === 1 && selected[0] === "ME"
   const isUnassigned = selected.length === 1 && selected[0] === "UNASSIGNED"
   const isAll = selected.length === 0
@@ -121,7 +122,6 @@ function AssigneeFilterDropdown({
     : "Assignee"
 
   function toggleMember(email: string) {
-    // If we're adding a regular email, clear ME/UNASSIGNED special values
     const current = selected.filter((s) => s !== "ME" && s !== "UNASSIGNED")
     if (current.includes(email)) {
       onChange(current.filter((s) => s !== email))
@@ -135,7 +135,7 @@ function AssigneeFilterDropdown({
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
+            "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
             !isAll
               ? "border-[#c57a3a]/40 bg-[#c57a3a]/10 text-[#c57a3a]"
               : "border-border bg-muted/30 text-foreground hover:bg-muted/50"
@@ -198,6 +198,59 @@ function AssigneeFilterDropdown({
   )
 }
 
+// ─── Priority Filter Dropdown ─────────────────────────────────────────────────
+
+function PriorityFilterDropdown({
+  value,
+  onChange,
+}: {
+  value: TaskPriority | "ALL"
+  onChange: (v: TaskPriority | "ALL") => void
+}) {
+  const selected = PRIORITY_OPTIONS.find((p) => p.value === value)
+  const label = selected ? selected.label : "Priority"
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={cn(
+            "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
+            value !== "ALL"
+              ? "border-[#c57a3a]/40 bg-[#c57a3a]/10 text-[#c57a3a]"
+              : "border-border bg-muted/30 text-foreground hover:bg-muted/50"
+          )}
+        >
+          <Flag className="h-3.5 w-3.5" />
+          {label}
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44">
+        <DropdownMenuItem
+          onSelect={() => onChange("ALL")}
+          className={cn(value === "ALL" && "text-[#c57a3a] font-medium")}
+        >
+          All priorities
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {PRIORITY_OPTIONS.map((p) => (
+          <DropdownMenuItem
+            key={p.value}
+            onSelect={() => onChange(p.value)}
+            className={cn(value === p.value && "text-[#c57a3a] font-medium")}
+          >
+            <span className="flex items-center gap-2">
+              <span className={cn("h-2 w-2 rounded-full shrink-0", p.dot)} />
+              {p.label}
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function TasksWorkspace({
@@ -214,7 +267,7 @@ export function TasksWorkspace({
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("")
-  const [priorityFilters, setPriorityFilters] = useState<Set<TaskPriority>>(new Set())
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "ALL">("ALL")
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([])
   const [dueDateFilter, setDueDateFilter] = useState<DueDateFilter>("ALL")
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL")
@@ -270,8 +323,8 @@ export function TasksWorkspace({
       const hasValidDueDate = dueDate !== null && !Number.isNaN(dueDate.getTime())
       const dueTime = hasValidDueDate ? dueDate!.getTime() : null
 
-      // Priority filter
-      if (priorityFilters.size > 0 && !priorityFilters.has(t.priority)) return false
+      // Priority filter (single-select)
+      if (priorityFilter !== "ALL" && t.priority !== priorityFilter) return false
 
       // Category filter
       if (categoryFilter !== "ALL" && t.category !== categoryFilter) return false
@@ -285,7 +338,6 @@ export function TasksWorkspace({
         } else if (isUnassigned) {
           if (taskAssignees.length > 0) return false
         } else {
-          // multi-email filter: task must have at least one of the selected assignees
           if (!assigneeFilter.some((email) => taskAssignees.includes(email))) return false
         }
       }
@@ -316,7 +368,7 @@ export function TasksWorkspace({
   }, [
     initialTasks,
     searchQuery,
-    priorityFilters,
+    priorityFilter,
     categoryFilter,
     assigneeFilter,
     dueDateFilter,
@@ -325,54 +377,33 @@ export function TasksWorkspace({
 
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
-    priorityFilters.size > 0 ||
+    priorityFilter !== "ALL" ||
     assigneeFilter.length > 0 ||
     dueDateFilter !== "ALL" ||
     categoryFilter !== "ALL"
 
   function clearAllFilters() {
     setSearchQuery("")
-    setPriorityFilters(new Set())
+    setPriorityFilter("ALL")
     setAssigneeFilter([])
     setDueDateFilter("ALL")
     setCategoryFilter("ALL")
-  }
-
-  function togglePriority(p: TaskPriority) {
-    setPriorityFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(p)) next.delete(p)
-      else next.add(p)
-      return next
-    })
   }
 
   // ─── Render ───────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
-      {/* ── Top bar: title + view toggle ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <h2 className="font-serif text-xl font-semibold text-[#c57a3a]">Tasks</h2>
-          <span className="rounded-full bg-[#c57a3a]/10 px-2.5 py-0.5 text-sm font-medium text-[#c57a3a]">
-            {initialTasks.length}
-          </span>
-          {hasActiveFilters && filteredTasks.length !== initialTasks.length && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              {filteredTasks.length} shown
-            </span>
-          )}
-        </div>
-
-        {/* View toggle pill tabs */}
-        <div className="flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
+      {/* ── Single combined toolbar ── */}
+      <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-20 -mx-4 flex flex-wrap items-center gap-2 border-y border-border bg-white/95 px-4 py-2 shadow-sm backdrop-blur-xl lg:static lg:mx-0 lg:rounded-xl lg:border">
+        {/* View toggle pill */}
+        <div className="flex items-center rounded-lg border border-border bg-muted/30 p-0.5 shrink-0">
           {VIEW_OPTIONS.map((v) => (
             <button
               key={v.value}
               onClick={() => setView(v.value)}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+                "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                 view === v.value
                   ? "bg-[#c57a3a] text-white shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -383,19 +414,23 @@ export function TasksWorkspace({
             </button>
           ))}
         </div>
-      </div>
 
-      {/* ── Enhanced Filter Bar ── */}
-      <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-20 -mx-4 flex flex-wrap items-center gap-2 border-y border-border bg-white/95 px-4 py-2.5 shadow-sm backdrop-blur-xl lg:static lg:mx-0 lg:rounded-xl lg:border">
+        {/* Task count badge */}
+        <span className="rounded-full bg-[#c57a3a]/10 px-2 py-0.5 text-xs font-medium text-[#c57a3a] shrink-0">
+          {hasActiveFilters && filteredTasks.length !== initialTasks.length
+            ? `${filteredTasks.length} / ${initialTasks.length}`
+            : `${initialTasks.length} tasks`}
+        </span>
+
         {/* Search */}
-        <div className="relative min-w-full flex-1 sm:min-w-[200px] sm:max-w-[260px]">
+        <div className="relative min-w-[180px] flex-1 sm:max-w-[240px]">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search tasks…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 w-full rounded-lg border border-border bg-muted/30 py-1.5 pl-8 pr-3 text-sm placeholder:text-muted-foreground/70 transition-all focus:border-[#c57a3a]/50 focus:outline-none focus:ring-2 focus:ring-[#c57a3a]/30"
+            className="h-8 w-full rounded-lg border border-border bg-muted/30 py-1.5 pl-8 pr-7 text-xs placeholder:text-muted-foreground/70 transition-all focus:border-[#c57a3a]/50 focus:outline-none focus:ring-2 focus:ring-[#c57a3a]/30"
           />
           {searchQuery && (
             <button
@@ -407,37 +442,7 @@ export function TasksWorkspace({
           )}
         </div>
 
-        {/* Priority chips */}
-        <div className="flex items-center gap-1 overflow-x-auto">
-          <button
-            onClick={() => setPriorityFilters(new Set())}
-            className={cn(
-              "h-9 shrink-0 rounded-full border px-3 text-xs font-medium transition-colors",
-              priorityFilters.size === 0
-                ? "border-[#c57a3a] bg-[#c57a3a] text-white"
-                : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-            )}
-          >
-            All
-          </button>
-          {PRIORITY_OPTIONS.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => togglePriority(p.value)}
-              className={cn(
-                "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                priorityFilters.has(p.value)
-                  ? "border-[#c57a3a]/40 bg-[#c57a3a]/10 text-[#c57a3a]"
-                  : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-              )}
-            >
-              <span className={cn("h-2 w-2 rounded-full", p.dot)} />
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Assignee multi-select */}
+        {/* Assignee dropdown */}
         <AssigneeFilterDropdown
           teamMembers={teamMembers}
           selected={assigneeFilter}
@@ -445,12 +450,15 @@ export function TasksWorkspace({
           currentUserEmail={currentUserEmail}
         />
 
+        {/* Priority dropdown */}
+        <PriorityFilterDropdown value={priorityFilter} onChange={setPriorityFilter} />
+
         {/* Due date filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
+                "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
                 dueDateFilter !== "ALL"
                   ? "border-[#c57a3a]/40 bg-[#c57a3a]/10 text-[#c57a3a]"
                   : "border-border bg-muted/30 text-foreground hover:bg-muted/50"
@@ -480,7 +488,7 @@ export function TasksWorkspace({
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
+                  "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors",
                   categoryFilter !== "ALL"
                     ? "border-[#c57a3a]/40 bg-[#c57a3a]/10 text-[#c57a3a]"
                     : "border-border bg-muted/30 text-foreground hover:bg-muted/50"
@@ -511,14 +519,17 @@ export function TasksWorkspace({
           </DropdownMenu>
         )}
 
+        {/* Spacer pushes + Task and Clear to the right */}
+        <div className="flex-1" />
+
         {/* Clear all */}
         {hasActiveFilters && (
           <button
             onClick={clearAllFilters}
-            className="flex h-9 items-center gap-1 rounded-lg border border-border/60 px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            className="flex h-8 items-center gap-1 rounded-lg border border-border/60 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground shrink-0"
           >
             <X className="h-3 w-3" />
-            Clear All
+            Clear
           </button>
         )}
       </div>
