@@ -573,6 +573,7 @@ model PlanningTask {
   parentTask      PlanningTask?  @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
   subtasks        PlanningTask[] @relation("TaskSubtasks")
   comments        TaskComment[]
+  attachments     TaskAttachment[]
   blueprintTaskId String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -1368,8 +1369,9 @@ model EventComment {
   isEdited    Boolean        @default(false)
   isPinned    Boolean        @default(false)
   parentId    String?
-  parent      EventComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
-  replies     EventComment[] @relation("CommentThread")
+  parent      EventComment?       @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     EventComment[]      @relation("CommentThread")
+  attachments CommentAttachment[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -1386,4 +1388,32 @@ model NotificationPreference {
   updatedAt DateTime @updatedAt
 
   @@index([userEmail])
+}
+
+model TaskAttachment {
+  id         String       @id @default(cuid())
+  taskId     String
+  task       PlanningTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  url        String
+  name       String
+  mimeType   String?
+  sizeBytes  Int?
+  uploadedBy String
+  createdAt  DateTime     @default(now())
+
+  @@index([taskId])
+}
+
+model CommentAttachment {
+  id         String       @id @default(cuid())
+  commentId  String
+  comment    EventComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  url        String
+  name       String
+  mimeType   String?
+  sizeBytes  Int?
+  uploadedBy String
+  createdAt  DateTime     @default(now())
+
+  @@index([commentId])
 }

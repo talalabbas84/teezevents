@@ -13,10 +13,23 @@ import {
   togglePinComment,
   updateEventComment,
 } from "@/actions/event-comments"
+import {
+  addCommentAttachment,
+  removeCommentAttachment,
+} from "@/actions/attachments"
+import { AttachmentUploader } from "@/components/planning/attachment-uploader"
+import { AttachmentPreview, type AttachmentItem } from "@/components/planning/attachment-preview"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 // ─── Exported types ──────────────────────────────────────────────────────────
+
+export type CommentAttachmentSerialized = {
+  id: string
+  url: string
+  name: string
+  mimeType?: string | null
+}
 
 export type CollaborationCommentSerialized = {
   id: string
@@ -33,6 +46,7 @@ export type CollaborationCommentSerialized = {
   createdAt: string
   updatedAt: string
   replies: CollaborationCommentSerialized[]
+  attachments?: CommentAttachmentSerialized[]
 }
 
 export type CollaborationMemberSerialized = {
@@ -423,6 +437,12 @@ function ReplyCard({
           {reply.isEdited && !editing && (
             <span className="text-[10px] text-muted-foreground italic"> · edited</span>
           )}
+          {/* Existing attachments on this reply */}
+          {reply.attachments && reply.attachments.length > 0 && !editing && (
+            <div className="mt-2">
+              <AttachmentPreview attachments={reply.attachments} compact />
+            </div>
+          )}
         </div>
         <div className="mt-1 flex items-center gap-3 px-1">
           <span className="text-xs text-muted-foreground">{timeAgo(reply.createdAt)}</span>
@@ -455,33 +475,41 @@ function CommentCard({
   currentEmail,
   isAdmin,
   teamMembers,
+  eventId,
   onDelete,
   onEdit,
   onTogglePin,
   onAddReply,
   onDeleteReply,
   onEditReply,
+  onAddAttachment,
+  onRemoveAttachment,
 }: {
   comment: CollaborationCommentSerialized
   currentEmail: string
   isAdmin: boolean
   teamMembers: CollaborationMemberSerialized[]
+  eventId: string
   onDelete: (id: string) => void
   onEdit: (id: string, body: string) => void
   onTogglePin: (id: string, current: boolean) => void
   onAddReply: (parentId: string, reply: CollaborationCommentSerialized) => void
   onDeleteReply: (parentId: string, replyId: string) => void
   onEditReply: (parentId: string, replyId: string, body: string) => void
+  onAddAttachment: (commentId: string, attachment: CommentAttachmentSerialized) => void
+  onRemoveAttachment: (commentId: string, attachmentId: string) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState(comment.body)
   const [replying, setReplying] = useState(false)
   const [replyBody, setReplyBody] = useState("")
+  const [pendingReplyAttachments, setPendingReplyAttachments] = useState<AttachmentItem[]>([])
   const [showAllReplies, setShowAllReplies] = useState(false)
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(0)
   const [isPending, startTransition] = useTransition()
   const [isReplyPending, startReplyTransition] = useTransition()
+  const [isAttachPending, startAttachTransition] = useTransition()
 
   const isOwn = comment.authorEmail === currentEmail
   const canEdit = isOwn
@@ -510,6 +538,7 @@ function CommentCard({
   const handleReplySubmit = () => {
     if (!replyBody.trim()) return
     const tempId = `temp-reply-${Date.now()}`
+    const attachmentsSnapshot = [...pendingReplyAttachments]
     const optimistic: CollaborationCommentSerialized = {
       id: tempId,
       eventId: comment.eventId,
@@ -525,10 +554,12 @@ function CommentCard({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       replies: [],
+      attachments: attachmentsSnapshot,
     }
     onAddReply(comment.id, optimistic)
     const bodySnapshot = replyBody.trim()
     setReplyBody("")
+    setPendingReplyAttachments([])
     setReplying(false)
     setShowAllReplies(true)
     startReplyTransition(async () => {
@@ -538,10 +569,53 @@ function CommentCard({
         parentId: comment.id,
       })
       if (res.success && res.data) {
+        const newCommentId = (res.data as { id: string }).id
         onEditReply(comment.id, tempId, bodySnapshot)
+        // Save pending attachments
+        for (const att of attachmentsSnapshot) {
+          const attRes = await addCommentAttachment(newCommentId, comment.eventId, {
+            url: att.url,
+            name: att.name,
+            mimeType: att.mimeType ?? undefined,
+            sizeBytes: att.sizeBytes ?? undefined,
+          })
+          if (!attRes.success) {
+            toast.error(`Failed to save attachment: ${att.name}`)
+          }
+        }
       } else {
         onDeleteReply(comment.id, tempId)
         toast.error(res.error ?? "Failed to post reply")
+      }
+    })
+  }
+
+  function handleCommentAttachUpload(file: { url: string; name: string; mimeType: string; sizeBytes: number }) {
+    const tempId = `temp-att-${Date.now()}`
+    const optimistic: CommentAttachmentSerialized = { id: tempId, url: file.url, name: file.name, mimeType: file.mimeType }
+    onAddAttachment(comment.id, optimistic)
+    startAttachTransition(async () => {
+      const res = await addCommentAttachment(comment.id, eventId, file)
+      if (res.success && res.data) {
+        // Replace temp with real id via remove+add
+        onRemoveAttachment(comment.id, tempId)
+        onAddAttachment(comment.id, res.data as CommentAttachmentSerialized)
+        toast.success("Attachment added")
+      } else {
+        onRemoveAttachment(comment.id, tempId)
+        toast.error(res.error ?? "Failed to save attachment")
+      }
+    })
+  }
+
+  function handleCommentAttachRemove(attachmentId: string) {
+    onRemoveAttachment(comment.id, attachmentId)
+    startAttachTransition(async () => {
+      const res = await removeCommentAttachment(attachmentId, comment.id, eventId)
+      if (!res.success) {
+        toast.error(res.error ?? "Failed to remove attachment")
+      } else {
+        toast.success("Attachment removed")
       }
     })
   }
@@ -613,9 +687,24 @@ function CommentCard({
               </div>
             </div>
           ) : (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground">
-              {highlightMentions(comment.body)}
-            </p>
+            <>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word text-foreground">
+                {highlightMentions(comment.body)}
+              </p>
+              {/* Comment attachments */}
+              {comment.attachments && comment.attachments.length > 0 && (
+                <div className="mt-2">
+                  <AttachmentPreview
+                    attachments={comment.attachments}
+                    onRemove={
+                      (comment.authorEmail === currentEmail || isAdmin)
+                        ? handleCommentAttachRemove
+                        : undefined
+                    }
+                  />
+                </div>
+              )}
+            </>
           )}
 
           {/* Actions */}
@@ -652,6 +741,17 @@ function CommentCard({
               >
                 💬 Reply
               </button>
+
+              {/* Attach file to this comment */}
+              {(comment.authorEmail === currentEmail || isAdmin) && (
+                <span className="inline-flex items-center">
+                  <AttachmentUploader
+                    onUpload={handleCommentAttachUpload}
+                    disabled={isAttachPending}
+                    compact
+                  />
+                </span>
+              )}
 
               {canEdit && (
                 <button
@@ -725,7 +825,25 @@ function CommentCard({
                       onSubmit={handleReplySubmit}
                     />
                   </div>
-                  <div className="flex gap-2">
+                  {/* Pending reply attachments preview */}
+                  {pendingReplyAttachments.length > 0 && (
+                    <AttachmentPreview
+                      attachments={pendingReplyAttachments}
+                      onRemove={(id) => setPendingReplyAttachments((prev) => prev.filter((a) => a.id !== id))}
+                      compact
+                    />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <AttachmentUploader
+                      compact
+                      onUpload={(file) => {
+                        const tempId = `pending-${Date.now()}`
+                        setPendingReplyAttachments((prev) => [
+                          ...prev,
+                          { id: tempId, url: file.url, name: file.name, mimeType: file.mimeType, sizeBytes: file.sizeBytes },
+                        ])
+                      }}
+                    />
                     <button
                       onClick={handleReplySubmit}
                       disabled={isReplyPending || !replyBody.trim()}
@@ -737,6 +855,7 @@ function CommentCard({
                       onClick={() => {
                         setReplying(false)
                         setReplyBody("")
+                        setPendingReplyAttachments([])
                       }}
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted/40 transition-colors"
                     >
@@ -765,6 +884,7 @@ export function CollaborationClient({
 }: Props) {
   const [comments, setComments] = useState<CollaborationCommentSerialized[]>(initialComments)
   const [body, setBody] = useState("")
+  const [pendingAttachments, setPendingAttachments] = useState<AttachmentItem[]>([])
   const [isPending, startTransition] = useTransition()
 
   const currentMember = teamMembers.find((m) => m.email === currentEmail)
@@ -796,7 +916,9 @@ export function CollaborationClient({
     }
     setComments((prev) => [optimistic, ...prev])
     const snapshot = body.trim()
+    const attachmentsSnapshot = [...pendingAttachments]
     setBody("")
+    setPendingAttachments([])
     startTransition(async () => {
       const res = await createEventComment({ eventId, body: snapshot })
       if (res.success && res.data) {
@@ -804,6 +926,7 @@ export function CollaborationClient({
           createdAt: string | Date
           updatedAt: string | Date
         }
+        const newCommentId = (d as { id: string }).id
         setComments((prev) =>
           prev.map((c) =>
             c.id === tempId
@@ -818,10 +941,23 @@ export function CollaborationClient({
                       ? d.updatedAt
                       : new Date(d.updatedAt).toISOString(),
                   replies: [],
+                  attachments: attachmentsSnapshot,
                 }
               : c
           )
         )
+        // Save pending attachments to DB
+        for (const att of attachmentsSnapshot) {
+          const attRes = await addCommentAttachment(newCommentId, eventId, {
+            url: att.url,
+            name: att.name,
+            mimeType: att.mimeType ?? undefined,
+            sizeBytes: att.sizeBytes ?? undefined,
+          })
+          if (!attRes.success) {
+            toast.error(`Failed to save attachment: ${att.name}`)
+          }
+        }
       } else {
         setComments((prev) => prev.filter((c) => c.id !== tempId))
         toast.error(res.error ?? "Failed to post comment")
@@ -928,6 +1064,28 @@ export function CollaborationClient({
     []
   )
 
+  // ── Attachment helpers ────────────────────────────────────────────────────
+
+  const handleAddAttachment = useCallback((commentId: string, attachment: CommentAttachmentSerialized) => {
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId
+          ? { ...c, attachments: [...(c.attachments ?? []), attachment] }
+          : c
+      )
+    )
+  }, [])
+
+  const handleRemoveAttachment = useCallback((commentId: string, attachmentId: string) => {
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId
+          ? { ...c, attachments: (c.attachments ?? []).filter((a) => a.id !== attachmentId) }
+          : c
+      )
+    )
+  }, [])
+
   const charCount = body.length
 
   return (
@@ -949,6 +1107,16 @@ export function CollaborationClient({
               />
             </div>
           </div>
+          {/* Pending attachments preview */}
+          {pendingAttachments.length > 0 && (
+            <div className="mt-2 pl-11">
+              <AttachmentPreview
+                attachments={pendingAttachments}
+                onRemove={(id) => setPendingAttachments((prev) => prev.filter((a) => a.id !== id))}
+                compact
+              />
+            </div>
+          )}
           <div className="mt-3 flex items-center justify-between pl-11">
             <div className="flex items-center gap-3">
               {charCount > 200 && (
@@ -963,6 +1131,16 @@ export function CollaborationClient({
                   {charCount} / 5000
                 </span>
               )}
+              <AttachmentUploader
+                compact
+                onUpload={(file) => {
+                  const tempId = `pending-main-${Date.now()}`
+                  setPendingAttachments((prev) => [
+                    ...prev,
+                    { id: tempId, url: file.url, name: file.name, mimeType: file.mimeType, sizeBytes: file.sizeBytes },
+                  ])
+                }}
+              />
               <span className="text-[10px] text-muted-foreground hidden sm:block">
                 ⌘ + Enter to post
               </span>
@@ -995,12 +1173,15 @@ export function CollaborationClient({
                 currentEmail={currentEmail}
                 isAdmin={!!isAdmin}
                 teamMembers={teamMembers}
+                eventId={eventId}
                 onDelete={handleDelete}
                 onEdit={handleEdit}
                 onTogglePin={handleTogglePin}
                 onAddReply={handleAddReply}
                 onDeleteReply={handleDeleteReply}
                 onEditReply={handleEditReply}
+                onAddAttachment={handleAddAttachment}
+                onRemoveAttachment={handleRemoveAttachment}
               />
             ))}
           </div>

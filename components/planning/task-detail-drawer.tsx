@@ -15,6 +15,13 @@ import {
   updateTaskStatus,
   deleteTask,
 } from "@/actions/planning"
+import {
+  addTaskAttachment,
+  removeTaskAttachment,
+  getTaskAttachmentsAction,
+} from "@/actions/attachments"
+import { AttachmentUploader } from "@/components/planning/attachment-uploader"
+import { AttachmentPreview, type AttachmentItem } from "@/components/planning/attachment-preview"
 import { toast } from "sonner"
 
 import {
@@ -37,7 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { AlertCircle, Clock, User, Tag, CalendarDays, Trash2, MessageCircle } from "lucide-react"
+import { AlertCircle, Clock, User, Tag, CalendarDays, Trash2, MessageCircle, Paperclip } from "lucide-react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,6 +169,8 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
   const [assignmentForm, setAssignmentForm] = useState({ assigneeEmails: [] as string[], dueDate: "" })
   const [assignmentErrors, setAssignmentErrors] = useState<AssignmentFormErrors>({})
   const [isSavingAssignment, setIsSavingAssignment] = useState(false)
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([])
+  const [isAttachmentPending, startAttachmentTransition] = useTransition()
 
   // Fetch comments whenever the selected task changes
   useEffect(() => {
@@ -170,6 +179,7 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
       setCommentBody("")
       setAssignmentForm({ assigneeEmails: [], dueDate: "" })
       setAssignmentErrors({})
+      setAttachments([])
       return
     }
     setAssignmentForm({
@@ -180,6 +190,11 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
     getTaskCommentsAction(task.id).then((res) => {
       if (res.success) {
         setComments(res.data)
+      }
+    })
+    getTaskAttachmentsAction(task.id).then((res) => {
+      if (res.success) {
+        setAttachments(res.data)
       }
     })
   }, [task?.id])
@@ -281,6 +296,41 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
     } finally {
       setIsSavingAssignment(false)
     }
+  }
+
+  // ─── Attachment handlers ─────────────────────────────────────────────
+
+  function handleAttachmentUpload(file: { url: string; name: string; mimeType: string; sizeBytes: number }) {
+    if (!task) return
+    // Optimistic: add a temp item
+    const tempId = `temp-attach-${Date.now()}`
+    const optimistic: AttachmentItem = { id: tempId, url: file.url, name: file.name, mimeType: file.mimeType, sizeBytes: file.sizeBytes }
+    setAttachments((prev) => [...prev, optimistic])
+    startAttachmentTransition(async () => {
+      const res = await addTaskAttachment(task.id, file)
+      if (res.success && res.data) {
+        setAttachments((prev) => prev.map((a) => a.id === tempId ? res.data as AttachmentItem : a))
+        toast.success("Attachment added")
+      } else {
+        setAttachments((prev) => prev.filter((a) => a.id !== tempId))
+        toast.error(res.error ?? "Failed to save attachment")
+      }
+    })
+  }
+
+  function handleAttachmentRemove(attachmentId: string) {
+    if (!task) return
+    const snapshot = attachments.find((a) => a.id === attachmentId)
+    setAttachments((prev) => prev.filter((a) => a.id !== attachmentId))
+    startAttachmentTransition(async () => {
+      const res = await removeTaskAttachment(attachmentId, task.id)
+      if (!res.success) {
+        if (snapshot) setAttachments((prev) => [...prev, snapshot])
+        toast.error(res.error ?? "Failed to remove attachment")
+      } else {
+        toast.success("Attachment removed")
+      }
+    })
   }
 
   // ─── Render ──────────────────────────────────────────────────────────
@@ -526,6 +576,28 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
                     </Button>
                   </div>
                 </div>
+              </div>
+
+              <Separator className="bg-border/40" />
+
+              {/* Attachments section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Paperclip className="h-4 w-4 text-[#c57a3a]" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Attachments ({attachments.length})
+                  </p>
+                </div>
+                {attachments.length > 0 && (
+                  <AttachmentPreview
+                    attachments={attachments}
+                    onRemove={handleAttachmentRemove}
+                  />
+                )}
+                <AttachmentUploader
+                  onUpload={handleAttachmentUpload}
+                  disabled={isAttachmentPending}
+                />
               </div>
             </div>
 

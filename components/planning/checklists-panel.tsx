@@ -15,6 +15,8 @@ import {
   isValidAssignee,
   type TeamMemberOption,
 } from "@/components/planning/assignee-select"
+import { AttachmentUploader } from "@/components/planning/attachment-uploader"
+import { AttachmentPreview, type AttachmentItem } from "@/components/planning/attachment-preview"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -43,10 +45,44 @@ import {
   ChevronUp,
   ClipboardList,
   Loader2,
+  Paperclip,
   Plus,
   Trash2,
   UserRound,
 } from "lucide-react"
+
+// ─── Per-item attachment state (stored in component memory) ───────────────────
+// We store uploaded file data locally; they persist in EventFile via saveChecklistItemAttachment
+
+type LocalAttachment = AttachmentItem & { saved: boolean }
+
+async function saveChecklistItemAttachment(
+  eventId: string,
+  itemId: string,
+  uploaderEmail: string,
+  file: { url: string; name: string; mimeType: string; sizeBytes: number }
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    const { addChecklistItemAttachment } = await import("@/actions/attachments")
+    const res = await addChecklistItemAttachment(eventId, itemId, uploaderEmail, file)
+    return { success: res.success, id: res.data?.id, error: res.error }
+  } catch (e: unknown) {
+    return { success: false, error: e instanceof Error ? e.message : "Upload failed" }
+  }
+}
+
+async function removeChecklistItemAttachment(
+  fileId: string,
+  eventId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { removeChecklistItemAttachmentAction } = await import("@/actions/attachments")
+    const res = await removeChecklistItemAttachmentAction(fileId, eventId)
+    return { success: res.success, error: res.error }
+  } catch (e: unknown) {
+    return { success: false, error: e instanceof Error ? e.message : "Remove failed" }
+  }
+}
 
 type ChecklistItemInput = {
   title: string
@@ -168,64 +204,125 @@ function ChecklistItemRow({
   onToggle,
   onDelete,
   isPending,
+  eventId,
+  uploaderEmail,
 }: {
   item: ChecklistItemSerialized
   onToggle: (itemId: string, currentValue: boolean) => void
   onDelete: (itemId: string) => void
   isPending: boolean
+  eventId: string
+  uploaderEmail: string
 }) {
   const priority = PRIORITY_BY_VALUE[item.priority]
   const isOverdue =
     item.dueDate && !item.isCompleted ? new Date(item.dueDate).getTime() < Date.now() : false
 
+  const [showAttachments, setShowAttachments] = useState(false)
+  const [localAttachments, setLocalAttachments] = useState<LocalAttachment[]>([])
+
+  async function handleAttachUpload(file: { url: string; name: string; mimeType: string; sizeBytes: number }) {
+    const tempId = `temp-cl-${Date.now()}`
+    const optimistic: LocalAttachment = { id: tempId, url: file.url, name: file.name, mimeType: file.mimeType, sizeBytes: file.sizeBytes, saved: false }
+    setLocalAttachments((prev) => [...prev, optimistic])
+    const res = await saveChecklistItemAttachment(eventId, item.id, uploaderEmail, file)
+    if (res.success && res.id) {
+      setLocalAttachments((prev) => prev.map((a) => a.id === tempId ? { ...a, id: res.id!, saved: true } : a))
+    } else {
+      setLocalAttachments((prev) => prev.filter((a) => a.id !== tempId))
+    }
+  }
+
+  async function handleAttachRemove(attachmentId: string) {
+    setLocalAttachments((prev) => prev.filter((a) => a.id !== attachmentId))
+    await removeChecklistItemAttachment(attachmentId, eventId)
+  }
+
   return (
-    <div className="group flex items-start gap-2 rounded-md px-2 py-2 transition-colors hover:bg-[#F7EDDB]/50">
-      <input
-        type="checkbox"
-        checked={item.isCompleted}
-        onChange={() => onToggle(item.id, item.isCompleted)}
-        disabled={isPending}
-        className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-[#c57a3a]"
-      />
-      <div className="min-w-0 flex-1">
-        <span
-          className={cn(
-            "block text-sm transition-all",
-            item.isCompleted ? "line-through text-muted-foreground" : "text-foreground",
+    <div className="rounded-md transition-colors hover:bg-[#F7EDDB]/50">
+      <div className="group flex items-start gap-2 px-2 py-2">
+        <input
+          type="checkbox"
+          checked={item.isCompleted}
+          onChange={() => onToggle(item.id, item.isCompleted)}
+          disabled={isPending}
+          className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-[#c57a3a]"
+        />
+        <div className="min-w-0 flex-1">
+          <span
+            className={cn(
+              "block text-sm transition-all",
+              item.isCompleted ? "line-through text-muted-foreground" : "text-foreground",
+            )}
+          >
+            {item.title}
+          </span>
+          {(item.assignedTo || item.dueDate || item.priority !== "MEDIUM") && (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+              {item.assignedTo && (
+                <span className="inline-flex items-center gap-1">
+                  <UserRound className="h-3 w-3" />
+                  {item.assignedTo}
+                </span>
+              )}
+              {item.dueDate && (
+                <span className={cn("inline-flex items-center gap-1", isOverdue && "font-medium text-red-600")}>
+                  <CalendarClock className="h-3 w-3" />
+                  {formatDueDate(item.dueDate)}
+                </span>
+              )}
+              {priority && item.priority !== "MEDIUM" && (
+                <span className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-semibold", priority.className)}>
+                  {priority.label}
+                </span>
+              )}
+            </div>
           )}
-        >
-          {item.title}
-        </span>
-        {(item.assignedTo || item.dueDate || item.priority !== "MEDIUM") && (
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            {item.assignedTo && (
-              <span className="inline-flex items-center gap-1">
-                <UserRound className="h-3 w-3" />
-                {item.assignedTo}
-              </span>
+        </div>
+        <div className="shrink-0 flex items-center gap-1">
+          <button
+            onClick={() => setShowAttachments((v) => !v)}
+            className={cn(
+              "rounded p-0.5 transition-opacity",
+              showAttachments || localAttachments.length > 0
+                ? "text-[#c57a3a] opacity-100"
+                : "text-muted-foreground opacity-0 group-hover:opacity-100"
             )}
-            {item.dueDate && (
-              <span className={cn("inline-flex items-center gap-1", isOverdue && "font-medium text-red-600")}>
-                <CalendarClock className="h-3 w-3" />
-                {formatDueDate(item.dueDate)}
-              </span>
-            )}
-            {priority && item.priority !== "MEDIUM" && (
-              <span className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-semibold", priority.className)}>
-                {priority.label}
-              </span>
-            )}
-          </div>
-        )}
+            title="Attachments"
+            aria-label="Toggle attachments"
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+          </button>
+          {localAttachments.length > 0 && (
+            <span className="text-[10px] font-medium text-[#c57a3a]">{localAttachments.length}</span>
+          )}
+          <button
+            onClick={() => onDelete(item.id)}
+            disabled={isPending}
+            className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive disabled:opacity-40"
+            aria-label="Delete item"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
-      <button
-        onClick={() => onDelete(item.id)}
-        disabled={isPending}
-        className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive disabled:opacity-40"
-        aria-label="Delete item"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+
+      {/* Inline attachment panel */}
+      {showAttachments && (
+        <div className="mx-2 mb-2 rounded-lg border border-[#c57a3a]/15 bg-white/60 px-3 py-2 space-y-2">
+          {localAttachments.length > 0 && (
+            <AttachmentPreview
+              attachments={localAttachments}
+              onRemove={handleAttachRemove}
+              compact
+            />
+          )}
+          <AttachmentUploader
+            onUpload={(file) => void handleAttachUpload(file)}
+            compact
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -239,6 +336,8 @@ function ChecklistCard({
   onDeleteItem,
   assignees,
   isPending,
+  eventId,
+  uploaderEmail,
 }: {
   checklist: ChecklistSerialized
   onToggle: (itemId: string, currentValue: boolean) => void
@@ -246,6 +345,8 @@ function ChecklistCard({
   onDeleteItem: (itemId: string) => void
   assignees: TeamMemberOption[]
   isPending: boolean
+  eventId: string
+  uploaderEmail: string
 }) {
   const [expanded, setExpanded] = useState(true)
   const [itemForm, setItemForm] = useState<ChecklistItemForm>({
@@ -385,6 +486,8 @@ function ChecklistCard({
                       onToggle={onToggle}
                       onDelete={onDeleteItem}
                       isPending={isPending}
+                      eventId={eventId}
+                      uploaderEmail={uploaderEmail}
                     />
                   ))}
                 </div>
@@ -402,6 +505,8 @@ function ChecklistCard({
                   onToggle={onToggle}
                   onDelete={onDeleteItem}
                   isPending={isPending}
+                  eventId={eventId}
+                  uploaderEmail={uploaderEmail}
                 />
               ))}
             </div>
@@ -738,6 +843,8 @@ export function ChecklistsPanelClient({
                 onDeleteItem={handleDeleteItem}
                 assignees={assignees}
                 isPending={isPending}
+                eventId={eventId}
+                uploaderEmail={currentEmail}
               />
             ))
           )}

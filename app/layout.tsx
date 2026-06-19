@@ -12,7 +12,6 @@ export const metadata: Metadata = {
   title: "Teez Events Co. | Premium Event Experiences",
   description:
     "Experience unforgettable events with Teez Events Co. From themed parties to signature social nights, we bring your vision to life.",
-  generator: "v0.app",
   keywords: ["events", "event planning", "event management", "themed parties", "corporate events"],
   manifest: "/manifest.webmanifest",
   appleWebApp: {
