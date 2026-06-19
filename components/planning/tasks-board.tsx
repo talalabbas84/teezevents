@@ -1,17 +1,17 @@
 "use client"
 
-import { useState, useTransition, useMemo } from "react"
+import { useState, useTransition, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import type { PlanningTaskSerialized, TaskStatus, TaskPriority } from "@/lib/planning/types"
 import { createTask, updateTaskStatus, deleteTask } from "@/actions/planning"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   MultiAssigneeSelect,
   areValidAssignees,
   type TeamMemberOption,
 } from "@/components/planning/assignee-select"
 
-import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -50,9 +50,29 @@ import {
   Eye,
   CheckCircle2,
   Loader2,
+  GripVertical,
 } from "lucide-react"
 
 import { TaskDetailDrawer } from "@/components/planning/task-detail-drawer"
+
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCorners,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,6 +81,7 @@ type Column = {
   label: string
   topBorder: string
   dotColor: string
+  ringColor: string
   emptyEmoji: string
   emptyLabel: string
   icon: React.ReactNode
@@ -76,6 +97,7 @@ const COLUMNS: Column[] = [
     label: "Not Started",
     topBorder: "border-t-slate-400",
     dotColor: "bg-slate-400",
+    ringColor: "ring-slate-400",
     emptyEmoji: "🗒️",
     emptyLabel: "Not Started",
     icon: <Circle className="h-3.5 w-3.5 text-slate-400" />,
@@ -85,6 +107,7 @@ const COLUMNS: Column[] = [
     label: "In Progress",
     topBorder: "border-t-blue-500",
     dotColor: "bg-blue-500",
+    ringColor: "ring-blue-500",
     emptyEmoji: "⚡",
     emptyLabel: "In Progress",
     icon: <Loader2 className="h-3.5 w-3.5 text-blue-500" />,
@@ -94,6 +117,7 @@ const COLUMNS: Column[] = [
     label: "Needs Review",
     topBorder: "border-t-yellow-500",
     dotColor: "bg-yellow-500",
+    ringColor: "ring-yellow-500",
     emptyEmoji: "👀",
     emptyLabel: "Review",
     icon: <Eye className="h-3.5 w-3.5 text-yellow-500" />,
@@ -103,6 +127,7 @@ const COLUMNS: Column[] = [
     label: "Blocked",
     topBorder: "border-t-red-500",
     dotColor: "bg-red-500",
+    ringColor: "ring-red-500",
     emptyEmoji: "🚧",
     emptyLabel: "Blocked",
     icon: <Ban className="h-3.5 w-3.5 text-red-500" />,
@@ -112,6 +137,7 @@ const COLUMNS: Column[] = [
     label: "Completed",
     topBorder: "border-t-green-500",
     dotColor: "bg-green-500",
+    ringColor: "ring-green-500",
     emptyEmoji: "✅",
     emptyLabel: "Completed",
     icon: <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />,
@@ -174,7 +200,6 @@ function getDueDateMeta(dueDate: string | null): {
   if (!dueDate) return null
   const due = new Date(dueDate)
   const now = new Date()
-  // Normalize to midnight for day comparisons
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -206,9 +231,12 @@ function isValidDateTimeInput(value: string) {
   return Boolean(value && !Number.isNaN(new Date(value).getTime()))
 }
 
+function getEmailHue(email: string) {
+  return Array.from(email).reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 360
+}
+
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
-
   return (
     <p className="flex items-center gap-1.5 text-xs font-medium text-red-600">
       <AlertCircle className="h-3.5 w-3.5" />
@@ -217,57 +245,87 @@ function FieldError({ message }: { message?: string }) {
   )
 }
 
-function AvatarChip({ email }: { email: string }) {
-  const letter = email.charAt(0).toUpperCase()
-  // Deterministic hue from email string
-  const hue = Array.from(email).reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 360
+// ─── Assignee Avatars ─────────────────────────────────────────────────────────
+
+function AssigneeAvatars({ emails }: { emails: string[] }) {
+  if (emails.length === 0) return null
+  const shown = emails.slice(0, 3)
+  const rest = emails.length - shown.length
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
-      style={{ backgroundColor: `hsl(${hue}, 55%, 42%)` }}
-      title={email}
-    >
-      {letter}
-      <span className="max-w-[80px] truncate opacity-90">{email.split("@")[0]}</span>
-    </span>
+    <div className="flex items-center">
+      {shown.map((email, i) => {
+        const hue = getEmailHue(email)
+        return (
+          <span
+            key={email}
+            title={email}
+            className={cn(
+              "inline-flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold text-white border border-white",
+              i > 0 && "-ml-1.5"
+            )}
+            style={{ backgroundColor: `hsl(${hue}, 55%, 42%)` }}
+          >
+            {email.charAt(0).toUpperCase()}
+          </span>
+        )
+      })}
+      {rest > 0 && (
+        <span className="-ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white bg-slate-200 text-[9px] font-bold text-slate-600">
+          +{rest}
+        </span>
+      )}
+    </div>
   )
 }
 
-// ─── Task Card ────────────────────────────────────────────────────────────────
+// ─── Task Card Content (shared between sortable card and DragOverlay) ─────────
 
-function TaskCard({
+function TaskCardContent({
   task,
   onStatusChange,
   onDelete,
   onOpen,
   isPending,
   pendingTaskId,
+  isDragging = false,
+  isOverlay = false,
+  dragHandleProps,
 }: {
   task: PlanningTaskSerialized
-  onStatusChange: (taskId: string, status: TaskStatus) => void
-  onDelete: (taskId: string) => void
-  onOpen: (task: PlanningTaskSerialized) => void
-  isPending: boolean
-  pendingTaskId: string | null
+  onStatusChange?: (taskId: string, status: TaskStatus) => void
+  onDelete?: (taskId: string) => void
+  onOpen?: (task: PlanningTaskSerialized) => void
+  isPending?: boolean
+  pendingTaskId?: string | null
+  isDragging?: boolean
+  isOverlay?: boolean
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
 }) {
   const transitions = STATUS_TRANSITIONS[task.status] ?? []
   const dueMeta = getDueDateMeta(task.dueDate)
   const completedSubtasks = task.subtasks.filter((s) => s.status === "COMPLETED").length
   const isThisCardPending = isPending && pendingTaskId === task.id
+  const taskAssignees =
+    task.assigneeEmails.length > 0
+      ? task.assigneeEmails
+      : task.assignedTo
+      ? [task.assignedTo]
+      : []
 
   return (
     <div
       className={cn(
         "group relative rounded-xl border border-border bg-white shadow-sm",
-        "cursor-pointer transition-all duration-150",
-        "hover:shadow-md hover:-translate-y-0.5",
         "border-l-4",
         PRIORITY_LEFT_BORDER[task.priority],
+        !isOverlay && "transition-shadow hover:shadow-md",
+        !isDragging && !isOverlay && "cursor-pointer hover:-translate-y-0.5 transition-all duration-150",
+        isDragging && "opacity-40",
+        isOverlay && "shadow-2xl rotate-1 cursor-grabbing",
         isThisCardPending && "opacity-60 pointer-events-none"
       )}
-      onClick={() => onOpen(task)}
+      onClick={!isDragging && !isOverlay ? () => onOpen?.(task) : undefined}
     >
-      {/* Pending overlay spinner */}
       {isThisCardPending && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/40 z-10">
           <Loader2 className="h-5 w-5 animate-spin text-[#c57a3a]" />
@@ -275,22 +333,39 @@ function TaskCard({
       )}
 
       <div className="p-3 space-y-2.5">
-        {/* Title row + delete */}
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium leading-snug text-foreground line-clamp-2 flex-1">
+        {/* Title row: drag handle + title + delete */}
+        <div className="flex items-start gap-1.5">
+          {/* Drag handle */}
+          <div
+            {...dragHandleProps}
+            className={cn(
+              "mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground/40",
+              "opacity-0 group-hover:opacity-100 transition-opacity",
+              isOverlay && "opacity-100",
+              "cursor-grab active:cursor-grabbing hover:text-muted-foreground"
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </div>
+
+          <p className="flex-1 text-sm font-medium leading-snug text-foreground line-clamp-2">
             {task.title}
           </p>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(task.id)
-            }}
-            disabled={isPending}
-            className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive hover:bg-red-50 disabled:opacity-40"
-            aria-label="Delete task"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+
+          {!isOverlay && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete?.(task.id)
+              }}
+              disabled={isPending}
+              className="shrink-0 mt-0.5 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive hover:bg-red-50 disabled:opacity-40"
+              aria-label="Delete task"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Description preview */}
@@ -318,17 +393,17 @@ function TaskCard({
           )}
         </div>
 
-        {/* Meta: due date + assignee */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          {dueMeta && (
-            <span className={cn("flex items-center gap-1 text-[11px] font-medium", dueMeta.className)}>
-              <dueMeta.Icon className="h-3 w-3" />
-              {dueMeta.label}
-            </span>
-          )}
-          {(task.assigneeEmails.length > 0 ? task.assigneeEmails : task.assignedTo ? [task.assignedTo] : []).map((email) => (
-            <AvatarChip key={email} email={email} />
-          ))}
+        {/* Meta: due date + assignees */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {dueMeta && (
+              <span className={cn("flex items-center gap-1 text-[11px] font-medium", dueMeta.className)}>
+                <dueMeta.Icon className="h-3 w-3" />
+                {dueMeta.label}
+              </span>
+            )}
+          </div>
+          <AssigneeAvatars emails={taskAssignees} />
         </div>
 
         {/* Subtasks + Comments row */}
@@ -346,18 +421,21 @@ function TaskCard({
                 {task.commentCount}
               </span>
             )}
+            <span className="ml-auto text-[10px] text-muted-foreground/50">
+              #{task.id.slice(-4)}
+            </span>
           </div>
         )}
 
-        {/* Quick status transitions */}
-        {transitions.length > 0 && (
+        {/* Quick status transitions — hidden in overlay */}
+        {!isOverlay && transitions.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-0.5 border-t border-border/50">
             {transitions.map((nextStatus) => (
               <button
                 key={nextStatus}
                 onClick={(e) => {
                   e.stopPropagation()
-                  onStatusChange(task.id, nextStatus)
+                  onStatusChange?.(task.id, nextStatus)
                 }}
                 disabled={isPending}
                 className="flex items-center gap-0.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-[#F7EDDB] hover:text-[#c57a3a] hover:border-[#c57a3a]/30 disabled:opacity-50"
@@ -369,6 +447,53 @@ function TaskCard({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── Sortable Task Card ────────────────────────────────────────────────────────
+
+function SortableTaskCard({
+  task,
+  onStatusChange,
+  onDelete,
+  onOpen,
+  isPending,
+  pendingTaskId,
+}: {
+  task: PlanningTaskSerialized
+  onStatusChange: (taskId: string, status: TaskStatus) => void
+  onDelete: (taskId: string) => void
+  onOpen: (task: PlanningTaskSerialized) => void
+  isPending: boolean
+  pendingTaskId: string | null
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TaskCardContent
+        task={task}
+        onStatusChange={onStatusChange}
+        onDelete={onDelete}
+        onOpen={onOpen}
+        isPending={isPending}
+        pendingTaskId={pendingTaskId}
+        isDragging={isDragging}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
     </div>
   )
 }
@@ -406,12 +531,20 @@ export function TasksBoardClient({
   const [isPending, startTransition] = useTransition()
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null)
 
+  // Local task state (for optimistic DnD updates)
+  const [tasks, setTasks] = useState<PlanningTaskSerialized[]>(initialTasks)
+
+  // DnD state
+  const [activeTask, setActiveTask] = useState<PlanningTaskSerialized | null>(null)
+  const [overColumnId, setOverColumnId] = useState<TaskStatus | null>(null)
+
   // Drawer state
   const [selectedTask, setSelectedTask] = useState<PlanningTaskSerialized | null>(null)
 
   // Dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [dialogTab, setDialogTab] = useState("basic")
+  const [addDialogDefaultStatus, setAddDialogDefaultStatus] = useState<TaskStatus>("NOT_STARTED")
 
   // Filter / search state
   const [searchQuery, setSearchQuery] = useState("")
@@ -425,6 +558,7 @@ export function TasksBoardClient({
     title: "",
     description: "",
     priority: "MEDIUM" as TaskPriority,
+    status: "NOT_STARTED" as TaskStatus,
     category: "",
     dueDate: "",
     assigneeEmails: [] as string[],
@@ -433,45 +567,73 @@ export function TasksBoardClient({
   const [formError, setFormError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // ─── DnD sensors ──────────────────────────────────────────────────
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    })
+  )
+
   // ─── Derived data ─────────────────────────────────────────────────
 
   const uniqueCategories = useMemo(() => {
     const cats = new Set<string>()
-    initialTasks.forEach((t) => {
+    tasks.forEach((t) => {
       if (t.category) cats.add(t.category)
     })
     return Array.from(cats).sort()
-  }, [initialTasks])
+  }, [tasks])
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const now = Date.now()
     const weekFromNow = now + 7 * 24 * 60 * 60 * 1000
 
-    return initialTasks.filter((t) => {
-      const taskAssignees = t.assigneeEmails.length > 0 ? t.assigneeEmails : t.assignedTo ? [t.assignedTo] : []
+    return tasks.filter((t) => {
+      const taskAssignees =
+        t.assigneeEmails.length > 0
+          ? t.assigneeEmails
+          : t.assignedTo
+          ? [t.assignedTo]
+          : []
       const dueDate = t.dueDate ? new Date(t.dueDate) : null
       const hasValidDueDate = dueDate !== null && !Number.isNaN(dueDate.getTime())
-      const dueTime = hasValidDueDate ? dueDate.getTime() : null
+      const dueTime = hasValidDueDate ? dueDate!.getTime() : null
 
       if (priorityFilter !== "ALL" && t.priority !== priorityFilter) return false
       if (categoryFilter !== "ALL" && t.category !== categoryFilter) return false
       if (assigneeFilter === "ME" && !taskAssignees.includes(adminEmail)) return false
       if (assigneeFilter === "UNASSIGNED" && taskAssignees.length > 0) return false
-      if (!["ALL", "ME", "UNASSIGNED"].includes(assigneeFilter) && !taskAssignees.includes(assigneeFilter)) return false
-      if (dueFilter === "OVERDUE" && (dueTime === null || dueTime >= now || t.status === "COMPLETED")) return false
-      if (dueFilter === "THIS_WEEK" && (dueTime === null || dueTime < now || dueTime > weekFromNow)) return false
+      if (
+        !["ALL", "ME", "UNASSIGNED"].includes(assigneeFilter) &&
+        !taskAssignees.includes(assigneeFilter)
+      )
+        return false
+      if (
+        dueFilter === "OVERDUE" &&
+        (dueTime === null || dueTime >= now || t.status === "COMPLETED")
+      )
+        return false
+      if (
+        dueFilter === "THIS_WEEK" &&
+        (dueTime === null || dueTime < now || dueTime > weekFromNow)
+      )
+        return false
       if (dueFilter === "NO_DATE" && hasValidDueDate) return false
       if (q) {
-        const haystack = `${t.title} ${t.description ?? ""} ${t.category ?? ""} ${taskAssignees.join(" ")}`.toLowerCase()
+        const haystack =
+          `${t.title} ${t.description ?? ""} ${t.category ?? ""} ${taskAssignees.join(" ")}`.toLowerCase()
         if (!haystack.includes(q)) return false
       }
       return true
     })
-  }, [adminEmail, initialTasks, searchQuery, priorityFilter, categoryFilter, assigneeFilter, dueFilter])
+  }, [adminEmail, tasks, searchQuery, priorityFilter, categoryFilter, assigneeFilter, dueFilter])
 
-  const tasksByStatus = (status: TaskStatus) =>
-    filteredTasks.filter((t) => t.status === status)
+  const tasksByStatus = useCallback(
+    (status: TaskStatus) => filteredTasks.filter((t) => t.status === status),
+    [filteredTasks]
+  )
 
   const totalFiltered = filteredTasks.length
   const hasActiveFilters =
@@ -482,24 +644,127 @@ export function TasksBoardClient({
     dueFilter !== "ALL"
   const dateTimeMin = useMemo(() => getDateTimeInputMin(), [])
 
+  // ─── DnD Handlers ─────────────────────────────────────────────────
+
+  function handleDragStart(event: DragStartEvent) {
+    const task = tasks.find((t) => t.id === event.active.id)
+    if (task) setActiveTask(task)
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const { over } = event
+    if (!over) {
+      setOverColumnId(null)
+      return
+    }
+    // over could be a column id or a task id — resolve to column
+    const overId = over.id as string
+    const isColumn = COLUMNS.some((c) => c.id === overId)
+    if (isColumn) {
+      setOverColumnId(overId as TaskStatus)
+    } else {
+      const overTask = tasks.find((t) => t.id === overId)
+      if (overTask) setOverColumnId(overTask.status)
+    }
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    setActiveTask(null)
+    setOverColumnId(null)
+
+    if (!over) return
+
+    const activeId = active.id as string
+    const overId = over.id as string
+
+    const draggedTask = tasks.find((t) => t.id === activeId)
+    if (!draggedTask) return
+
+    // Resolve target column
+    const isOverColumn = COLUMNS.some((c) => c.id === overId)
+    const targetStatus: TaskStatus = isOverColumn
+      ? (overId as TaskStatus)
+      : (tasks.find((t) => t.id === overId)?.status ?? draggedTask.status)
+
+    if (targetStatus === draggedTask.status && activeId === overId) return
+
+    if (targetStatus !== draggedTask.status) {
+      // Optimistically update local state
+      setTasks((prev) =>
+        prev.map((t) => (t.id === activeId ? { ...t, status: targetStatus } : t))
+      )
+      // Also update selectedTask if it's the one being moved
+      setSelectedTask((prev) => (prev?.id === activeId ? { ...prev, status: targetStatus } : prev))
+
+      // Call server action
+      startTransition(async () => {
+        const result = await updateTaskStatus(activeId, targetStatus)
+        if (!result.success) {
+          // Revert on error
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === activeId ? { ...t, status: draggedTask.status } : t
+            )
+          )
+          toast.error("Failed to update task status. Please try again.")
+        } else {
+          router.refresh()
+        }
+      })
+    } else {
+      // Reorder within same column using arrayMove
+      const colTaskIds = tasks
+        .filter((t) => t.status === targetStatus)
+        .map((t) => t.id)
+      const oldIndex = colTaskIds.indexOf(activeId)
+      const newIndex = colTaskIds.indexOf(overId)
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        const reorderedIds = arrayMove(colTaskIds, oldIndex, newIndex)
+        setTasks((prev) => {
+          const colTasks = prev.filter((t) => t.status === targetStatus)
+          const otherTasks = prev.filter((t) => t.status !== targetStatus)
+          const reordered = reorderedIds.map((id) => colTasks.find((t) => t.id === id)!)
+          return [...otherTasks, ...reordered]
+        })
+      }
+    }
+  }
+
   // ─── Handlers ─────────────────────────────────────────────────────
 
   function handleStatusChange(taskId: string, status: TaskStatus) {
     setPendingTaskId(taskId)
     startTransition(async () => {
-      await updateTaskStatus(taskId, status)
+      const result = await updateTaskStatus(taskId, status)
       setPendingTaskId(null)
-      router.refresh()
+      if (!result.success) {
+        toast.error("Failed to update task status.")
+      } else {
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status } : t)))
+        router.refresh()
+      }
     })
   }
 
   function handleDelete(taskId: string) {
     setPendingTaskId(taskId)
     startTransition(async () => {
-      await deleteTask(taskId)
+      const result = await deleteTask(taskId)
       setPendingTaskId(null)
-      router.refresh()
+      if (!result.success) {
+        toast.error("Failed to delete task.")
+      } else {
+        setTasks((prev) => prev.filter((t) => t.id !== taskId))
+        router.refresh()
+      }
     })
+  }
+
+  function openAddDialog(status: TaskStatus = "NOT_STARTED") {
+    setAddDialogDefaultStatus(status)
+    setForm((f) => ({ ...f, status }))
+    setAddDialogOpen(true)
   }
 
   async function handleAddTask(e: React.FormEvent) {
@@ -532,6 +797,7 @@ export function TasksBoardClient({
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         priority: form.priority,
+        status: form.status,
         category: form.category.trim() || undefined,
         dueDate: form.dueDate ? new Date(form.dueDate) : undefined,
         assigneeEmails: form.assigneeEmails,
@@ -547,10 +813,12 @@ export function TasksBoardClient({
         title: "",
         description: "",
         priority: "MEDIUM",
+        status: "NOT_STARTED",
         category: "",
         dueDate: "",
         assigneeEmails: [],
       })
+      toast.success("Task created.")
       router.refresh()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to create task."
@@ -578,9 +846,9 @@ export function TasksBoardClient({
         <div className="flex items-center gap-2.5">
           <h2 className="font-serif text-xl font-semibold text-[#c57a3a]">Task Board</h2>
           <span className="rounded-full bg-[#c57a3a]/10 px-2.5 py-0.5 text-sm font-medium text-[#c57a3a]">
-            {initialTasks.length} tasks
+            {tasks.length} tasks
           </span>
-          {hasActiveFilters && totalFiltered !== initialTasks.length && (
+          {hasActiveFilters && totalFiltered !== tasks.length && (
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {totalFiltered} shown
             </span>
@@ -588,7 +856,7 @@ export function TasksBoardClient({
         </div>
         <Button
           size="sm"
-          onClick={() => setAddDialogOpen(true)}
+          onClick={() => openAddDialog("NOT_STARTED")}
           className="bg-[#c57a3a] hover:bg-[#b06830] text-white shadow-sm"
         >
           <Plus className="mr-1.5 h-4 w-4" />
@@ -692,53 +960,89 @@ export function TasksBoardClient({
       </div>
 
       {/* ── Kanban board ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {COLUMNS.map((col) => {
-          const colTasks = tasksByStatus(col.id)
-          const completedInCol =
-            col.id === "COMPLETED"
-              ? colTasks.length
-              : colTasks.filter((t) => t.status === "COMPLETED").length
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {COLUMNS.map((col) => {
+            const colTasks = tasksByStatus(col.id)
+            const colTaskIds = colTasks.map((t) => t.id)
+            const isOver = overColumnId === col.id
 
-          return (
-            <div key={col.id} className="flex flex-col gap-3">
-              {/* Column header */}
-              <div
-                className={cn(
-                  "flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5 shadow-sm",
-                  "border-t-2",
-                  col.topBorder
-                )}
-              >
-                {col.icon}
-                <span className="text-sm font-semibold text-foreground">{col.label}</span>
-                <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  {colTasks.length}
-                </span>
-              </div>
+            return (
+              <div key={col.id} className="flex flex-col gap-3">
+                {/* Column header */}
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5 shadow-sm transition-all duration-150",
+                    "border-t-2",
+                    col.topBorder,
+                    isOver && `ring-2 ${col.ringColor}`
+                  )}
+                >
+                  {col.icon}
+                  <span className="text-sm font-semibold text-foreground">{col.label}</span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {colTasks.length}
+                  </span>
+                  <button
+                    className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-[#F7EDDB] hover:text-[#c57a3a]"
+                    onClick={() => openAddDialog(col.id)}
+                    title={`Add task to ${col.label}`}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
 
-              {/* Task cards list */}
-              <div className="flex min-h-[120px] flex-col gap-2">
-                {colTasks.length === 0 ? (
-                  <ColumnEmpty col={col} />
-                ) : (
-                  colTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      onStatusChange={handleStatusChange}
-                      onDelete={handleDelete}
-                      onOpen={setSelectedTask}
-                      isPending={isPending}
-                      pendingTaskId={pendingTaskId}
-                    />
-                  ))
-                )}
+                {/* Task cards list — droppable via SortableContext + column id */}
+                <SortableContext
+                  id={col.id}
+                  items={colTaskIds}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div
+                    className={cn(
+                      "flex min-h-[120px] flex-col gap-2 rounded-xl transition-colors duration-150",
+                      isOver && "bg-muted/30"
+                    )}
+                  >
+                    {colTasks.length === 0 ? (
+                      <ColumnEmpty col={col} />
+                    ) : (
+                      colTasks.map((task) => (
+                        <SortableTaskCard
+                          key={task.id}
+                          task={task}
+                          onStatusChange={handleStatusChange}
+                          onDelete={handleDelete}
+                          onOpen={setSelectedTask}
+                          isPending={isPending}
+                          pendingTaskId={pendingTaskId}
+                        />
+                      ))
+                    )}
+                  </div>
+                </SortableContext>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+
+        {/* DragOverlay — full-opacity floating card */}
+        <DragOverlay dropAnimation={null}>
+          {activeTask ? (
+            <TaskCardContent
+              task={activeTask}
+              isOverlay
+              dragHandleProps={{}}
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {/* ── Task Detail Drawer ── */}
       <TaskDetailDrawer
@@ -827,6 +1131,30 @@ export function TasksBoardClient({
                           <span className="flex items-center gap-2">
                             <span className={cn("h-2 w-2 rounded-full", PRIORITY_DOT[p.value])} />
                             {p.label}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="task-status" className="text-sm font-medium text-foreground">
+                    Column
+                  </Label>
+                  <Select
+                    value={form.status}
+                    onValueChange={(v) => setForm((f) => ({ ...f, status: v as TaskStatus }))}
+                  >
+                    <SelectTrigger id="task-status" className="bg-white border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLUMNS.map((col) => (
+                        <SelectItem key={col.id} value={col.id}>
+                          <span className="flex items-center gap-2">
+                            <span className={cn("h-2 w-2 rounded-full", col.dotColor)} />
+                            {col.label}
                           </span>
                         </SelectItem>
                       ))}
