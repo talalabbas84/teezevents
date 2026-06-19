@@ -18,6 +18,7 @@ import {
   ListChecks,
   MessageSquare,
   Radio,
+  Share2,
   Sparkles,
   StickyNote,
 } from "lucide-react"
@@ -34,6 +35,7 @@ import {
 
 const SUB_NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, slug: "dashboard" },
+  { label: "Distribution", icon: Share2, slug: "distribution" },
   { label: "Tasks", icon: CheckSquare, slug: "tasks" },
   { label: "Collaboration", icon: MessageSquare, slug: "collaboration" },
   { label: "Checklists", icon: ListChecks, slug: "checklists" },
@@ -120,24 +122,24 @@ export function PlanningWorkspaceShell({
   return (
     <div className="flex min-h-screen flex-col">
       {/* Sticky header + sub-nav */}
-      <div className="sticky top-0 z-20 bg-background shadow-sm">
+      <div className="sticky top-0 z-20 bg-background/95 shadow-sm backdrop-blur-xl">
         {/* Top header bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 lg:px-6">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5 lg:px-6 lg:py-3">
+          <div className="flex min-w-0 items-center gap-2 lg:gap-4">
             <Link
               href={`/admin/events/${eventId}`}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-background text-sm text-muted-foreground shadow-sm transition-colors hover:text-foreground lg:h-auto lg:w-auto lg:border-0 lg:bg-transparent lg:shadow-none"
             >
               <span aria-hidden="true">←</span>
-              <span>Event Studio</span>
+              <span className="sr-only lg:not-sr-only lg:ml-1.5">Event Studio</span>
             </Link>
 
-            <div className="h-4 w-px bg-border" aria-hidden="true" />
+            <div className="hidden h-4 w-px bg-border lg:block" aria-hidden="true" />
 
-            <div>
-              <h1 className="font-serif text-lg font-bold leading-tight">{eventTitle}</h1>
+            <div className="min-w-0">
+              <h1 className="truncate font-serif text-base font-bold leading-tight lg:text-lg">{eventTitle}</h1>
               {eventDate && (
-                <p className="text-xs text-muted-foreground">{eventDate}</p>
+                <p className="truncate text-xs text-muted-foreground">{eventDate}</p>
               )}
             </div>
           </div>
@@ -148,7 +150,7 @@ export function PlanningWorkspaceShell({
               <button
                 disabled={isPending}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-opacity disabled:opacity-60",
+                  "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-opacity disabled:opacity-60",
                   getStatusStyles(planningStatus)
                 )}
               >
@@ -186,8 +188,8 @@ export function PlanningWorkspaceShell({
         </div>
 
         {/* Horizontal scrollable sub-nav */}
-        <div className="overflow-x-auto border-b border-border">
-          <nav className="flex w-max min-w-full items-center gap-1 px-4 py-2 lg:px-6">
+        <div className="no-scrollbar overflow-x-auto border-b border-border">
+          <nav className="flex w-max min-w-full snap-x items-center gap-1 px-3 py-2 lg:px-6">
             {SUB_NAV_ITEMS.map(({ label, icon: Icon, slug }) => {
               const href = `/admin/planning/${eventId}/${slug}`
               const isActive = pathname.startsWith(href)
@@ -198,14 +200,14 @@ export function PlanningWorkspaceShell({
                   key={slug}
                   href={href}
                   className={cn(
-                    "flex items-center gap-1.5 whitespace-nowrap text-sm font-medium transition-all",
+                    "flex min-h-10 snap-start items-center gap-1.5 whitespace-nowrap rounded-full text-sm font-medium transition-all",
                     isAI
                       ? isActive
-                        ? "rounded-full bg-gradient-to-r from-[#c57a3a] to-amber-500 px-4 py-1.5 text-white shadow-sm"
-                        : "rounded-full border border-[#c57a3a]/30 bg-[#c57a3a]/8 px-4 py-1.5 text-[#c57a3a] hover:border-[#c57a3a]/60 hover:bg-[#c57a3a]/15"
+                        ? "bg-gradient-to-r from-[#c57a3a] to-amber-500 px-4 text-white shadow-sm"
+                        : "border border-[#c57a3a]/30 bg-[#c57a3a]/8 px-4 text-[#c57a3a] hover:border-[#c57a3a]/60 hover:bg-[#c57a3a]/15"
                       : isActive
-                        ? "rounded-full bg-primary px-4 py-1.5 text-primary-foreground"
-                        : "px-4 py-1.5 text-foreground/70 hover:text-foreground"
+                        ? "bg-primary px-4 text-primary-foreground"
+                        : "px-4 text-foreground/70 hover:bg-background/70 hover:text-foreground"
                   )}
                 >
                   <Icon size={14} className={cn(isAI && !isActive && "text-[#c57a3a]")} />

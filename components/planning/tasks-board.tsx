@@ -417,6 +417,8 @@ export function TasksBoardClient({
   const [searchQuery, setSearchQuery] = useState("")
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "ALL">("ALL")
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL")
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("ALL")
+  const [dueFilter, setDueFilter] = useState<string>("ALL")
 
   // Add task form state
   const [form, setForm] = useState({
@@ -443,24 +445,41 @@ export function TasksBoardClient({
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
+    const now = Date.now()
+    const weekFromNow = now + 7 * 24 * 60 * 60 * 1000
+
     return initialTasks.filter((t) => {
+      const taskAssignees = t.assigneeEmails.length > 0 ? t.assigneeEmails : t.assignedTo ? [t.assignedTo] : []
+      const dueDate = t.dueDate ? new Date(t.dueDate) : null
+      const hasValidDueDate = dueDate !== null && !Number.isNaN(dueDate.getTime())
+      const dueTime = hasValidDueDate ? dueDate.getTime() : null
+
       if (priorityFilter !== "ALL" && t.priority !== priorityFilter) return false
       if (categoryFilter !== "ALL" && t.category !== categoryFilter) return false
+      if (assigneeFilter === "ME" && !taskAssignees.includes(adminEmail)) return false
+      if (assigneeFilter === "UNASSIGNED" && taskAssignees.length > 0) return false
+      if (!["ALL", "ME", "UNASSIGNED"].includes(assigneeFilter) && !taskAssignees.includes(assigneeFilter)) return false
+      if (dueFilter === "OVERDUE" && (dueTime === null || dueTime >= now || t.status === "COMPLETED")) return false
+      if (dueFilter === "THIS_WEEK" && (dueTime === null || dueTime < now || dueTime > weekFromNow)) return false
+      if (dueFilter === "NO_DATE" && hasValidDueDate) return false
       if (q) {
-        const inTitle = t.title.toLowerCase().includes(q)
-        const inDesc = t.description?.toLowerCase().includes(q) ?? false
-        if (!inTitle && !inDesc) return false
+        const haystack = `${t.title} ${t.description ?? ""} ${t.category ?? ""} ${taskAssignees.join(" ")}`.toLowerCase()
+        if (!haystack.includes(q)) return false
       }
       return true
     })
-  }, [initialTasks, searchQuery, priorityFilter, categoryFilter])
+  }, [adminEmail, initialTasks, searchQuery, priorityFilter, categoryFilter, assigneeFilter, dueFilter])
 
   const tasksByStatus = (status: TaskStatus) =>
     filteredTasks.filter((t) => t.status === status)
 
   const totalFiltered = filteredTasks.length
   const hasActiveFilters =
-    searchQuery.trim() !== "" || priorityFilter !== "ALL" || categoryFilter !== "ALL"
+    searchQuery.trim() !== "" ||
+    priorityFilter !== "ALL" ||
+    categoryFilter !== "ALL" ||
+    assigneeFilter !== "ALL" ||
+    dueFilter !== "ALL"
   const dateTimeMin = useMemo(() => getDateTimeInputMin(), [])
 
   // ─── Handlers ─────────────────────────────────────────────────────
@@ -578,16 +597,16 @@ export function TasksBoardClient({
       </div>
 
       {/* ── Search & filter bar ── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5 shadow-sm">
+      <div className="sticky top-[calc(7rem+env(safe-area-inset-top))] z-20 -mx-4 flex flex-wrap items-center gap-2 border-y border-border bg-white/95 px-4 py-2.5 shadow-sm backdrop-blur-xl lg:static lg:mx-0 lg:rounded-xl lg:border">
         {/* Search */}
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative min-w-full flex-1 sm:min-w-[220px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <input
             type="text"
             placeholder="Search tasks..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-border bg-muted/30 py-1.5 pl-8 pr-3 text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-[#c57a3a]/30 focus:border-[#c57a3a]/50 transition-all"
+            className="h-10 w-full rounded-lg border border-border bg-muted/30 py-1.5 pl-8 pr-3 text-base placeholder:text-muted-foreground/70 transition-all focus:border-[#c57a3a]/50 focus:outline-none focus:ring-2 focus:ring-[#c57a3a]/30 sm:text-sm"
           />
         </div>
 
@@ -596,7 +615,7 @@ export function TasksBoardClient({
           value={priorityFilter}
           onValueChange={(v) => setPriorityFilter(v as TaskPriority | "ALL")}
         >
-          <SelectTrigger className="w-36 h-9 text-sm border-border bg-muted/30">
+          <SelectTrigger className="h-10 min-w-[135px] flex-1 border-border bg-muted/30 text-sm sm:flex-none">
             <SelectValue placeholder="All Priorities" />
           </SelectTrigger>
           <SelectContent>
@@ -614,7 +633,7 @@ export function TasksBoardClient({
 
         {/* Category filter */}
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-40 h-9 text-sm border-border bg-muted/30">
+          <SelectTrigger className="h-10 min-w-[145px] flex-1 border-border bg-muted/30 text-sm sm:flex-none">
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
           <SelectContent>
@@ -627,6 +646,34 @@ export function TasksBoardClient({
           </SelectContent>
         </Select>
 
+        <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+          <SelectTrigger className="h-10 min-w-[135px] flex-1 border-border bg-muted/30 text-sm sm:flex-none">
+            <SelectValue placeholder="Assignee" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All assignees</SelectItem>
+            <SelectItem value="ME">Assigned to me</SelectItem>
+            <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
+            {assignees.map((member) => (
+              <SelectItem key={member.id} value={member.email}>
+                {member.name ?? member.email}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={dueFilter} onValueChange={setDueFilter}>
+          <SelectTrigger className="h-10 min-w-[125px] flex-1 border-border bg-muted/30 text-sm sm:flex-none">
+            <SelectValue placeholder="Due" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Any due date</SelectItem>
+            <SelectItem value="OVERDUE">Overdue</SelectItem>
+            <SelectItem value="THIS_WEEK">Next 7 days</SelectItem>
+            <SelectItem value="NO_DATE">No due date</SelectItem>
+          </SelectContent>
+        </Select>
+
         {/* Clear filters */}
         {hasActiveFilters && (
           <button
@@ -634,8 +681,10 @@ export function TasksBoardClient({
               setSearchQuery("")
               setPriorityFilter("ALL")
               setCategoryFilter("ALL")
+              setAssigneeFilter("ALL")
+              setDueFilter("ALL")
             }}
-            className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+            className="h-10 rounded-lg border border-border/60 px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
           >
             Clear
           </button>

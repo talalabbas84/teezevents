@@ -89,66 +89,70 @@ enum WebsitePageStatus {
 }
 
 model Event {
-  id                 String                 @id
-  title              String
-  startsAt           DateTime?
-  venue              String?
-  address            String?
-  hostedBy           String?
-  image              String?
-  gallery            Json?
-  previewDescription String?
-  description        String?
-  contentSections    Json?
-  timeline           Json?
-  perks              Json?
-  faqs               Json?
-  policies           Json?
-  shareText          String?
-  category           EventCategory          @default(UPCOMING)
-  eventKind          EventKind              @default(SOCIAL)
-  currency           String                 @default("cad")
-  ticketPriceCents   Int
-  capacity           Int
-  checkoutEnabled    Boolean                @default(false)
-  maxTicketsPerOrder Int                    @default(4)
-  ticketNote         String?
-  featured           Boolean                @default(false)
-  isActive           Boolean                @default(true)
+  id                  String                    @id
+  title               String
+  startsAt            DateTime?
+  venue               String?
+  address             String?
+  hostedBy            String?
+  image               String?
+  gallery             Json?
+  previewDescription  String?
+  description         String?
+  contentSections     Json?
+  timeline            Json?
+  perks               Json?
+  faqs                Json?
+  policies            Json?
+  shareText           String?
+  category            EventCategory             @default(UPCOMING)
+  eventKind           EventKind                 @default(SOCIAL)
+  currency            String                    @default("cad")
+  ticketPriceCents    Int
+  capacity            Int
+  checkoutEnabled     Boolean                   @default(false)
+  maxTicketsPerOrder  Int                       @default(4)
+  ticketNote          String?
+  featured            Boolean                   @default(false)
+  isActive            Boolean                   @default(true)
   // Planning metadata
-  planningStatus     EventPlanningStatus    @default(DRAFT)
-  endsAt             DateTime?
-  expectedAttendance Int?
-  ownerEmail         String?
-  tags               String[]               @default([])
-  internalNotes      String?
-  budgetTotalCents   Int?
-  workspaceId        String?
-  workspace          TeamWorkspace?         @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
-  orders             TicketOrder[]
-  tickets            Ticket[]
-  ticketTiers        TicketTier[]
-  vouchers           Voucher[]
-  rsvps              EventRsvp[]
-  marketingCampaigns MarketingCampaign[]
+  planningStatus      EventPlanningStatus       @default(DRAFT)
+  endsAt              DateTime?
+  expectedAttendance  Int?
+  ownerEmail          String?
+  tags                String[]                  @default([])
+  internalNotes       String?
+  budgetTotalCents    Int?
+  workspaceId         String?
+  workspace           TeamWorkspace?            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  orders              TicketOrder[]
+  tickets             Ticket[]
+  ticketTiers         TicketTier[]
+  vouchers            Voucher[]
+  rsvps               EventRsvp[]
+  marketingCampaigns  MarketingCampaign[]
+  distributions       EventDistribution[]
+  distributionAssets  EventDistributionAsset[]
+  distributionMetrics EventDistributionMetric[]
+  ambassadors         EventAmbassador[]
   // Planning relations
-  planningTasks      PlanningTask[]
-  checklists         Checklist[]
-  budgetItems        BudgetItem[]
-  eventVendors       EventVendor[]
-  runSheetItems      RunSheetItem[]
-  timelineItems      PlanningTimelineItem[]
-  risks              Risk[]
-  activityLogs       PlanningActivityLog[]
-  notifications      Notification[]
-  files              EventFile[]
-  fileFolders        EventFileFolder[]
-  notes              EventNote[]
-  postEventReview    PostEventReview?
-  comments           EventComment[]
-  teamAccess         EventTeamAccess[]
+  planningTasks       PlanningTask[]
+  checklists          Checklist[]
+  budgetItems         BudgetItem[]
+  eventVendors        EventVendor[]
+  runSheetItems       RunSheetItem[]
+  timelineItems       PlanningTimelineItem[]
+  risks               Risk[]
+  activityLogs        PlanningActivityLog[]
+  notifications       Notification[]
+  files               EventFile[]
+  fileFolders         EventFileFolder[]
+  notes               EventNote[]
+  postEventReview     PostEventReview?
+  comments            EventComment[]
+  teamAccess          EventTeamAccess[]
 
   @@index([workspaceId])
 }
@@ -873,6 +877,96 @@ enum ResourceVisibility {
   ADMINS_ONLY
 }
 
+enum DistributionPlatform {
+  WEBSITE
+  EVENTBRITE
+  MEETUP
+  FACEBOOK_EVENTS
+  ALLEVENTS
+  TICKETTAILOR
+  HUMANITIX
+  LUMA
+  PARTIFUL
+  FEVER
+  BANDSINTOWN
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  X
+  LINKEDIN
+  DISCORD
+  WHATSAPP
+  TELEGRAM
+  REDDIT
+  EMAIL
+  SMS
+}
+
+enum DistributionChannelType {
+  OWNED
+  EVENT_PLATFORM
+  SOCIAL
+  COMMUNITY
+}
+
+enum DistributionStatus {
+  NOT_CONNECTED
+  DRAFT
+  READY
+  NEEDS_REVIEW
+  QUEUED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  SYNC_PAUSED
+}
+
+enum DistributionAssetType {
+  INSTAGRAM_POST
+  INSTAGRAM_REEL
+  FACEBOOK_EVENT
+  EVENTBRITE_DESCRIPTION
+  EMAIL_CAMPAIGN
+  SMS_CAMPAIGN
+  DISCORD_ANNOUNCEMENT
+  WHATSAPP_ANNOUNCEMENT
+  TELEGRAM_ANNOUNCEMENT
+  LINKEDIN_POST
+  TIKTOK_SCRIPT
+  X_POST
+  REDDIT_POST
+  GENERAL_COPY
+}
+
+enum DistributionAssetStatus {
+  DRAFT
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DistributionMetricKind {
+  TICKET_SALES
+  REVENUE_CENTS
+  REGISTRATIONS
+  RSVPS
+  ATTENDANCE
+  INTERESTED
+  GOING
+  ENGAGEMENT
+  CLICKS
+  VIEWS
+  SHARES
+}
+
+enum AmbassadorRewardType {
+  NONE
+  FIXED
+  COMMISSION_PERCENT
+  TICKET_CREDIT
+}
+
 enum AutomationTrigger {
   EVENT_CREATED
   EVENT_STATUS_CHANGED
@@ -963,6 +1057,97 @@ model EventFileFolder {
 
   @@unique([eventId, path])
   @@index([eventId, parentId])
+}
+
+model EventDistribution {
+  id                String                    @id @default(cuid())
+  eventId           String
+  event             Event                     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  platform          DistributionPlatform
+  channelType       DistributionChannelType
+  status            DistributionStatus        @default(DRAFT)
+  selected          Boolean                   @default(false)
+  syncEnabled       Boolean                   @default(false)
+  platformListingId String?
+  platformUrl       String?
+  lastPublishedAt   DateTime?
+  lastSyncedAt      DateTime?
+  errorMessage      String?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  assets            EventDistributionAsset[]
+  metricRows        EventDistributionMetric[]
+
+  @@unique([eventId, platform])
+  @@index([eventId, channelType])
+  @@index([eventId, status])
+  @@index([platform, status])
+}
+
+model EventDistributionAsset {
+  id             String                  @id @default(cuid())
+  eventId        String
+  event          Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  distributionId String?
+  distribution   EventDistribution?      @relation(fields: [distributionId], references: [id], onDelete: SetNull)
+  type           DistributionAssetType
+  platform       DistributionPlatform?
+  title          String
+  body           String
+  status         DistributionAssetStatus @default(DRAFT)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@index([eventId, type])
+  @@index([distributionId])
+  @@index([platform, status])
+}
+
+model EventDistributionMetric {
+  id             String                 @id @default(cuid())
+  eventId        String
+  event          Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  distributionId String?
+  distribution   EventDistribution?     @relation(fields: [distributionId], references: [id], onDelete: SetNull)
+  platform       DistributionPlatform?
+  kind           DistributionMetricKind
+  label          String?
+  valueInt       Int?
+  valueDecimal   Decimal?
+  valueText      String?
+  metadata       Json?
+  capturedAt     DateTime               @default(now())
+
+  @@index([eventId, kind, capturedAt])
+  @@index([distributionId, kind])
+  @@index([platform, kind])
+}
+
+model EventAmbassador {
+  id           String               @id @default(cuid())
+  eventId      String
+  event        Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name         String
+  email        String?
+  code         String
+  referralUrl  String
+  rewardType   AmbassadorRewardType @default(COMMISSION_PERCENT)
+  rewardValue  Decimal?
+  salesCount   Int                  @default(0)
+  revenueCents Int                  @default(0)
+  rewardCents  Int                  @default(0)
+  isActive     Boolean              @default(true)
+  notes        String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@unique([eventId, code])
+  @@index([eventId, isActive])
+  @@index([code])
 }
 
 model EventNote {

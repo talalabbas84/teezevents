@@ -3,7 +3,7 @@
 import type { FormEvent } from "react"
 
 import Link from "next/link"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -13,6 +13,7 @@ import {
   ImagePlus,
   Loader2,
   Plus,
+  Search,
   Sparkles,
   Tags,
   TicketPercent,
@@ -2191,8 +2192,38 @@ export function EventEditorCard({
 export function AdminEventStudio({ events }: { events: AdminManagedEventView[] }) {
   const createEventId = "__create__"
   const [selectedEventId, setSelectedEventId] = useState(createEventId)
+  const [eventSearch, setEventSearch] = useState("")
+  const [eventFilter, setEventFilter] = useState("ALL")
   const selectedEvent = events.find((event) => event.id === selectedEventId) || null
   const isCreating = selectedEventId === createEventId || !selectedEvent
+  const filteredEvents = useMemo(() => {
+    const q = eventSearch.trim().toLowerCase()
+    return events.filter((event) => {
+      if (q) {
+        const haystack = `${event.title} ${event.venue ?? ""} ${event.address ?? ""} ${event.hostedBy ?? ""} ${event.eventKind}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+
+      if (eventFilter === "UPCOMING" && event.category !== "UPCOMING") return false
+      if (eventFilter === "PAST" && event.category !== "PAST") return false
+      if (eventFilter === "PUBLIC" && !event.isActive) return false
+      if (eventFilter === "HIDDEN" && event.isActive) return false
+      if (eventFilter === "FEATURED" && !event.featured) return false
+      if (eventFilter === "CHECKOUT" && !event.checkoutEnabled) return false
+
+      return true
+    })
+  }, [eventFilter, eventSearch, events])
+  const selectableEvents =
+    selectedEvent && !filteredEvents.some((event) => event.id === selectedEvent.id)
+      ? [selectedEvent, ...filteredEvents]
+      : filteredEvents
+  const hasEventFilters = eventSearch.trim() !== "" || eventFilter !== "ALL"
+
+  function clearEventFilters() {
+    setEventSearch("")
+    setEventFilter("ALL")
+  }
 
   return (
     <div className="space-y-8">
@@ -2225,6 +2256,53 @@ export function AdminEventStudio({ events }: { events: AdminManagedEventView[] }
             </Button>
           </div>
 
+          <div className="rounded-2xl border border-border bg-muted/20 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="search"
+                  value={eventSearch}
+                  onChange={(event) => setEventSearch(event.target.value)}
+                  placeholder="Search events, venue, host"
+                  className="h-11 w-full rounded-xl border border-border bg-background pl-9 pr-3 text-base outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 sm:text-sm"
+                />
+              </div>
+              {hasEventFilters ? (
+                <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={clearEventFilters}>
+                  Clear
+                </Button>
+              ) : null}
+            </div>
+            <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto">
+              {[
+                { label: "All", value: "ALL" },
+                { label: "Upcoming", value: "UPCOMING" },
+                { label: "Past", value: "PAST" },
+                { label: "Public", value: "PUBLIC" },
+                { label: "Hidden", value: "HIDDEN" },
+                { label: "Featured", value: "FEATURED" },
+                { label: "Checkout", value: "CHECKOUT" },
+              ].map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setEventFilter(filter.value)}
+                  className={
+                    eventFilter === filter.value
+                      ? "h-9 shrink-0 rounded-full border border-primary bg-primary px-3 text-sm font-medium text-primary-foreground"
+                      : "h-9 shrink-0 rounded-full border border-border bg-background px-3 text-sm font-medium text-muted-foreground"
+                  }
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Showing {filteredEvents.length} of {events.length} events.
+            </p>
+          </div>
+
           <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
             <div className="space-y-2">
               <Label htmlFor="event-studio-selected-event">Current Event</Label>
@@ -2235,7 +2313,7 @@ export function AdminEventStudio({ events }: { events: AdminManagedEventView[] }
                 className="w-full rounded-md border-2 border-input bg-background px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value={createEventId}>Create a new event</option>
-                {events.map((event) => (
+                {selectableEvents.map((event) => (
                   <option key={event.id} value={event.id}>
                     {`${event.title} - ${formatStudioDate(event.startsAt)} - ${event.isActive ? "Public" : "Hidden"}${
                       event.featured ? " - Featured" : ""
@@ -2243,6 +2321,11 @@ export function AdminEventStudio({ events }: { events: AdminManagedEventView[] }
                   </option>
                 ))}
               </select>
+              {events.length > 0 && filteredEvents.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No events match these filters. Clear filters or create a new event.
+                </p>
+              ) : null}
             </div>
 
             {!isCreating && selectedEvent ? (

@@ -15,6 +15,10 @@ function hasCurrentGeneratedDelegates(client: PrismaClient) {
       client.teamMember &&
       client.eventComment &&
       client.eventFileFolder &&
+      client.eventDistribution &&
+      client.eventDistributionAsset &&
+      client.eventDistributionMetric &&
+      client.eventAmbassador &&
       client.teamWorkspace &&
       client.eventTeamAccess,
   )

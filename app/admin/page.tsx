@@ -30,12 +30,12 @@ export default async function AdminDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <main className="min-h-screen bg-[#F7EDDB] px-3 py-5 sm:px-4 sm:py-8 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
         {/* Page header */}
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">TEEZ Admin</div>
-          <h1 className="mt-1.5 text-4xl font-serif font-bold">Dashboard</h1>
+          <h1 className="mt-1.5 text-3xl font-serif font-bold sm:text-4xl">Dashboard</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">{`Signed in as ${session.email}`}</p>
         </div>
 
@@ -53,47 +53,47 @@ export default async function AdminDashboardPage() {
         ) : (
           <>
             {/* Summary metrics — always visible */}
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
               <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
+                <CardContent className="space-y-2 p-4 sm:space-y-3 sm:p-5">
                   <Ticket className="text-primary" />
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Tickets Issued</div>
-                  <div className="text-3xl font-serif font-bold">{dashboard.summary.ticketsIssued}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary sm:text-xs sm:tracking-[0.16em]">Tickets Issued</div>
+                  <div className="text-2xl font-serif font-bold sm:text-3xl">{dashboard.summary.ticketsIssued}</div>
                 </CardContent>
               </Card>
               <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
+                <CardContent className="space-y-2 p-4 sm:space-y-3 sm:p-5">
                   <Wallet className="text-primary" />
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gross Revenue</div>
-                  <div className="text-3xl font-serif font-bold">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary sm:text-xs sm:tracking-[0.16em]">Gross Revenue</div>
+                  <div className="text-2xl font-serif font-bold sm:text-3xl">
                     {formatCurrency(dashboard.summary.grossRevenueCents, "cad")}
                   </div>
                 </CardContent>
               </Card>
               <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
+                <CardContent className="space-y-2 p-4 sm:space-y-3 sm:p-5">
                   <DoorOpen className="text-primary" />
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Checked In</div>
-                  <div className="text-3xl font-serif font-bold">{dashboard.summary.checkedInCount}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary sm:text-xs sm:tracking-[0.16em]">Checked In</div>
+                  <div className="text-2xl font-serif font-bold sm:text-3xl">{dashboard.summary.checkedInCount}</div>
                 </CardContent>
               </Card>
               <Card className="border border-border shadow-lg">
-                <CardContent className="space-y-3 p-5">
+                <CardContent className="space-y-2 p-4 sm:space-y-3 sm:p-5">
                   <CalendarDays className="text-primary" />
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Active Events</div>
-                  <div className="text-3xl font-serif font-bold">{dashboard.events.length}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary sm:text-xs sm:tracking-[0.16em]">Active Events</div>
+                  <div className="text-2xl font-serif font-bold sm:text-3xl">{dashboard.events.length}</div>
                 </CardContent>
               </Card>
             </section>
 
             {/* Tabbed sections */}
             <Tabs defaultValue="events" className="space-y-6">
-              <div className="overflow-x-auto rounded-2xl border border-border bg-background p-2 shadow-sm">
+              <div className="no-scrollbar overflow-x-auto rounded-2xl border border-border bg-background p-1.5 shadow-sm sm:p-2">
                 <TabsList className="h-auto w-max min-w-full justify-start gap-1 bg-transparent p-0 md:min-w-0">
-                  <TabsTrigger value="events" className="px-4 py-2">
+                  <TabsTrigger value="events" className="min-h-10 px-4 py-2">
                     {`Events (${dashboard.events.length})`}
                   </TabsTrigger>
-                  <TabsTrigger value="analytics" className="px-4 py-2">
+                  <TabsTrigger value="analytics" className="min-h-10 px-4 py-2">
                     Analytics
                   </TabsTrigger>
                 </TabsList>
@@ -101,11 +101,11 @@ export default async function AdminDashboardPage() {
 
               {/* Events tab */}
               <TabsContent value="events" className="space-y-0">
-                <section className="rounded-3xl border border-border bg-background shadow-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border p-6">
+                <section className="rounded-2xl border border-border bg-background shadow-xl sm:rounded-3xl">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border p-4 sm:p-6">
                     <div>
                       <div className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Event Command Centers</div>
-                      <h2 className="mt-1.5 text-2xl font-serif font-bold">Recent Events</h2>
+                      <h2 className="mt-1.5 text-xl font-serif font-bold sm:text-2xl">Recent Events</h2>
                     </div>
                     <Button asChild variant="outline" className="border-primary text-primary">
                       <Link href="/admin/events">
@@ -116,7 +116,7 @@ export default async function AdminDashboardPage() {
                       </Link>
                     </Button>
                   </div>
-                  <div className="grid gap-4 p-6 lg:grid-cols-3">
+                  <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-3">
                     {dashboard.events.slice(0, 6).map((event) => (
                       <Card key={event.id} className="border border-border bg-muted/10 shadow-sm">
                         <CardContent className="flex h-full flex-col gap-4 p-5">
@@ -145,7 +145,7 @@ export default async function AdminDashboardPage() {
                               <div className="mt-1 text-xl font-serif font-bold">{formatPercent(event.checkInRate)}</div>
                             </div>
                           </div>
-                          <Button asChild className="bg-primary text-primary-foreground hover:bg-accent">
+                          <Button asChild className="min-h-11 bg-primary text-primary-foreground hover:bg-accent">
                             <Link href={`/admin/events/${event.id}`}>Open Command Center</Link>
                           </Button>
                         </CardContent>

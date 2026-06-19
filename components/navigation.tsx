@@ -26,7 +26,7 @@ export function Navigation() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+      className={`safe-top-pad fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         isScrolled ? "shadow-xl" : "shadow-lg"
       }`}
       style={{
@@ -36,13 +36,13 @@ export function Navigation() {
       }}
     >
       <div className="container mx-auto px-4 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex h-16 items-center justify-between sm:h-20">
           <Link href="/" className="flex items-center gap-3">
-            <div className="relative w-14 h-14">
+            <div className="relative h-11 w-11 sm:h-14 sm:w-14">
               <Image src="/images/image.png" alt="Teez Events Co. Logo" fill className="object-contain drop-shadow-lg" />
             </div>
             <div className="flex flex-col">
-              <div className="text-3xl font-serif font-bold text-gradient leading-none tracking-tight">TEEZ</div>
+              <div className="text-2xl font-serif font-bold text-gradient leading-none tracking-tight sm:text-3xl">TEEZ</div>
               <div className="text-xs font-sans uppercase tracking-widest font-semibold" style={{ color: "#B86A2E" }}>
                 Events Co.
               </div>
@@ -70,7 +70,7 @@ export function Navigation() {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 transition-all duration-300 hover:scale-110"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#C57A3A]/20 bg-[#F7EDDB]/80 transition-all duration-300 hover:scale-105 md:hidden"
             style={{ color: "#C57A3A" }}
             aria-label="Toggle menu"
           >
@@ -80,14 +80,14 @@ export function Navigation() {
 
         {/* Mobile Navigation */}
         {isOpen && (
-          <div className="md:hidden py-6 border-t-2 animate-fade-in" style={{ borderColor: "#D88C4A" }}>
-            <div className="flex flex-col gap-4">
+          <div className="animate-fade-in border-t-2 py-3 md:hidden" style={{ borderColor: "#D88C4A" }}>
+            <div className="flex flex-col gap-1">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setIsOpen(false)}
-                  className="text-base font-bold transition-all duration-300 py-3 uppercase tracking-wide hover:pl-4"
+                  className="min-h-12 rounded-2xl px-3 py-3 text-base font-bold uppercase tracking-wide transition-all duration-300 hover:bg-white/60"
                   style={{ color: "#2B2B2B" }}
                 >
                   {item.label}

@@ -137,11 +137,32 @@
 }
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground font-sans;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
   }
   h1,
   h2,
@@ -150,6 +171,25 @@
   h5,
   h6 {
     @apply font-serif;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .safe-bottom-pad {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-top-pad {
+    padding-top: env(safe-area-inset-top);
   }
 }
 
