@@ -189,7 +189,7 @@ export function PlanningWorkspaceShell({
 
         {/* Horizontal scrollable sub-nav */}
         <div className="no-scrollbar overflow-x-auto border-b border-border">
-          <nav className="flex w-max min-w-full snap-x items-center gap-1 px-3 py-2 lg:px-6">
+          <nav className="flex w-max min-w-full snap-x items-center gap-0.5 px-2 py-1.5 lg:gap-1 lg:px-6 lg:py-2">
             {SUB_NAV_ITEMS.map(({ label, icon: Icon, slug }) => {
               const href = `/admin/planning/${eventId}/${slug}`
               const isActive = pathname.startsWith(href)
@@ -199,21 +199,25 @@ export function PlanningWorkspaceShell({
                 <Link
                   key={slug}
                   href={href}
+                  title={label}
                   className={cn(
-                    "flex min-h-10 snap-start items-center gap-1.5 whitespace-nowrap rounded-full text-sm font-medium transition-all",
+                    "flex snap-start items-center justify-center rounded-full transition-all",
+                    /* Mobile: compact icon-only square; lg: pill with text */
+                    "h-9 w-9 lg:h-auto lg:w-auto lg:gap-1.5 lg:px-4 lg:py-2 lg:whitespace-nowrap",
                     isAI
                       ? isActive
-                        ? "bg-gradient-to-r from-[#c57a3a] to-amber-500 px-4 text-white shadow-sm"
-                        : "border border-[#c57a3a]/30 bg-[#c57a3a]/8 px-4 text-[#c57a3a] hover:border-[#c57a3a]/60 hover:bg-[#c57a3a]/15"
+                        ? "bg-gradient-to-r from-[#c57a3a] to-amber-500 text-white shadow-sm"
+                        : "border border-[#c57a3a]/30 bg-[#c57a3a]/8 text-[#c57a3a] hover:border-[#c57a3a]/60 hover:bg-[#c57a3a]/15"
                       : isActive
-                        ? "bg-primary px-4 text-primary-foreground"
-                        : "px-4 text-foreground/70 hover:bg-background/70 hover:text-foreground"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-foreground/60 hover:bg-muted hover:text-foreground"
                   )}
                 >
-                  <Icon size={14} className={cn(isAI && !isActive && "text-[#c57a3a]")} />
-                  {label}
+                  <Icon size={15} className={cn(isAI && !isActive && "text-[#c57a3a]")} />
+                  {/* Label: sr-only on mobile, visible on lg */}
+                  <span className="sr-only lg:not-sr-only lg:text-sm lg:font-medium">{label}</span>
                   {isAI && !isActive && (
-                    <span className="ml-0.5 rounded-sm bg-[#c57a3a]/20 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-[#c57a3a]">
+                    <span className="hidden lg:inline ml-0.5 rounded-sm bg-[#c57a3a]/20 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-[#c57a3a]">
                       AI
                     </span>
                   )}

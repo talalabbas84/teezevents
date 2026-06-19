@@ -30,7 +30,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
@@ -44,7 +43,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { AlertCircle, Clock, User, Tag, CalendarDays, Trash2, MessageCircle, Paperclip } from "lucide-react"
+import { AlertCircle, Clock, User, Tag, CalendarDays, Trash2, MessageCircle, Paperclip, ChevronDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,6 +153,49 @@ function FieldError({ message }: { message?: string }) {
       <AlertCircle className="h-3.5 w-3.5" />
       {message}
     </p>
+  )
+}
+
+// ─── Collapsible section ──────────────────────────────────────────────────────
+
+function CollapsibleSection({
+  icon,
+  label,
+  count,
+  children,
+  defaultOpen = false,
+}: {
+  icon: React.ReactNode
+  label: string
+  count?: number
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="rounded-xl border border-border/40 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-white/30 active:bg-white/50"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[#c57a3a]">{icon}</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+          </span>
+          {count !== undefined && (
+            <span className="rounded-full bg-[#c57a3a]/15 px-2 py-0.5 text-[11px] font-semibold text-[#c57a3a]">
+              {count}
+            </span>
+          )}
+        </div>
+        <ChevronDown
+          className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", open && "rotate-180")}
+        />
+      </button>
+      {open && <div className="border-t border-border/40 px-4 pb-4 pt-3">{children}</div>}
+    </div>
   )
 }
 
@@ -337,19 +380,28 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
 
   return (
     <Sheet open={task !== null} onOpenChange={(open) => { if (!open) onClose() }}>
+      {/* Mobile: slide from bottom; sm+: slide from right */}
       <SheetContent
-        side="right"
-        className="w-full sm:max-w-lg flex flex-col gap-0 p-0 bg-[#F7EDDB] overflow-y-auto"
+        side="bottom"
+        className={cn(
+          "flex flex-col gap-0 p-0 bg-[#F7EDDB]",
+          "h-[92dvh] rounded-t-2xl",
+          "sm:side-right sm:h-full sm:max-w-lg sm:rounded-none",
+        )}
       >
         {task && (
           <>
+            {/* iOS-style handle bar */}
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="h-1 w-10 rounded-full bg-border/60" />
+            </div>
+
             {/* Header */}
-            <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/40">
-              <div className="flex items-start gap-3">
-                <SheetTitle className="flex-1 font-serif text-xl font-bold text-[#c57a3a] leading-snug">
-                  {task.title}
-                </SheetTitle>
-              </div>
+            <SheetHeader className="px-5 pt-3 pb-4 border-b border-border/40 sm:pt-6 sm:px-6">
+              <SheetTitle className="font-serif text-xl font-bold text-[#c57a3a] leading-snug">
+                {task.title}
+              </SheetTitle>
+              {/* Status + priority compact row */}
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <span
                   className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[task.status]}`}
@@ -361,10 +413,16 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
                 >
                   {PRIORITY_LABELS[task.priority]}
                 </span>
+                {task.dueDate && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">
+                    <CalendarDays className="h-3 w-3" />
+                    {new Date(task.dueDate).toLocaleDateString()}
+                  </span>
+                )}
               </div>
             </SheetHeader>
 
-            <div className="flex-1 px-6 py-5 space-y-6">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 sm:px-6 sm:py-5">
               {/* Description */}
               {task.description && (
                 <div className="space-y-1.5">
@@ -377,85 +435,75 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
                 </div>
               )}
 
-              {/* Meta */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                {task.dueDate && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CalendarDays className="h-4 w-4 shrink-0 text-[#c57a3a]" />
-                    <span>{new Date(task.dueDate).toLocaleDateString()}</span>
-                  </div>
-                )}
+              {/* Meta row */}
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {(task.assigneeEmails.length > 0 ? task.assigneeEmails : task.assignedTo ? [task.assignedTo] : []).length > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <User className="h-4 w-4 shrink-0 text-[#c57a3a]" />
-                    <span className="truncate">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <User className="h-3.5 w-3.5 shrink-0 text-[#c57a3a]" />
+                    <span className="truncate max-w-40">
                       {(task.assigneeEmails.length > 0 ? task.assigneeEmails : task.assignedTo ? [task.assignedTo] : []).join(", ")}
                     </span>
                   </div>
                 )}
                 {task.category && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Tag className="h-4 w-4 shrink-0 text-[#c57a3a]" />
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Tag className="h-3.5 w-3.5 shrink-0 text-[#c57a3a]" />
                     <span>{task.category}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4 shrink-0 text-[#c57a3a]" />
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-[#c57a3a]" />
                   <span>Created {new Date(task.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
 
               <Separator className="bg-border/40" />
 
-              {/* Inline status / priority changers */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Update
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <Select
-                      value={task.status}
-                      onValueChange={(v) => handleStatusChange(v as TaskStatus)}
-                      disabled={isPending}
-                    >
-                      <SelectTrigger className="h-9 text-sm bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ALL_STATUSES.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {STATUS_LABELS[s]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-muted-foreground">Priority</p>
-                    <Select
-                      value={task.priority}
-                      onValueChange={(v) => handlePriorityChange(v as TaskPriority)}
-                      disabled={isPending}
-                    >
-                      <SelectTrigger className="h-9 text-sm bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ALL_PRIORITIES.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {PRIORITY_LABELS[p]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              {/* Status / priority selects */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Select
+                    value={task.status}
+                    onValueChange={(v) => handleStatusChange(v as TaskStatus)}
+                    disabled={isPending}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ALL_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {STATUS_LABELS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Priority</p>
+                  <Select
+                    value={task.priority}
+                    onValueChange={(v) => handlePriorityChange(v as TaskPriority)}
+                    disabled={isPending}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ALL_PRIORITIES.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {PRIORITY_LABELS[p]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <Separator className="bg-border/40" />
 
+              {/* Assignment & Schedule */}
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Assignment &amp; Schedule
@@ -511,98 +559,93 @@ export function TaskDetailDrawer({ task, eventId, session, assignees, onClose }:
 
               <Separator className="bg-border/40" />
 
-              {/* Comments section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <MessageCircle className="h-4 w-4 text-[#c57a3a]" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Comments ({comments.length})
-                  </p>
-                </div>
-
-                {/* Comment list */}
-                {comments.length > 0 ? (
-                  <div className="space-y-3">
-                    {comments.map((comment) => (
-                      <div key={comment.id} className="flex gap-3">
-                        {/* Avatar */}
-                        <div className="shrink-0 h-8 w-8 rounded-full bg-[#c57a3a]/20 flex items-center justify-center text-[#c57a3a] text-xs font-bold">
-                          {getInitials(comment.authorEmail)}
-                        </div>
-                        {/* Body */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-xs font-semibold text-foreground truncate">
-                              {comment.authorEmail}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground shrink-0">
-                              {formatRelativeTime(comment.createdAt)}
-                            </span>
+              {/* Comments — collapsible */}
+              <CollapsibleSection
+                icon={<MessageCircle className="h-4 w-4" />}
+                label="Comments"
+                count={comments.length}
+                defaultOpen={comments.length > 0}
+              >
+                <div className="space-y-4">
+                  {comments.length > 0 ? (
+                    <div className="space-y-3">
+                      {comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <div className="shrink-0 h-8 w-8 rounded-full bg-[#c57a3a]/20 flex items-center justify-center text-[#c57a3a] text-xs font-bold">
+                            {getInitials(comment.authorEmail)}
                           </div>
-                          <p className="mt-0.5 text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                            {comment.body}
-                          </p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-xs font-semibold text-foreground truncate">
+                                {comment.authorEmail}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {formatRelativeTime(comment.createdAt)}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                              {comment.body}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">No comments yet.</p>
-                )}
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No comments yet.</p>
+                  )}
 
-                {/* Add comment */}
-                <div className="space-y-2">
-                  <Textarea
-                    placeholder="Write a comment..."
-                    rows={3}
-                    value={commentBody}
-                    onChange={(e) => setCommentBody(e.target.value)}
-                    className="bg-white text-sm resize-none"
-                    disabled={isPostingComment}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                        void handlePostComment()
-                      }
-                    }}
-                  />
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      onClick={() => void handlePostComment()}
-                      disabled={isPostingComment || !commentBody.trim()}
-                      className="bg-[#c57a3a] hover:bg-[#b06830] text-white"
-                    >
-                      {isPostingComment ? "Posting..." : "Post"}
-                    </Button>
+                  <div className="space-y-2">
+                    <Textarea
+                      placeholder="Write a comment..."
+                      rows={3}
+                      value={commentBody}
+                      onChange={(e) => setCommentBody(e.target.value)}
+                      className="bg-white text-sm resize-none"
+                      disabled={isPostingComment}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          void handlePostComment()
+                        }
+                      }}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        onClick={() => void handlePostComment()}
+                        disabled={isPostingComment || !commentBody.trim()}
+                        className="bg-[#c57a3a] hover:bg-[#b06830] text-white"
+                      >
+                        {isPostingComment ? "Posting..." : "Post"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </CollapsibleSection>
 
-              <Separator className="bg-border/40" />
-
-              {/* Attachments section */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Paperclip className="h-4 w-4 text-[#c57a3a]" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Attachments ({attachments.length})
-                  </p>
-                </div>
-                {attachments.length > 0 && (
-                  <AttachmentPreview
-                    attachments={attachments}
-                    onRemove={handleAttachmentRemove}
+              {/* Attachments — collapsible */}
+              <CollapsibleSection
+                icon={<Paperclip className="h-4 w-4" />}
+                label="Attachments"
+                count={attachments.length}
+                defaultOpen={attachments.length > 0}
+              >
+                <div className="space-y-3">
+                  {attachments.length > 0 && (
+                    <AttachmentPreview
+                      attachments={attachments}
+                      onRemove={handleAttachmentRemove}
+                    />
+                  )}
+                  <AttachmentUploader
+                    onUpload={handleAttachmentUpload}
+                    disabled={isAttachmentPending}
                   />
-                )}
-                <AttachmentUploader
-                  onUpload={handleAttachmentUpload}
-                  disabled={isAttachmentPending}
-                />
-              </div>
+                </div>
+              </CollapsibleSection>
             </div>
 
             {/* Footer — delete */}
-            <div className="px-6 py-4 border-t border-border/40 bg-white/40">
+            <div className="px-5 py-4 border-t border-border/40 bg-white/40 sm:px-6">
               <Button
                 variant="outline"
                 size="sm"

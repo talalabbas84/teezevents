@@ -28,8 +28,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { cn } from "@/lib/utils"
 
 type AdminManagedTierView = {
   id: string
@@ -1144,21 +1150,27 @@ export function EventEditorCard({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Tabs defaultValue="details">
-              <TabsList className="mb-5 h-auto w-full justify-start gap-0.5 overflow-x-auto bg-muted/60 p-1 rounded-xl">
-                <TabsTrigger value="details" className="rounded-lg px-4 py-1.5 text-sm">Details</TabsTrigger>
-                <TabsTrigger value="content" className="rounded-lg px-4 py-1.5 text-sm">Content</TabsTrigger>
-                <TabsTrigger value="media" className="rounded-lg px-4 py-1.5 text-sm">Media</TabsTrigger>
-                <TabsTrigger value="tickets" className="rounded-lg px-4 py-1.5 text-sm">
-                  {`Tickets${form.ticketTiers.length > 0 ? ` (${form.ticketTiers.length})` : ""}`}
-                </TabsTrigger>
-                <TabsTrigger value="vouchers" className="rounded-lg px-4 py-1.5 text-sm">
-                  {`Vouchers${form.vouchers.length > 0 ? ` (${form.vouchers.length})` : ""}`}
-                </TabsTrigger>
-              </TabsList>
-
-              {/* ── DETAILS ── */}
-              <TabsContent value="details" className="space-y-5 mt-0">
+            {/* Accordion replaces Tabs — multiple open on desktop, collapse as needed on mobile */}
+            <Accordion
+              type="multiple"
+              defaultValue={["details"]}
+              className="space-y-3"
+            >
+              {/* ── BASIC INFO ── */}
+              <AccordionItem value="details" className="rounded-xl border border-border overflow-hidden data-[state=open]:border-primary/30">
+                <AccordionTrigger className="px-5 py-3.5 text-sm font-semibold hover:no-underline hover:bg-muted/30 [&>svg]:shrink-0">
+                  <div className="flex min-w-0 items-center gap-2.5 mr-2">
+                    <CalendarDays size={15} className="shrink-0 text-primary" />
+                    <span>Basic Info</span>
+                    {form.title && (
+                      <span className="hidden sm:inline text-xs font-normal text-muted-foreground truncate">
+                        · {form.title}{form.startsAt ? ` · ${new Date(form.startsAt).toLocaleDateString()}` : ""}
+                      </span>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5 pt-1">
+                  <div className="space-y-5">
                 {/* Publishing toggles */}
                 <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
                   <div className="mb-4 flex items-center justify-between gap-3">
@@ -1336,10 +1348,25 @@ export function EventEditorCard({
                     </div>
                   )}
                 </div>
-              </TabsContent>
+                </div>
+                </AccordionContent>
+              </AccordionItem>
 
               {/* ── CONTENT ── */}
-              <TabsContent value="content" className="space-y-5 mt-0">
+              <AccordionItem value="content" className="rounded-xl border border-border overflow-hidden data-[state=open]:border-primary/30">
+                <AccordionTrigger className="px-5 py-3.5 text-sm font-semibold hover:no-underline hover:bg-muted/30 [&>svg]:shrink-0">
+                  <div className="flex min-w-0 items-center gap-2.5 mr-2">
+                    <GripVertical size={15} className="shrink-0 text-primary" />
+                    <span>Content</span>
+                    {(form.previewDescription || form.contentSections.length > 0) && (
+                      <span className="hidden sm:inline text-xs font-normal text-muted-foreground">
+                        {form.contentSections.length > 0 ? `· ${form.contentSections.length} section${form.contentSections.length !== 1 ? "s" : ""}` : "· Preview set"}
+                      </span>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5 pt-1">
+                  <div className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor={`${mode}-preview`}>Preview Description</Label>
                   <p className="text-xs text-muted-foreground">Shown on event cards and the checkout page summary.</p>
@@ -1505,10 +1532,25 @@ export function EventEditorCard({
                     </div>
                   )}
                 </div>
-              </TabsContent>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
               {/* ── MEDIA ── */}
-              <TabsContent value="media" className="space-y-6 mt-0">
+              <AccordionItem value="media" className="rounded-xl border border-border overflow-hidden data-[state=open]:border-primary/30">
+                <AccordionTrigger className="px-5 py-3.5 text-sm font-semibold hover:no-underline hover:bg-muted/30 [&>svg]:shrink-0">
+                  <div className="flex min-w-0 items-center gap-2.5 mr-2">
+                    <ImagePlus size={15} className="shrink-0 text-primary" />
+                    <span>Media</span>
+                    {(form.image || form.gallery.length > 0) && (
+                      <span className="hidden sm:inline text-xs font-normal text-muted-foreground">
+                        {form.image ? "· Hero set" : ""}{form.gallery.length > 0 ? ` · ${form.gallery.length} photo${form.gallery.length !== 1 ? "s" : ""}` : ""}
+                      </span>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5 pt-1">
+                  <div className="space-y-6">
                 {/* Hero image */}
                 <div className="space-y-3">
                   <div>
@@ -1682,10 +1724,27 @@ export function EventEditorCard({
                     />
                   </div>
                 </div>
-              </TabsContent>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-              {/* ── TICKETS ── */}
-              <TabsContent value="tickets" className="space-y-5 mt-0">
+              {/* ── TICKETS & PRICING ── */}
+              <AccordionItem value="tickets" className="rounded-xl border border-border overflow-hidden data-[state=open]:border-primary/30">
+                <AccordionTrigger className="px-5 py-3.5 text-sm font-semibold hover:no-underline hover:bg-muted/30 [&>svg]:shrink-0">
+                  <div className="flex min-w-0 items-center gap-2.5 mr-2">
+                    <Tags size={15} className="shrink-0 text-primary" />
+                    <span>Tickets &amp; Pricing</span>
+                    {(form.ticketPriceCad || form.capacity || form.ticketTiers.length > 0) && (
+                      <span className="hidden sm:inline text-xs font-normal text-muted-foreground">
+                        {form.ticketPriceCad ? `· $${form.ticketPriceCad}` : ""}
+                        {form.capacity ? ` · ${form.capacity} cap` : ""}
+                        {form.ticketTiers.length > 0 ? ` · ${form.ticketTiers.length} tier${form.ticketTiers.length !== 1 ? "s" : ""}` : ""}
+                      </span>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5 pt-1">
+                  <div className="space-y-5">
                 {/* Ticket settings */}
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-2">
@@ -1938,10 +1997,25 @@ export function EventEditorCard({
                     </div>
                   )}
                 </div>
-              </TabsContent>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
               {/* ── VOUCHERS ── */}
-              <TabsContent value="vouchers" className="space-y-4 mt-0">
+              <AccordionItem value="vouchers" className="rounded-xl border border-border overflow-hidden data-[state=open]:border-primary/30">
+                <AccordionTrigger className="px-5 py-3.5 text-sm font-semibold hover:no-underline hover:bg-muted/30 [&>svg]:shrink-0">
+                  <div className="flex min-w-0 items-center gap-2.5 mr-2">
+                    <TicketPercent size={15} className="shrink-0 text-primary" />
+                    <span>Vouchers</span>
+                    {form.vouchers.length > 0 && (
+                      <span className="hidden sm:inline text-xs font-normal text-muted-foreground">
+                        · {form.vouchers.length} code{form.vouchers.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5 pt-1">
+                  <div className="space-y-4">
                 <div className="space-y-4 rounded-2xl border border-border bg-muted/20 p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -2180,8 +2254,10 @@ export function EventEditorCard({
                     </div>
                   )}
                 </div>
-              </TabsContent>
-            </Tabs>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
             {/* Status / error messages */}
             {error && (

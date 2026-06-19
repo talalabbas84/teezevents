@@ -158,12 +158,16 @@ export default async function CollaborationPage({
   }))
 
   return (
-    <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <main className="min-h-screen bg-[#F7EDDB] px-4 py-4 sm:py-6 lg:px-8 lg:py-8">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
+        {/* Compact header — collapses on mobile to event name + section name */}
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Planning</div>
-          <h1 className="mt-1.5 font-serif text-4xl font-bold">Collaboration</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">{event.title}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary sm:tracking-[0.28em]">
+            {event.title}
+          </p>
+          <h1 className="mt-0.5 font-serif text-2xl font-bold sm:mt-1.5 sm:text-3xl lg:text-4xl">
+            Collaboration
+          </h1>
         </div>
 
         <CollaborationClient
