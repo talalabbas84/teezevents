@@ -2,6 +2,7 @@ import { getEventTasks } from "@/lib/planning/queries"
 import { requireAdminSession } from "@/lib/admin-auth"
 import { getPrismaClient } from "@/lib/prisma"
 import { TasksWorkspace } from "@/components/planning/tasks-workspace"
+import { PageGuide } from "@/components/admin/page-guide"
 
 export default async function TasksPage({
   params,
@@ -37,6 +38,25 @@ export default async function TasksPage({
           <p className="mt-0.5 text-xs text-muted-foreground sm:mt-1 sm:text-sm">
             Manage and track all tasks for this event.
           </p>
+        </div>
+
+        <div className="mb-4 sm:mb-6">
+          <PageGuide
+            id="planning-tasks"
+            title="Managing Tasks"
+            subtitle="Track everything that needs to get done for your event"
+            steps={[
+              { title: "Create a task", description: "Tap '+ Task' to add something that needs to be done. Give it a title, due date, and assign it to a team member." },
+              { title: "Move tasks between columns", description: "Drag a task card to move it: Not Started → In Progress → Done. Or tap the card to change its status." },
+              { title: "Filter and find tasks", description: "Use the search bar and dropdowns at the top to filter by priority, who it's assigned to, or due date." },
+              { title: "Switch views", description: "Use Board (columns), List (table), or Timeline (calendar) to see tasks in different ways." },
+            ]}
+            tips={[
+              "Tap any task card to open it and add comments or attachments",
+              "Use @ in the description to notify a team member",
+              "Overdue tasks appear in red — tackle these first!",
+            ]}
+          />
         </div>
 
         <TasksWorkspace

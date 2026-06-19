@@ -4,6 +4,7 @@ import { requireAdminSession } from "@/lib/admin-auth"
 import { getPrismaClient } from "@/lib/prisma"
 import { ChecklistsPanelClient } from "@/components/planning/checklists-panel"
 import type { TeamMemberOption } from "@/components/planning/assignee-select"
+import { PageGuide } from "@/components/admin/page-guide"
 
 export default async function ChecklistsPage({
   params,
@@ -50,6 +51,24 @@ export default async function ChecklistsPage({
           <p className="mt-1 text-sm text-muted-foreground">
             Track preparation items across all event categories.
           </p>
+        </div>
+
+        <div className="mb-4 sm:mb-6">
+          <PageGuide
+            id="planning-checklists"
+            title="Checklists"
+            subtitle="Step-by-step to-do lists for every part of your event"
+            steps={[
+              { title: "Create a checklist", description: "Tap '+ New Checklist' to create a list, like 'Venue Setup' or 'Day-of Tasks'." },
+              { title: "Add items", description: "Tap '+ Add item' inside a checklist to add tasks. Each item can have a due date and be assigned to someone." },
+              { title: "Check off items", description: "Tap the checkbox next to an item when it's done. Progress automatically updates." },
+              { title: "Attach files to items", description: "Tap the paperclip icon on any item to attach a photo or document as proof of completion." },
+            ]}
+            tips={[
+              "Create separate checklists for different areas: Venue, Catering, Staff, AV",
+              "Checklists are different from Tasks — use them for repetitive step-by-step processes",
+            ]}
+          />
         </div>
 
         <ChecklistsPanelClient

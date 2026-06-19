@@ -1,6 +1,7 @@
 import { DoorOpen } from "lucide-react"
 
 import { AdminCheckInConsole } from "@/components/admin-check-in-console"
+import { PageGuide } from "@/components/admin/page-guide"
 import { Card, CardContent } from "@/components/ui/card"
 import { getAdminDashboardData, getCheckoutSetupIssue } from "@/lib/checkout"
 import { requireAdminSession } from "@/lib/admin-auth"
@@ -38,6 +39,25 @@ export default async function AdminCheckInPage() {
           <p className="mt-1.5 text-sm text-muted-foreground">
             Scan QR tickets at the door, verify holders instantly, and update entry status in real time.
           </p>
+        </div>
+
+        <div className="mb-4 sm:mb-6">
+          <PageGuide
+            id="check-in"
+            title="Guest Check-In"
+            subtitle="Scan tickets or search guest names to check people in"
+            steps={[
+              { title: "Scan a QR code", description: "Tap 'Scan QR Code' and point your camera at a guest's ticket. It checks them in instantly." },
+              { title: "Search by name", description: "If the scan doesn't work, type the guest's name or email in the search bar." },
+              { title: "Manual check-in", description: "Find the guest in the list and tap 'Check In' to mark them as arrived." },
+              { title: "View stats", description: "The counter at the top shows how many guests have arrived vs. the total expected." },
+            ]}
+            tips={[
+              "Make sure you allow camera access when prompted — this is needed for QR scanning",
+              "Keep this page open on a tablet or phone at the entrance",
+              "If a ticket shows 'Already Checked In', the guest may have entered through another entrance",
+            ]}
+          />
         </div>
 
         {setupIssue || !dashboard ? (

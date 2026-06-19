@@ -4,6 +4,7 @@ import { getWebPushPublicKey, getWebPushSetupIssue } from "@/lib/web-push"
 import { getNotificationPreferences } from "@/actions/notification-preferences"
 import { PushNotificationManager } from "@/components/admin/push-notification-manager"
 import { NotificationPreferencesClient } from "@/components/admin/notification-preferences-client"
+import { PageGuide } from "@/components/admin/page-guide"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -35,6 +36,23 @@ export default async function AdminSettingsPage() {
           <p className="mt-1.5 text-sm text-muted-foreground">
             Application configuration and preferences.
           </p>
+        </div>
+
+        <div className="mb-4 sm:mb-6">
+          <PageGuide
+            id="settings"
+            title="Settings"
+            subtitle="Configure your account and notification preferences"
+            steps={[
+              { title: "Push notifications", description: "Add this app to your phone's home screen, then enable Push Notifications to get real-time alerts." },
+              { title: "Notification preferences", description: "Choose which events trigger notifications and whether you prefer push or email alerts." },
+              { title: "Email notifications", description: "Email notifications are off by default to avoid inbox overload. Turn them on for critical alerts only." },
+            ]}
+            tips={[
+              "For iOS: tap the Share button in Safari → 'Add to Home Screen' to install the app",
+              "Push notifications only work when the app is installed on your device",
+            ]}
+          />
         </div>
 
         {/* General */}

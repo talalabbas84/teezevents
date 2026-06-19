@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { CollaborationClient } from "@/components/planning/collaboration-client"
+import { PageGuide } from "@/components/admin/page-guide"
 import type {
   CollaborationActivitySerialized,
   CollaborationCommentSerialized,
@@ -168,6 +169,25 @@ export default async function CollaborationPage({
           <h1 className="mt-0.5 font-serif text-2xl font-bold sm:mt-1.5 sm:text-3xl lg:text-4xl">
             Collaboration
           </h1>
+        </div>
+
+        <div className="mb-4 sm:mb-6">
+          <PageGuide
+            id="planning-collaboration"
+            title="Team Collaboration"
+            subtitle="Post updates, ask questions, and keep everyone in the loop"
+            steps={[
+              { title: "Post an update", description: "Type your message in the composer at the top and tap Post. Everyone on the team can see it." },
+              { title: "Mention someone", description: "Type @ followed by their name to notify a specific person. They'll get a notification." },
+              { title: "Reply to a message", description: "Tap 'Reply' under any post to start a thread. Use threads to keep discussions organized." },
+              { title: "Attach files", description: "Tap the paperclip icon to attach images, PDFs, or documents to your message." },
+            ]}
+            tips={[
+              "Pin important messages so they stay at the top for everyone",
+              "You can edit or delete your own messages by tapping '...'",
+              "The activity feed on the right shows recent changes across the whole event",
+            ]}
+          />
         </div>
 
         <CollaborationClient
