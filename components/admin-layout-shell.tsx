@@ -10,6 +10,7 @@ import {
   DoorOpen,
   Download,
   Globe2,
+  Inbox,
   LayoutTemplate,
   LogOut,
   Menu,
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { label: "Blueprints", href: "/admin/blueprints", icon: LayoutTemplate },
   { label: "Team", href: "/admin/team", icon: Users },
   { label: "Vendors", href: "/admin/vendors", icon: Store },
+  { label: "Inquiries", href: "/admin/contact-inquiries", icon: Inbox, showInquiryBadge: true },
   { label: "Automations", href: "/admin/automations", icon: Zap },
   { label: "Notifications", href: "/admin/notifications", icon: Bell },
   { label: "Check-In", href: "/admin/check-in", icon: DoorOpen },
@@ -53,7 +55,7 @@ function NotificationCount({ count }: { count: number }) {
   )
 }
 
-function NavLinks({ onClose, unreadCount }: { onClose?: () => void; unreadCount: number }) {
+function NavLinks({ onClose, unreadCount, newInquiryCount }: { onClose?: () => void; unreadCount: number; newInquiryCount: number }) {
   const pathname = usePathname()
 
   function isActive(href: string, exact?: boolean) {
@@ -82,6 +84,9 @@ function NavLinks({ onClose, unreadCount }: { onClose?: () => void; unreadCount:
             />
             <span>{item.label}</span>
             {item.href === "/admin/notifications" ? <NotificationCount count={unreadCount} /> : null}
+            {"showInquiryBadge" in item && item.showInquiryBadge && newInquiryCount > 0 ? (
+              <NotificationCount count={newInquiryCount} />
+            ) : null}
           </Link>
         )
       })}
@@ -89,7 +94,7 @@ function NavLinks({ onClose, unreadCount }: { onClose?: () => void; unreadCount:
   )
 }
 
-function SidebarContent({ onClose, unreadCount }: { onClose?: () => void; unreadCount: number }) {
+function SidebarContent({ onClose, unreadCount, newInquiryCount }: { onClose?: () => void; unreadCount: number; newInquiryCount: number }) {
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       {/* Branding */}
@@ -111,7 +116,7 @@ function SidebarContent({ onClose, unreadCount }: { onClose?: () => void; unread
 
       {/* Navigation */}
       <nav className="flex-1 space-y-0.5 p-3">
-        <NavLinks onClose={onClose} unreadCount={unreadCount} />
+        <NavLinks onClose={onClose} unreadCount={unreadCount} newInquiryCount={newInquiryCount} />
       </nav>
 
       {/* Data exports */}
@@ -151,7 +156,7 @@ function SidebarContent({ onClose, unreadCount }: { onClose?: () => void; unread
   )
 }
 
-export function AdminLayoutShell({ children, unreadCount }: { children: React.ReactNode; unreadCount: number }) {
+export function AdminLayoutShell({ children, unreadCount, newInquiryCount = 0 }: { children: React.ReactNode; unreadCount: number; newInquiryCount?: number }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -168,7 +173,7 @@ export function AdminLayoutShell({ children, unreadCount }: { children: React.Re
     <>
       {/* Desktop sidebar — fixed, full height */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:w-56 lg:flex-col lg:border-r lg:border-border lg:bg-background lg:shadow-sm">
-        <SidebarContent unreadCount={unreadCount} />
+        <SidebarContent unreadCount={unreadCount} newInquiryCount={newInquiryCount} />
       </aside>
 
       {/* Mobile top bar */}
@@ -194,7 +199,7 @@ export function AdminLayoutShell({ children, unreadCount }: { children: React.Re
             onClick={() => setMobileOpen(false)}
           />
           <aside className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 max-h-[74dvh] overflow-hidden rounded-3xl border border-border bg-background shadow-2xl lg:hidden">
-            <SidebarContent onClose={() => setMobileOpen(false)} unreadCount={unreadCount} />
+            <SidebarContent onClose={() => setMobileOpen(false)} unreadCount={unreadCount} newInquiryCount={newInquiryCount} />
           </aside>
         </>
       )}

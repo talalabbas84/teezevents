@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useEffect, useState } from "react"
+import { useActionState, useEffect, useState } from "react"
 import { Instagram, Mail, MessageCircle, Send } from "lucide-react"
 
 import { Footer } from "@/components/footer"
@@ -12,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { submitContactInquiry } from "@/actions/contact"
 
 type ContactPageContentProps = {
   eventParam?: string
@@ -19,69 +18,26 @@ type ContactPageContentProps = {
 }
 
 export function ContactPageContent({ eventParam, intentParam }: ContactPageContentProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    eventType: "",
-    date: "",
-    message: "",
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
-
-  useEffect(() => {
-    if (eventParam !== "blossom") {
-      return
-    }
-
-    setFormData((prev) => {
-      if (prev.eventType || prev.date || prev.message) {
-        return prev
-      }
-
-      return {
-        ...prev,
-        eventType: "dance-social",
-        date: "2026-04-25",
-        message:
-          intentParam === "rsvp"
-            ? "Hi, I'd like to RSVP for BLOSSOM on April 25, 2026 and receive the e-transfer details."
-            : "Hi, I'm interested in tickets for BLOSSOM on April 25, 2026. Please share the next steps.",
-      }
-    })
-  }, [eventParam, intentParam])
+  const [state, formAction, isPending] = useActionState(submitContactInquiry, null)
 
   const isBlossomInquiry = eventParam === "blossom"
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+  // Default field values for Blossom pre-fill
+  const defaultEventType = isBlossomInquiry ? "dance-social" : ""
+  const defaultDate = isBlossomInquiry ? "2026-04-25" : ""
+  const defaultMessage = isBlossomInquiry
+    ? intentParam === "rsvp"
+      ? "Hi, I'd like to RSVP for BLOSSOM on April 25, 2026 and receive the e-transfer details."
+      : "Hi, I'm interested in tickets for BLOSSOM on April 25, 2026. Please share the next steps."
+    : ""
 
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    setIsSubmitting(false)
-    setSubmitStatus("success")
-
-    setTimeout(() => {
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        eventType: "",
-        date: "",
-        message: "",
-      })
-      setSubmitStatus("idle")
-    }, 3000)
-  }
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }))
-  }
+  // Reset form key to clear inputs after successful submission
+  const [formKey, setFormKey] = useState(0)
+  useEffect(() => {
+    if (state?.success) {
+      setFormKey((k) => k + 1)
+    }
+  }, [state?.success])
 
   const contactInfo = [
     {
@@ -188,15 +144,20 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                   </div>
                 )}
 
-                <form id="contact-form" onSubmit={handleSubmit} className="space-y-6">
+                <form
+                  key={formKey}
+                  id="contact-form"
+                  action={formAction}
+                  className="space-y-6"
+                >
+                  <input type="hidden" name="source" value={isBlossomInquiry ? "blossom" : "general"} />
+
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="name">Full Name *</Label>
                       <Input
                         id="name"
                         name="name"
-                        value={formData.name}
-                        onChange={handleChange}
                         placeholder="John Doe"
                         required
                         className="border-2"
@@ -208,8 +169,6 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                         id="email"
                         name="email"
                         type="email"
-                        value={formData.email}
-                        onChange={handleChange}
                         placeholder="john@example.com"
                         required
                         className="border-2"
@@ -224,8 +183,6 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                         id="phone"
                         name="phone"
                         type="tel"
-                        value={formData.phone}
-                        onChange={handleChange}
                         placeholder="(123) 456-7890"
                         className="border-2"
                       />
@@ -235,8 +192,7 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                       <select
                         id="eventType"
                         name="eventType"
-                        value={formData.eventType}
-                        onChange={handleChange}
+                        defaultValue={defaultEventType}
                         className="w-full rounded-md border-2 border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
                       >
                         <option value="">Select an event type</option>
@@ -259,8 +215,7 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                       id="date"
                       name="date"
                       type="date"
-                      value={formData.date}
-                      onChange={handleChange}
+                      defaultValue={defaultDate}
                       className="border-2"
                     />
                   </div>
@@ -270,8 +225,7 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                     <Textarea
                       id="message"
                       name="message"
-                      value={formData.message}
-                      onChange={handleChange}
+                      defaultValue={defaultMessage}
                       placeholder="Share your message, ideas, and any specific requirements..."
                       required
                       rows={6}
@@ -279,9 +233,15 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                     />
                   </div>
 
-                  {submitStatus === "success" && (
-                    <div className="rounded-md border-2 border-accent bg-accent/20 p-4 text-accent-foreground">
-                      Thank you! We've received your message and will be in touch soon.
+                  {state?.success && (
+                    <div className="rounded-md border-2 border-green-300 bg-green-50 p-4 text-green-800">
+                      Thank you! We&apos;ve received your message and will be in touch within 24 hours.
+                    </div>
+                  )}
+
+                  {state?.error && (
+                    <div className="rounded-md border-2 border-red-200 bg-red-50 p-4 text-red-700">
+                      {state.error}
                     </div>
                   )}
 
@@ -289,9 +249,9 @@ export function ContactPageContent({ eventParam, intentParam }: ContactPageConte
                     type="submit"
                     size="lg"
                     className="w-full bg-primary text-primary-foreground hover:bg-accent"
-                    disabled={isSubmitting}
+                    disabled={isPending}
                   >
-                    {isSubmitting ? (
+                    {isPending ? (
                       "Sending..."
                     ) : (
                       <>
