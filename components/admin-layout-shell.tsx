@@ -38,9 +38,9 @@ const NAV_ITEMS = [
 
 const MOBILE_PRIMARY_ITEMS = [
   { label: "Home", href: "/admin", icon: BarChart3, exact: true },
-  { label: "Events", href: "/admin/events", icon: Settings2 },
-  { label: "Planning", href: "/admin/planning", icon: ClipboardList },
   { label: "Check-In", href: "/admin/check-in", icon: DoorOpen },
+  { label: "Planning", href: "/admin/planning", icon: ClipboardList },
+  { label: "Alerts", href: "/admin/notifications", icon: Bell, showBadge: true },
 ]
 
 function NotificationCount({ count }: { count: number }) {
@@ -207,7 +207,7 @@ export function AdminLayoutShell({ children, unreadCount }: { children: React.Re
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition-colors ${
+                className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition-colors ${
                   active
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -215,6 +215,11 @@ export function AdminLayoutShell({ children, unreadCount }: { children: React.Re
               >
                 <item.icon size={19} />
                 <span className="max-w-full truncate">{item.label}</span>
+                {"showBadge" in item && item.showBadge && unreadCount > 0 && (
+                  <span className="absolute right-2.5 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-background">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </Link>
             )
           })}
@@ -224,9 +229,6 @@ export function AdminLayoutShell({ children, unreadCount }: { children: React.Re
             className="relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Open more navigation"
           >
-            {unreadCount > 0 ? (
-              <span className="absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-background" />
-            ) : null}
             <MoreHorizontal size={19} />
             <span>More</span>
           </button>
