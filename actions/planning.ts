@@ -2,7 +2,9 @@
 
 import { getPrismaClient } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { createNotification } from "@/lib/notifications";
 import { publishRealtimeEvent } from "@/lib/realtime";
+import { getCurrentTeamContext } from "@/lib/team-access";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -31,6 +33,25 @@ function normalizeAssigneeEmails(value: string[] | undefined) {
   return Array.from(new Set(value.map((email) => email.trim().toLowerCase()).filter(Boolean)))
 }
 
+function getTaskAssignees(task: { assigneeEmails: string[]; assignedTo?: string | null }) {
+  return task.assigneeEmails.length > 0
+    ? task.assigneeEmails.map((email) => email.trim().toLowerCase()).filter(Boolean)
+    : task.assignedTo
+      ? [task.assignedTo.trim().toLowerCase()]
+      : []
+}
+
+function formatTaskDueDate(value?: Date | null) {
+  if (!value) return "No due date set."
+  return `Due ${value.toLocaleString("en-CA", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })}.`
+}
+
 function emitPlanningRealtime(eventId: string, action: string, entityType: string, entityId?: string) {
   publishRealtimeEvent({
     type: "planning:update",
@@ -39,6 +60,44 @@ function emitPlanningRealtime(eventId: string, action: string, entityType: strin
     entityType,
     entityId,
   })
+}
+
+async function notifyTaskAssignees(input: {
+  eventId: string
+  eventTitle: string
+  taskId: string
+  taskTitle: string
+  dueDate?: Date | null
+  assigneeEmails: string[]
+  actorEmail?: string | null
+  action: "assigned" | "completed"
+}) {
+  const recipients = Array.from(new Set(input.assigneeEmails))
+    .map((email) => email.trim().toLowerCase())
+    .filter((email) => email && email !== input.actorEmail)
+
+  await Promise.all(
+    recipients.map((recipientEmail) => {
+      const isCompleted = input.action === "completed"
+      return createNotification({
+        type: isCompleted ? "TASK_COMPLETED" : "TASK_ASSIGNED",
+        title: isCompleted ? `Task completed: ${input.taskTitle}` : `Task assigned: ${input.taskTitle}`,
+        body: isCompleted
+          ? `A task assigned to you was completed for "${input.eventTitle}".`
+          : `You were assigned to "${input.taskTitle}" for "${input.eventTitle}". ${formatTaskDueDate(input.dueDate)}`,
+        link: `/admin/planning/${input.eventId}/tasks`,
+        actorEmail: input.actorEmail ?? undefined,
+        recipientEmail,
+        eventId: input.eventId,
+        entityType: "PlanningTask",
+        entityId: input.taskId,
+        dedupeKey: isCompleted
+          ? `task-completed:${input.taskId}:${recipientEmail}`
+          : `task-assigned:${input.taskId}:${recipientEmail}`,
+        sendEmail: true,
+      })
+    })
+  )
 }
 
 export async function createTask(
@@ -56,7 +115,7 @@ export async function createTask(
   }
 ) {
   try {
-    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const currentUser = await getCurrentTeamContext();
     const parsed = TaskSchema.parse(data);
     const prisma = getPrismaClient();
     const assigneeEmails = normalizeAssigneeEmails(parsed.assigneeEmails);
@@ -67,8 +126,38 @@ export async function createTask(
         assigneeEmails: assigneeEmails ?? (parsed.assignedTo ? [parsed.assignedTo.trim().toLowerCase()] : []),
         assignedTo: assigneeEmails?.[0] ?? parsed.assignedTo?.trim().toLowerCase() ?? null,
       },
+      include: {
+        event: { select: { title: true } },
+      },
     });
+    const assignedRecipients = getTaskAssignees(result);
+    if (assignedRecipients.length > 0) {
+      await prisma.planningActivityLog.create({
+        data: {
+          eventId,
+          actorEmail: currentUser.email,
+          action: "ASSIGNED_TASK",
+          entityType: "PlanningTask",
+          entityId: result.id,
+          entityName: result.title,
+          details: {
+            assigneeEmails: assignedRecipients,
+          },
+        },
+      });
+      await notifyTaskAssignees({
+        eventId,
+        eventTitle: result.event.title,
+        taskId: result.id,
+        taskTitle: result.title,
+        dueDate: result.dueDate,
+        assigneeEmails: assignedRecipients,
+        actorEmail: currentUser.email,
+        action: "assigned",
+      });
+    }
     revalidatePath(`/admin/planning/${eventId}/tasks`);
+    revalidatePath("/admin/notifications");
     emitPlanningRealtime(eventId, "TASK_CREATED", "PlanningTask", result.id);
     return { success: true, data: result };
   } catch (e: any) {
@@ -91,7 +180,7 @@ export async function updateTask(
   }
 ) {
   try {
-    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const currentUser = await getCurrentTeamContext();
     const parsed = UpdateTaskSchema.parse(data);
     const assigneeEmails = normalizeAssigneeEmails(parsed.assigneeEmails);
     const updateData = {
@@ -105,8 +194,52 @@ export async function updateTask(
           : undefined,
     };
     const prisma = getPrismaClient();
-    const result = await prisma.planningTask.update({ where: { id: taskId }, data: updateData });
+    const existing = await prisma.planningTask.findUnique({
+      where: { id: taskId },
+      include: {
+        event: { select: { title: true } },
+      },
+    });
+    if (!existing) return { success: false, error: "Task not found." };
+    const previousAssignees = getTaskAssignees(existing);
+    const result = await prisma.planningTask.update({
+      where: { id: taskId },
+      data: updateData,
+      include: {
+        event: { select: { title: true } },
+      },
+    });
+    const nextAssignees = getTaskAssignees(result);
+    const newAssignees = nextAssignees.filter((email) => !previousAssignees.includes(email));
+    if (newAssignees.length > 0) {
+      await prisma.planningActivityLog.create({
+        data: {
+          eventId: result.eventId,
+          actorEmail: currentUser.email,
+          action: "UPDATED_TASK_ASSIGNMENT",
+          entityType: "PlanningTask",
+          entityId: result.id,
+          entityName: result.title,
+          details: {
+            previousAssignees,
+            assigneeEmails: nextAssignees,
+            newAssignees,
+          },
+        },
+      });
+      await notifyTaskAssignees({
+        eventId: result.eventId,
+        eventTitle: result.event.title,
+        taskId: result.id,
+        taskTitle: result.title,
+        dueDate: result.dueDate,
+        assigneeEmails: newAssignees,
+        actorEmail: currentUser.email,
+        action: "assigned",
+      });
+    }
     revalidatePath(`/admin/planning/${result.eventId}/tasks`);
+    revalidatePath("/admin/notifications");
     emitPlanningRealtime(result.eventId, "TASK_UPDATED", "PlanningTask", result.id);
     return { success: true, data: result };
   } catch (e: any) {
@@ -132,10 +265,30 @@ export async function updateTaskStatus(
   status: "NOT_STARTED" | "IN_PROGRESS" | "BLOCKED" | "NEEDS_REVIEW" | "COMPLETED" | "CANCELLED"
 ) {
   try {
-    if (!(await isAdminAuthenticated())) return { success: false, error: "Not authorized." };
+    const currentUser = await getCurrentTeamContext();
     const prisma = getPrismaClient();
-    const result = await prisma.planningTask.update({ where: { id: taskId }, data: { status } });
+    const result = await prisma.planningTask.update({
+      where: { id: taskId },
+      data: { status },
+      include: {
+        event: { select: { title: true } },
+      },
+    });
+    if (status === "COMPLETED") {
+      const assignees = getTaskAssignees(result);
+      await notifyTaskAssignees({
+        eventId: result.eventId,
+        eventTitle: result.event.title,
+        taskId: result.id,
+        taskTitle: result.title,
+        dueDate: result.dueDate,
+        assigneeEmails: assignees,
+        actorEmail: currentUser.email,
+        action: "completed",
+      });
+    }
     revalidatePath(`/admin/planning/${result.eventId}/tasks`);
+    revalidatePath("/admin/notifications");
     emitPlanningRealtime(result.eventId, "TASK_STATUS_UPDATED", "PlanningTask", result.id);
     return { success: true, data: result };
   } catch (e: any) {
@@ -344,7 +497,10 @@ export async function createChecklistSection(checklistId: string, title: string)
     const prisma = getPrismaClient();
     const result = await prisma.checklistSection.create({ data: { checklistId, title } });
     const checklist = await prisma.checklist.findUnique({ where: { id: checklistId }, select: { eventId: true } });
-    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    if (checklist) {
+      revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+      emitPlanningRealtime(checklist.eventId, "CHECKLIST_SECTION_CREATED", "ChecklistSection", result.id);
+    }
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -357,7 +513,10 @@ export async function deleteChecklistSection(sectionId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.checklistSection.delete({ where: { id: sectionId } });
     const checklist = await prisma.checklist.findUnique({ where: { id: result.checklistId }, select: { eventId: true } });
-    if (checklist) revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+    if (checklist) {
+      revalidatePath(`/admin/planning/${checklist.eventId}/checklists`);
+      emitPlanningRealtime(checklist.eventId, "CHECKLIST_SECTION_DELETED", "ChecklistSection", sectionId);
+    }
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -402,6 +561,7 @@ export async function createBudgetItem(
     const prisma = getPrismaClient();
     const result = await prisma.budgetItem.create({ data: { ...parsed, eventId } });
     revalidatePath(`/admin/planning/${eventId}/budget`);
+    emitPlanningRealtime(eventId, "BUDGET_ITEM_CREATED", "BudgetItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -430,6 +590,7 @@ export async function updateBudgetItem(
     const prisma = getPrismaClient();
     const result = await prisma.budgetItem.update({ where: { id: itemId }, data: parsed });
     revalidatePath(`/admin/planning/${result.eventId}/budget`);
+    emitPlanningRealtime(result.eventId, "BUDGET_ITEM_UPDATED", "BudgetItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -442,6 +603,7 @@ export async function deleteBudgetItem(itemId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.budgetItem.delete({ where: { id: itemId } });
     revalidatePath(`/admin/planning/${result.eventId}/budget`);
+    emitPlanningRealtime(result.eventId, "BUDGET_ITEM_DELETED", "BudgetItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -482,6 +644,7 @@ export async function createVendor(
     const prisma = getPrismaClient();
     const result = await prisma.eventVendor.create({ data: { ...parsed, eventId } });
     revalidatePath(`/admin/planning/${eventId}/vendors`);
+    emitPlanningRealtime(eventId, "VENDOR_CREATED", "EventVendor", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -508,6 +671,7 @@ export async function updateVendor(
     const prisma = getPrismaClient();
     const result = await prisma.eventVendor.update({ where: { id: vendorId }, data: parsed });
     revalidatePath(`/admin/planning/${result.eventId}/vendors`);
+    emitPlanningRealtime(result.eventId, "VENDOR_UPDATED", "EventVendor", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -520,6 +684,7 @@ export async function deleteVendor(vendorId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.eventVendor.delete({ where: { id: vendorId } });
     revalidatePath(`/admin/planning/${result.eventId}/vendors`);
+    emitPlanningRealtime(result.eventId, "VENDOR_DELETED", "EventVendor", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -535,6 +700,7 @@ export async function updateVendorStatus(
     const prisma = getPrismaClient();
     const result = await prisma.eventVendor.update({ where: { id: vendorId }, data: { status } });
     revalidatePath(`/admin/planning/${result.eventId}/vendors`);
+    emitPlanningRealtime(result.eventId, "VENDOR_STATUS_UPDATED", "EventVendor", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -571,6 +737,7 @@ export async function createRunSheetItem(
     const prisma = getPrismaClient();
     const result = await prisma.runSheetItem.create({ data: { ...parsed, eventId } });
     revalidatePath(`/admin/planning/${eventId}/run-sheet`);
+    emitPlanningRealtime(eventId, "RUN_SHEET_ITEM_CREATED", "RunSheetItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -595,6 +762,7 @@ export async function updateRunSheetItem(
     const prisma = getPrismaClient();
     const result = await prisma.runSheetItem.update({ where: { id: itemId }, data: parsed });
     revalidatePath(`/admin/planning/${result.eventId}/run-sheet`);
+    emitPlanningRealtime(result.eventId, "RUN_SHEET_ITEM_UPDATED", "RunSheetItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -607,6 +775,7 @@ export async function deleteRunSheetItem(itemId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.runSheetItem.delete({ where: { id: itemId } });
     revalidatePath(`/admin/planning/${result.eventId}/run-sheet`);
+    emitPlanningRealtime(result.eventId, "RUN_SHEET_ITEM_DELETED", "RunSheetItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -622,6 +791,7 @@ export async function updateRunSheetItemStatus(
     const prisma = getPrismaClient();
     const result = await prisma.runSheetItem.update({ where: { id: itemId }, data: { status } });
     revalidatePath(`/admin/planning/${result.eventId}/run-sheet`);
+    emitPlanningRealtime(result.eventId, "RUN_SHEET_ITEM_STATUS_UPDATED", "RunSheetItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -638,6 +808,7 @@ export async function reorderRunSheetItems(eventId: string, orderedIds: string[]
       )
     );
     revalidatePath(`/admin/planning/${eventId}/run-sheet`);
+    emitPlanningRealtime(eventId, "RUN_SHEET_ITEMS_REORDERED", "RunSheetItem");
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -672,6 +843,7 @@ export async function createTimelineItem(
     const prisma = getPrismaClient();
     const result = await prisma.planningTimelineItem.create({ data: { ...parsed, eventId } });
     revalidatePath(`/admin/planning/${eventId}/timeline`);
+    emitPlanningRealtime(eventId, "TIMELINE_ITEM_CREATED", "PlanningTimelineItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -695,6 +867,7 @@ export async function updateTimelineItem(
     const prisma = getPrismaClient();
     const result = await prisma.planningTimelineItem.update({ where: { id: itemId }, data: parsed });
     revalidatePath(`/admin/planning/${result.eventId}/timeline`);
+    emitPlanningRealtime(result.eventId, "TIMELINE_ITEM_UPDATED", "PlanningTimelineItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -707,6 +880,7 @@ export async function deleteTimelineItem(itemId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.planningTimelineItem.delete({ where: { id: itemId } });
     revalidatePath(`/admin/planning/${result.eventId}/timeline`);
+    emitPlanningRealtime(result.eventId, "TIMELINE_ITEM_DELETED", "PlanningTimelineItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -722,6 +896,7 @@ export async function toggleTimelineItem(itemId: string, isCompleted: boolean) {
       data: { isCompleted, completedAt: isCompleted ? new Date() : null },
     });
     revalidatePath(`/admin/planning/${result.eventId}/timeline`);
+    emitPlanningRealtime(result.eventId, "TIMELINE_ITEM_TOGGLED", "PlanningTimelineItem", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -760,6 +935,7 @@ export async function createRisk(
     const prisma = getPrismaClient();
     const result = await prisma.risk.create({ data: { ...parsed, eventId } });
     revalidatePath(`/admin/planning/${eventId}/risks`);
+    emitPlanningRealtime(eventId, "RISK_CREATED", "Risk", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -785,6 +961,7 @@ export async function updateRisk(
     const prisma = getPrismaClient();
     const result = await prisma.risk.update({ where: { id: riskId }, data: parsed });
     revalidatePath(`/admin/planning/${result.eventId}/risks`);
+    emitPlanningRealtime(result.eventId, "RISK_UPDATED", "Risk", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -797,6 +974,7 @@ export async function deleteRisk(riskId: string) {
     const prisma = getPrismaClient();
     const result = await prisma.risk.delete({ where: { id: riskId } });
     revalidatePath(`/admin/planning/${result.eventId}/risks`);
+    emitPlanningRealtime(result.eventId, "RISK_DELETED", "Risk", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -812,6 +990,7 @@ export async function updateRiskStatus(
     const prisma = getPrismaClient();
     const result = await prisma.risk.update({ where: { id: riskId }, data: { status } });
     revalidatePath(`/admin/planning/${result.eventId}/risks`);
+    emitPlanningRealtime(result.eventId, "RISK_STATUS_UPDATED", "Risk", result.id);
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -1110,6 +1289,8 @@ export async function applyBlueprintToEvent(eventId: string, blueprintId: string
     revalidatePath(`/admin/planning/${eventId}/budget`);
     revalidatePath(`/admin/planning/${eventId}/run-sheet`);
     revalidatePath(`/admin/planning/${eventId}/timeline`);
+    revalidatePath(`/admin/planning/${eventId}/dashboard`);
+    emitPlanningRealtime(eventId, "BLUEPRINT_APPLIED", "EventBlueprint", blueprintId);
 
     return { success: true };
   } catch (e: any) {
@@ -1142,6 +1323,10 @@ export async function logActivity(
         details: (details ?? undefined) as never,
       },
     });
+    if (eventId) {
+      revalidatePath(`/admin/planning/${eventId}/dashboard`);
+      emitPlanningRealtime(eventId, "ACTIVITY_LOG_CREATED", entityType ?? "PlanningActivityLog", entityId ?? result.id);
+    }
     return { success: true, data: result };
   } catch (e: any) {
     return { success: false, error: e.message };

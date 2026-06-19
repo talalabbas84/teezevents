@@ -41,7 +41,17 @@ const MOBILE_PRIMARY_ITEMS = [
   { label: "Check-In", href: "/admin/check-in", icon: DoorOpen },
 ]
 
-function NavLinks({ onClose }: { onClose?: () => void }) {
+function NotificationCount({ count }: { count: number }) {
+  if (count <= 0) return null
+
+  return (
+    <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+      {count > 99 ? "99+" : count}
+    </span>
+  )
+}
+
+function NavLinks({ onClose, unreadCount }: { onClose?: () => void; unreadCount: number }) {
   const pathname = usePathname()
 
   function isActive(href: string, exact?: boolean) {
@@ -68,7 +78,8 @@ function NavLinks({ onClose }: { onClose?: () => void }) {
               size={16}
               className={active ? "opacity-100" : "text-muted-foreground group-hover:text-foreground"}
             />
-            {item.label}
+            <span>{item.label}</span>
+            {item.href === "/admin/notifications" ? <NotificationCount count={unreadCount} /> : null}
           </Link>
         )
       })}
@@ -76,7 +87,7 @@ function NavLinks({ onClose }: { onClose?: () => void }) {
   )
 }
 
-function SidebarContent({ onClose }: { onClose?: () => void }) {
+function SidebarContent({ onClose, unreadCount }: { onClose?: () => void; unreadCount: number }) {
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       {/* Branding */}
@@ -98,7 +109,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-0.5 p-3">
-        <NavLinks onClose={onClose} />
+        <NavLinks onClose={onClose} unreadCount={unreadCount} />
       </nav>
 
       {/* Data exports */}
@@ -138,7 +149,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   )
 }
 
-export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
+export function AdminLayoutShell({ children, unreadCount }: { children: React.ReactNode; unreadCount: number }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -155,7 +166,7 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     <>
       {/* Desktop sidebar — fixed, full height */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:w-56 lg:flex-col lg:border-r lg:border-border lg:bg-background lg:shadow-sm">
-        <SidebarContent />
+        <SidebarContent unreadCount={unreadCount} />
       </aside>
 
       {/* Mobile top bar */}
@@ -181,7 +192,7 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
             onClick={() => setMobileOpen(false)}
           />
           <aside className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 max-h-[74dvh] overflow-hidden rounded-3xl border border-border bg-background shadow-2xl lg:hidden">
-            <SidebarContent onClose={() => setMobileOpen(false)} />
+            <SidebarContent onClose={() => setMobileOpen(false)} unreadCount={unreadCount} />
           </aside>
         </>
       )}
@@ -208,9 +219,12 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Open more navigation"
           >
+            {unreadCount > 0 ? (
+              <span className="absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-background" />
+            ) : null}
             <MoreHorizontal size={19} />
             <span>More</span>
           </button>

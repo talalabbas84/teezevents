@@ -2,8 +2,18 @@
 
 import { useEffect, useRef } from "react"
 import { usePathname, useRouter } from "next/navigation"
+import { toast } from "sonner"
 
-export function AdminRealtimeListener() {
+type RealtimePayload = {
+  type?: string
+  action?: string | null
+  recipientEmail?: string | null
+  title?: string | null
+  body?: string | null
+  link?: string | null
+}
+
+export function AdminRealtimeListener({ currentEmail }: { currentEmail?: string | null }) {
   const router = useRouter()
   const pathname = usePathname()
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -15,7 +25,29 @@ export function AdminRealtimeListener() {
 
     const source = new EventSource("/api/admin/realtime")
 
-    source.addEventListener("update", () => {
+    source.addEventListener("update", (message) => {
+      let payload: RealtimePayload = {}
+      try {
+        payload = JSON.parse(message.data || "{}") as RealtimePayload
+      } catch {
+        payload = {}
+      }
+      const recipientEmail = payload.recipientEmail?.trim().toLowerCase()
+      const normalizedCurrentEmail = currentEmail?.trim().toLowerCase()
+      const isForCurrentUser = !recipientEmail || recipientEmail === normalizedCurrentEmail
+
+      if (payload.type === "notification:update" && payload.action === "NOTIFICATION_CREATED" && isForCurrentUser) {
+        toast(payload.title || "New notification", {
+          description: payload.body ?? undefined,
+          action: payload.link
+            ? {
+                label: "Open",
+                onClick: () => router.push(payload.link as string),
+              }
+            : undefined,
+        })
+      }
+
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
       refreshTimer.current = setTimeout(() => {
         router.refresh()
@@ -26,7 +58,7 @@ export function AdminRealtimeListener() {
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
       source.close()
     }
-  }, [pathname, router])
+  }, [currentEmail, pathname, router])
 
   return null
 }

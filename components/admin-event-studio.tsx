@@ -78,6 +78,7 @@ export type AdminManagedEventView = {
     title: string
     body: string[]
   }>
+  tags: string[]
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   ticketPriceCents: number
@@ -148,6 +149,7 @@ type EventFormState = {
   previewDescription: string
   description: string
   contentSections: ContentSectionFormState[]
+  tags: string
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   ticketPriceCad: string
@@ -246,6 +248,17 @@ function splitSectionBody(value: string) {
     .filter(Boolean)
 }
 
+function splitTags(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 24)
+}
+
 function moveItem<T>(items: T[], fromIndex: number, toIndex: number) {
   const next = [...items]
   const [item] = next.splice(fromIndex, 1)
@@ -273,6 +286,7 @@ function testEventTemplate(): EventFormState {
     description:
       "This event is hidden from public event listings and public event detail pages. Use the direct checkout link from admin for testing.",
     contentSections: [],
+    tags: "internal, test",
     category: "UPCOMING",
     eventKind: "SOCIAL",
     ticketPriceCad: "1.00",
@@ -348,6 +362,7 @@ function fromEvent(event?: AdminManagedEventView | null): EventFormState {
         title: section.title,
         body: section.body.join("\n"),
       })) || [],
+    tags: event?.tags.join(", ") || "",
     category: event?.category || "UPCOMING",
     eventKind: event?.eventKind || "SOCIAL",
     ticketPriceCad: ((event?.ticketPriceCents || 0) / 100).toFixed(2),
@@ -842,6 +857,7 @@ export function EventEditorCard({
           contentSections: currentForm.contentSections
             .map((s) => ({ title: s.title, body: splitSectionBody(s.body) }))
             .filter((s) => s.title.trim() && s.body.length > 0),
+          tags: splitTags(currentForm.tags),
           category: currentForm.category,
           eventKind: currentForm.eventKind,
           ticketPriceCad: Number(currentForm.ticketPriceCad) || 0,
@@ -1293,6 +1309,32 @@ export function EventEditorCard({
                       <option value="CORPORATE">Corporate</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor={`${mode}-tags`} className="flex items-center gap-2">
+                    <Tags size={15} />
+                    Tags
+                  </Label>
+                  <Input
+                    id={`${mode}-tags`}
+                    value={form.tags}
+                    onChange={(e) => setForm((c) => ({ ...c, tags: e.target.value }))}
+                    placeholder="salsa, bachata, toronto"
+                    disabled={busy}
+                  />
+                  {splitTags(form.tags).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {splitTags(form.tags).map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 

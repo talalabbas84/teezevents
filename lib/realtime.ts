@@ -7,6 +7,10 @@ export type RealtimeEvent = {
   entityId?: string | null
   action?: string | null
   actorEmail?: string | null
+  recipientEmail?: string | null
+  title?: string | null
+  body?: string | null
+  link?: string | null
   createdAt: string
 }
 

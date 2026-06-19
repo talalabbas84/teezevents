@@ -15,6 +15,11 @@ import {
   MessageSquare,
   LayoutTemplate,
   FileUp,
+  Mail,
+  MailCheck,
+  MailWarning,
+  Smartphone,
+  SmartphoneNfc,
 } from "lucide-react"
 
 import { type NotificationSummary } from "@/lib/notifications"
@@ -63,6 +68,88 @@ function NotificationIcon({ type }: { type: string }) {
       return <FileUp className={cls} />
     default:
       return <Bell className={cls} />
+  }
+}
+
+function EmailStatusBadge({ notification }: { notification: NotificationSummary }) {
+  if (!notification.recipientEmail) return null
+
+  switch (notification.emailStatus) {
+    case "SENT":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+          <MailCheck className="h-3 w-3" />
+          Email sent
+        </span>
+      )
+    case "FAILED":
+      return (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+          title={notification.emailError ?? undefined}
+        >
+          <MailWarning className="h-3 w-3" />
+          Email failed
+        </span>
+      )
+    case "SKIPPED":
+      return (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-600"
+          title={notification.emailError ?? undefined}
+        >
+          <Mail className="h-3 w-3" />
+          Email skipped
+        </span>
+      )
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+          <Mail className="h-3 w-3" />
+          Email pending
+        </span>
+      )
+  }
+}
+
+function PushStatusBadge({ notification }: { notification: NotificationSummary }) {
+  switch (notification.pushStatus) {
+    case "SENT":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+          <SmartphoneNfc className="h-3 w-3" />
+          Push sent
+        </span>
+      )
+    case "PARTIAL":
+      return (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+          title={notification.pushError ?? undefined}
+        >
+          <Smartphone className="h-3 w-3" />
+          Push partial
+        </span>
+      )
+    case "FAILED":
+      return (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+          title={notification.pushError ?? undefined}
+        >
+          <Smartphone className="h-3 w-3" />
+          Push failed
+        </span>
+      )
+    case "SKIPPED":
+      return null
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-600">
+          <Smartphone className="h-3 w-3" />
+          Push pending
+        </span>
+      )
   }
 }
 
@@ -198,6 +285,8 @@ export function NotificationsClient({ initialNotifications, unreadCount }: Props
                     {n.actorEmail && (
                       <span className="text-xs text-muted-foreground">· {n.actorEmail}</span>
                     )}
+                    <EmailStatusBadge notification={n} />
+                    <PushStatusBadge notification={n} />
                     {n.link && (
                       <a
                         href={n.link}

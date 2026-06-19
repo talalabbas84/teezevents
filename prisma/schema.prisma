@@ -157,6 +157,24 @@ model Event {
   @@index([workspaceId])
 }
 
+model PushSubscription {
+  id            String    @id @default(cuid())
+  userEmail     String
+  endpoint      String    @unique
+  p256dh        String
+  auth          String
+  userAgent     String?
+  isActive      Boolean   @default(true)
+  lastSeenAt    DateTime  @default(now())
+  failedAt      DateTime?
+  failureReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userEmail, isActive])
+  @@index([isActive, updatedAt])
+}
+
 model TicketOrder {
   id                      String      @id @default(cuid())
   orderNumber             String      @unique
@@ -857,6 +875,21 @@ enum NotificationType {
   GENERAL
 }
 
+enum NotificationEmailStatus {
+  NOT_REQUESTED
+  SKIPPED
+  SENT
+  FAILED
+}
+
+enum NotificationPushStatus {
+  NOT_REQUESTED
+  SKIPPED
+  SENT
+  PARTIAL
+  FAILED
+}
+
 enum EventFileCategory {
   CONTRACT
   RECEIPT
@@ -1001,6 +1034,13 @@ model Notification {
   body           String?
   link           String?
   actorEmail     String?
+  emailStatus    NotificationEmailStatus @default(NOT_REQUESTED)
+  emailSentAt    DateTime?
+  emailError     String?
+  pushStatus     NotificationPushStatus  @default(NOT_REQUESTED)
+  pushSentAt     DateTime?
+  pushError      String?
+  dedupeKey      String?          @unique
   isRead         Boolean          @default(false)
   readAt         DateTime?
   entityType     String?
@@ -1009,6 +1049,7 @@ model Notification {
 
   @@index([isRead, createdAt])
   @@index([recipientEmail, isRead, createdAt])
+  @@index([recipientEmail, emailStatus, createdAt])
   @@index([eventId])
 }
 

@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { deleteAdminEvent, upsertAdminEvent } from "@/lib/admin-events"
+import { publishRealtimeEvent } from "@/lib/realtime"
 
 export const runtime = "nodejs"
 
@@ -49,6 +50,7 @@ const managedEventSchema = z.object({
   previewDescription: z.string().trim().max(240).optional(),
   description: z.string().trim().max(5000).optional(),
   contentSections: z.array(contentSectionSchema).max(12).default([]),
+  tags: z.array(z.string().trim().min(1).max(80)).max(24).default([]),
   category: z.enum(["UPCOMING", "PAST"]),
   eventKind: z.enum(["THEMED", "SIGNATURE", "CORPORATE", "SOCIAL"]),
   ticketPriceCad: z.number().min(0).max(10000),
@@ -88,6 +90,7 @@ export async function POST(request: Request) {
       previewDescription: parsed.data.previewDescription || undefined,
       description: parsed.data.description || undefined,
       contentSections: parsed.data.contentSections,
+      tags: parsed.data.tags,
       ticketPriceCents: Math.round(parsed.data.ticketPriceCad * 100),
       ticketNote: parsed.data.ticketNote || undefined,
       ticketTiers: parsed.data.ticketTiers.map((tier) => ({
@@ -119,6 +122,14 @@ export async function POST(request: Request) {
       })),
     })
 
+    publishRealtimeEvent({
+      type: "planning:update",
+      eventId: savedEvent.id,
+      action: "EVENT_UPDATED",
+      entityType: "Event",
+      entityId: savedEvent.id,
+    })
+
     return NextResponse.json({
       ok: true,
       eventId: savedEvent.id,
@@ -145,11 +156,20 @@ export async function DELETE(request: Request) {
 
   try {
     const result = await deleteAdminEvent(eventId)
+    const resolvedEventId = result.mode === "deleted" ? result.eventId : result.event.id
+
+    publishRealtimeEvent({
+      type: "planning:update",
+      eventId: resolvedEventId,
+      action: result.mode === "deleted" ? "EVENT_DELETED" : "EVENT_ARCHIVED",
+      entityType: "Event",
+      entityId: resolvedEventId,
+    })
 
     return NextResponse.json({
       ok: true,
       mode: result.mode,
-      eventId: result.mode === "deleted" ? result.eventId : result.event.id,
+      eventId: resolvedEventId,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to delete event."

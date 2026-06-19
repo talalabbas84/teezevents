@@ -619,6 +619,13 @@ Each event has a planning workspace with its own navigation and planning status.
 
 - Admin notifications page.
 - Notification center client.
+- Realtime in-app notification refresh.
+- Realtime notification toast alerts.
+- Admin navigation unread badge.
+- Notification email delivery status tracking.
+- Installed PWA phone push notifications through Web Push.
+- Device push subscription management from Admin Settings.
+- Push delivery status tracking.
 - Notification types:
   - Task assigned.
   - Task overdue.
@@ -640,6 +647,10 @@ Each event has a planning workspace with its own navigation and planning status.
 - Actor email.
 - Entity type and entity ID.
 - Deep links back into admin screens.
+- Task assignment notifications for newly assigned users.
+- Assignment, due-soon, and overdue task notification emails when email is configured.
+- Assignment, due-soon, overdue, and general notifications can be delivered to installed phone PWAs.
+- Deduped planning cron notifications for due-soon and overdue assigned tasks.
 
 ## Global Vendor Directory
 
@@ -730,6 +741,9 @@ Each event has a planning workspace with its own navigation and planning status.
 - Admin realtime listener component.
 - Planning updates published for major mutations.
 - Realtime events used by tasks, checklists, collaboration, files, notes, and related planning flows.
+- Realtime coverage for planning budget, vendors, run sheet, timeline, risks, post-event review, blueprint application, event access, and activity log changes.
+- Realtime admin event metadata refresh for event updates, archives, and deletes.
+- Realtime notifications for file uploads, distribution updates, comment mentions, and task assignment changes.
 - No polling required for the main collaboration update channel.
 
 ## Activity and Audit Tracking
@@ -747,6 +761,7 @@ Each event has a planning workspace with its own navigation and planning status.
 ## Technical Foundation
 
 - Next.js App Router.
+- Progressive Web App manifest and service worker.
 - React 19.
 - TypeScript.
 - Prisma ORM.
@@ -754,6 +769,7 @@ Each event has a planning workspace with its own navigation and planning status.
 - Stripe payments.
 - Cloudinary file/media uploads.
 - Nodemailer-backed email service.
+- Web Push/VAPID push notification delivery.
 - PDF ticket generation.
 - QR code generation.
 - Tailwind/Radix UI component system.

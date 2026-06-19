@@ -4,11 +4,22 @@ import { z } from "zod"
 import { getPrismaClient } from "@/lib/prisma"
 import { createAdminSession, hashPassword } from "@/lib/admin-auth"
 import { requireTeamRole, type EventAccessLevel, type TeamRole } from "@/lib/team-access"
+import { publishRealtimeEvent } from "@/lib/realtime"
 import { revalidatePath } from "next/cache"
 import { randomBytes } from "crypto"
 
 const TEAM_ROLES = ["SUPER_ADMIN", "ADMIN", "PLANNER", "VIEWER"] as const
 const EVENT_ACCESS_LEVELS = ["VIEW", "COMMENT", "EDIT", "MANAGE"] as const
+
+function emitEventAccessRealtime(eventId: string, action: string, entityId?: string) {
+  publishRealtimeEvent({
+    type: "planning:update",
+    eventId,
+    action,
+    entityType: "EventTeamAccess",
+    entityId,
+  })
+}
 
 // Generate a random invite token
 function generateInviteToken(): string {
@@ -290,6 +301,7 @@ export async function grantEventAccess(data: {
 
     revalidatePath("/admin/team")
     revalidatePath(`/admin/planning/${parsed.eventId}/collaboration`)
+    emitEventAccessRealtime(parsed.eventId, "EVENT_ACCESS_GRANTED", access.id)
     return { success: true, data: access }
   } catch (e: unknown) {
     return { success: false, error: e instanceof Error ? e.message : "Unknown error" }
@@ -321,6 +333,7 @@ export async function revokeEventAccess(eventId: string, memberId: string) {
 
     revalidatePath("/admin/team")
     revalidatePath(`/admin/planning/${eventId}/collaboration`)
+    emitEventAccessRealtime(eventId, "EVENT_ACCESS_REVOKED")
     return { success: true }
   } catch (e: unknown) {
     return { success: false, error: e instanceof Error ? e.message : "Unknown error" }

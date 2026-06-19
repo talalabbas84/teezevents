@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { getPrismaClient } from "@/lib/prisma"
 import { isAdminAuthenticated } from "@/lib/admin-auth"
+import { publishRealtimeEvent } from "@/lib/realtime"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
@@ -173,6 +174,13 @@ export async function createNewEvent(
 
     revalidatePath("/admin/planning")
     revalidatePath("/admin/events")
+    publishRealtimeEvent({
+      type: "planning:update",
+      eventId: data.id,
+      action: "EVENT_CREATED",
+      entityType: "Event",
+      entityId: data.id,
+    })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "An unexpected error occurred."
     return { error: message }

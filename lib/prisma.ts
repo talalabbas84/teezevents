@@ -10,6 +10,7 @@ function hasCurrentGeneratedDelegates(client: PrismaClient) {
       client.marketingPost &&
       client.marketingEmailCampaignDetail &&
       client.marketingEmailDelivery &&
+      client.pushSubscription &&
       client.websitePage &&
       client.websitePageRevision &&
       client.teamMember &&

@@ -14,6 +14,7 @@ type ManagedEventRecord = {
   previewDescription: string | null
   description: string | null
   contentSections?: unknown
+  tags: string[]
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   currency: string
@@ -114,6 +115,7 @@ export type UpsertManagedEventInput = {
     title: string
     body: string[]
   }>
+  tags?: string[]
   category: "UPCOMING" | "PAST"
   eventKind: "THEMED" | "SIGNATURE" | "CORPORATE" | "SOCIAL"
   ticketPriceCents: number
@@ -439,6 +441,7 @@ export async function upsertAdminEvent(input: UpsertManagedEventInput) {
   const vouchers = buildVoucherWriteData(input)
   const gallery = normalizeUrlList(input.gallery)
   const contentSections = normalizeContentSections(input.contentSections)
+  const tags = normalizeUrlList(input.tags ?? [])
   const activeTierPrices = ticketTiers.filter((tier) => tier.isActive).map((tier) => tier.priceCents)
   const effectiveTicketPriceCents =
     activeTierPrices.length > 0 ? Math.min(...activeTierPrices) : Math.round(input.ticketPriceCents)
@@ -484,6 +487,7 @@ export async function upsertAdminEvent(input: UpsertManagedEventInput) {
     previewDescription: input.previewDescription || null,
     description: input.description || null,
     contentSections: contentSections.length > 0 ? contentSections : undefined,
+    tags,
     category: input.category,
     eventKind: input.eventKind,
     currency: "cad",

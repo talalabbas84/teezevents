@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { getPrismaClient } from "@/lib/prisma"
+import { createNotification } from "@/lib/notifications"
 import { publishRealtimeEvent } from "@/lib/realtime"
 import { requireEventAccess } from "@/lib/team-access"
 import {
@@ -317,17 +318,16 @@ export async function markDistributionPublished(eventId: string, platform: Distr
       },
     })
 
-    await prisma.notification.create({
-      data: {
-        eventId,
-        type: "GENERAL",
-        title: `${config.label} marked published`,
-        body: "Distribution channel is now counted in the visibility score.",
-        link: `/admin/planning/${eventId}/distribution`,
-        actorEmail: session.email,
-        entityType: "EventDistribution",
-        entityId: distribution.id,
-      },
+    await createNotification({
+      eventId,
+      type: "GENERAL",
+      title: `${config.label} marked published`,
+      body: "Distribution channel is now counted in the visibility score.",
+      link: `/admin/planning/${eventId}/distribution`,
+      actorEmail: session.email,
+      entityType: "EventDistribution",
+      entityId: distribution.id,
+      dedupeKey: `distribution-published:${eventId}:${platform}`,
     })
 
     revalidateDistribution(eventId)

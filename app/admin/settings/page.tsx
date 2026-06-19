@@ -1,4 +1,7 @@
 import { requireAdminSession } from "@/lib/admin-auth"
+import { getPrismaClient } from "@/lib/prisma"
+import { getWebPushPublicKey, getWebPushSetupIssue } from "@/lib/web-push"
+import { PushNotificationManager } from "@/components/admin/push-notification-manager"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,6 +11,16 @@ import { Switch } from "@/components/ui/switch"
 
 export default async function AdminSettingsPage() {
   const session = await requireAdminSession()
+  const prisma = getPrismaClient()
+  const [activePushSubscriptionCount, webPushSetupIssue] = await Promise.all([
+    prisma.pushSubscription.count({
+      where: {
+        userEmail: session.email,
+        isActive: true,
+      },
+    }),
+    Promise.resolve(getWebPushSetupIssue()),
+  ])
 
   return (
     <main className="min-h-screen bg-[#F7EDDB] px-4 py-8 lg:px-8">
@@ -74,14 +87,26 @@ export default async function AdminSettingsPage() {
             <Separator />
 
             {/* Notifications toggle */}
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="font-medium">Admin Notifications</div>
-                <p className="text-sm text-muted-foreground">
-                  Receive in-app notifications for planning activity and alerts.
-                </p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="font-medium">Admin Notifications</div>
+                  <p className="text-sm text-muted-foreground">
+                    Receive in-app notifications for planning activity and alerts.
+                  </p>
+                </div>
+                <Switch defaultChecked disabled />
               </div>
-              <Switch defaultChecked disabled />
+
+              <PushNotificationManager
+                publicKey={getWebPushPublicKey()}
+                activeSubscriptionCount={activePushSubscriptionCount}
+              />
+              {webPushSetupIssue ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  {webPushSetupIssue} Generate VAPID keys with <code>pnpm exec web-push generate-vapid-keys</code>.
+                </p>
+              ) : null}
             </div>
           </CardContent>
         </Card>

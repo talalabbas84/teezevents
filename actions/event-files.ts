@@ -1,6 +1,7 @@
 "use server"
 
 import { getPrismaClient } from "@/lib/prisma"
+import { createNotification } from "@/lib/notifications"
 import { requireEventAccess } from "@/lib/team-access"
 import { publishRealtimeEvent } from "@/lib/realtime"
 import { revalidatePath } from "next/cache"
@@ -130,17 +131,16 @@ export async function addEventFile(
       },
     })
 
-    await prisma.notification.create({
-      data: {
-        eventId,
-        type: "FILE_UPLOADED",
-        title: "New event resource added",
-        body: file.name,
-        link: `/admin/planning/${eventId}/files`,
-        actorEmail: session.email,
-        entityType: "EventFile",
-        entityId: file.id,
-      },
+    await createNotification({
+      eventId,
+      type: "FILE_UPLOADED",
+      title: "New event resource added",
+      body: file.name,
+      link: `/admin/planning/${eventId}/files`,
+      actorEmail: session.email,
+      entityType: "EventFile",
+      entityId: file.id,
+      dedupeKey: `file-uploaded:${file.id}`,
     })
 
     revalidatePath(`/admin/planning/${eventId}/files`)

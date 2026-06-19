@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { Camera, CameraOff, CheckCircle2, Loader2, Search, ShieldAlert, Ticket } from "lucide-react"
+import jsQR from "jsqr"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -61,6 +62,7 @@ export function AdminCheckInConsole({
   recentCheckIns: RecentCheckIn[]
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const detectorRef = useRef<BarcodeDetectorShape | null>(null)
   const scanTimeoutRef = useRef<number | null>(null)
@@ -68,54 +70,71 @@ export function AdminCheckInConsole({
 
   const [selectedEventId, setSelectedEventId] = useState("")
   const [manualCode, setManualCode] = useState("")
-  const [scannerSupported, setScannerSupported] = useState(false)
   const [cameraActive, setCameraActive] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [result, setResult] = useState<CheckInResponse | null>(null)
 
+  // Camera is always supported — we use BarcodeDetector when available, jsQR as universal fallback
+  const scannerSupported = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia
+
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return
-    }
+    if (typeof window === "undefined") return
 
-    const barcodeWindow = window as Window & {
-      BarcodeDetector?: BarcodeDetectorConstructor
+    const barcodeWindow = window as Window & { BarcodeDetector?: BarcodeDetectorConstructor }
+    if (barcodeWindow.BarcodeDetector) {
+      detectorRef.current = new barcodeWindow.BarcodeDetector({ formats: ["qr_code"] })
     }
-
-    if (!barcodeWindow.BarcodeDetector) {
-      return
-    }
-
-    detectorRef.current = new barcodeWindow.BarcodeDetector({
-      formats: ["qr_code"],
-    })
-    setScannerSupported(true)
 
     return () => {
-      if (scanTimeoutRef.current) {
-        window.clearTimeout(scanTimeoutRef.current)
-      }
-
+      if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current)
       streamRef.current?.getTracks().forEach((track) => track.stop())
     }
   }, [])
 
   useEffect(() => {
-    if (!cameraActive || !detectorRef.current || !videoRef.current) {
-      return
+    if (!cameraActive || !videoRef.current) return
+
+    // Create an offscreen canvas for jsQR pixel extraction
+    if (!canvasRef.current) {
+      canvasRef.current = document.createElement("canvas")
     }
 
     let cancelled = false
 
+    const decodeFrame = (): string | null => {
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      if (!video || !canvas || video.readyState < 2) return null
+
+      const { videoWidth: w, videoHeight: h } = video
+      if (!w || !h) return null
+
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })
+      if (!ctx) return null
+
+      ctx.drawImage(video, 0, 0, w, h)
+      const imageData = ctx.getImageData(0, 0, w, h)
+      const code = jsQR(imageData.data, w, h, { inversionAttempts: "dontInvert" })
+      return code?.data ?? null
+    }
+
     const loop = async () => {
-      if (cancelled || !videoRef.current || !detectorRef.current) {
-        return
-      }
+      if (cancelled || !videoRef.current) return
 
       try {
-        const codes = await detectorRef.current.detect(videoRef.current)
-        const rawValue = codes.find((code) => Boolean(code.rawValue))?.rawValue
+        let rawValue: string | undefined
+
+        if (detectorRef.current) {
+          // Use native BarcodeDetector when available (faster, hardware-accelerated)
+          const codes = await detectorRef.current.detect(videoRef.current)
+          rawValue = codes.find((c) => Boolean(c.rawValue))?.rawValue
+        } else {
+          // jsQR fallback — works on iOS Chrome, Firefox, and all other browsers
+          rawValue = decodeFrame() ?? undefined
+        }
 
         if (rawValue && !isSubmitting) {
           const now = Date.now()
@@ -132,18 +151,15 @@ export function AdminCheckInConsole({
       }
 
       if (!cancelled) {
-        scanTimeoutRef.current = window.setTimeout(loop, 450)
+        scanTimeoutRef.current = window.setTimeout(loop, 300)
       }
     }
 
-    scanTimeoutRef.current = window.setTimeout(loop, 450)
+    scanTimeoutRef.current = window.setTimeout(loop, 300)
 
     return () => {
       cancelled = true
-
-      if (scanTimeoutRef.current) {
-        window.clearTimeout(scanTimeoutRef.current)
-      }
+      if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current)
     }
   }, [cameraActive, isSubmitting])
 
@@ -291,7 +307,7 @@ export function AdminCheckInConsole({
                     ? "Point the camera at a QR ticket. Scans are processed automatically."
                     : scannerSupported
                       ? "Start the camera to scan QR tickets live."
-                      : "This browser does not support in-page QR scanning. Use manual code entry below."}
+                      : "Camera access is not available. Use manual ticket code entry below."}
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {cameraActive ? (

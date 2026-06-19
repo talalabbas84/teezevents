@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { getPrismaClient } from "@/lib/prisma"
 import { canManageEvent, requireEventAccess } from "@/lib/team-access"
+import { createNotification } from "@/lib/notifications"
 import { publishRealtimeEvent } from "@/lib/realtime"
 import { revalidatePath } from "next/cache"
 
@@ -88,24 +89,28 @@ export async function createEventComment(data: {
         },
       })
 
-      for (const recipientEmail of mentions.filter((email) => email !== session.email)) {
-        await tx.notification.create({
-          data: {
+      return created
+    })
+
+    await Promise.all(
+      mentions
+        .filter((email) => email !== session.email)
+        .map((recipientEmail) =>
+          createNotification({
             eventId: data.eventId,
             recipientEmail,
             type: "COMMENT_MENTION",
             title: "You were mentioned in a comment",
-            body: created.body,
+            body: comment.body,
             link: `/admin/planning/${data.eventId}/collaboration`,
             actorEmail: session.email,
             entityType: "EventComment",
-            entityId: created.id,
-          },
-        })
-      }
-
-      return created
-    })
+            entityId: comment.id,
+            dedupeKey: `comment-mention:${comment.id}:${recipientEmail}`,
+            sendEmail: true,
+          })
+        )
+    )
 
     revalidateCollaboration(data.eventId)
     emitCollaborationRealtime(data.eventId, data.parentId ? "COMMENT_REPLIED" : "COMMENT_CREATED", comment.id)

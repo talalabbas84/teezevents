@@ -2,7 +2,18 @@
 
 import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { getPrismaClient } from "@/lib/prisma"
+import { publishRealtimeEvent } from "@/lib/realtime"
 import { revalidatePath } from "next/cache"
+
+function emitPostEventRealtime(eventId: string, action: string, entityId?: string) {
+  publishRealtimeEvent({
+    type: "planning:update",
+    eventId,
+    action,
+    entityType: "PostEventReview",
+    entityId,
+  })
+}
 
 export async function upsertPostEventReview(
   eventId: string,
@@ -37,6 +48,8 @@ export async function upsertPostEventReview(
     })
 
     revalidatePath(`/admin/planning/${eventId}/post-event`)
+    revalidatePath(`/admin/planning/${eventId}/dashboard`)
+    emitPostEventRealtime(eventId, "POST_EVENT_REVIEW_UPDATED", result.id)
 
     return { success: true, data: result }
   } catch (e: unknown) {
@@ -63,6 +76,8 @@ export async function markReviewSavedToBlueprint(
     })
 
     revalidatePath(`/admin/planning/${eventId}/post-event`)
+    revalidatePath(`/admin/planning/${eventId}/dashboard`)
+    emitPostEventRealtime(eventId, "POST_EVENT_REVIEW_SAVED_TO_BLUEPRINT", eventId)
 
     return { success: true }
   } catch (e: unknown) {

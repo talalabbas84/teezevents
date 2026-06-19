@@ -2,6 +2,8 @@
 
 import { getCurrentTeamContext } from "@/lib/team-access"
 import { getPrismaClient } from "@/lib/prisma"
+import { createNotification } from "@/lib/notifications"
+import { publishRealtimeEvent } from "@/lib/realtime"
 import { revalidatePath } from "next/cache"
 
 function notificationScope(email: string, isSuperAdmin: boolean) {
@@ -30,6 +32,13 @@ export async function markNotificationRead(
     })
 
     revalidatePath("/admin/notifications")
+    publishRealtimeEvent({
+      type: "notification:update",
+      action: "NOTIFICATION_READ",
+      entityType: "Notification",
+      entityId: notificationId,
+      recipientEmail: currentUser.role === "SUPER_ADMIN" ? null : currentUser.email,
+    })
 
     return { success: true }
   } catch (error) {
@@ -65,6 +74,12 @@ export async function markAllNotificationsRead(): Promise<{
     })
 
     revalidatePath("/admin/notifications")
+    publishRealtimeEvent({
+      type: "notification:update",
+      action: "NOTIFICATIONS_READ",
+      entityType: "Notification",
+      recipientEmail: currentUser.role === "SUPER_ADMIN" ? null : currentUser.email,
+    })
 
     return { success: true }
   } catch (error) {
@@ -97,6 +112,13 @@ export async function deleteNotification(
     })
 
     revalidatePath("/admin/notifications")
+    publishRealtimeEvent({
+      type: "notification:update",
+      action: "NOTIFICATION_DELETED",
+      entityType: "Notification",
+      entityId: notificationId,
+      recipientEmail: currentUser.role === "SUPER_ADMIN" ? null : currentUser.email,
+    })
 
     return { success: true }
   } catch (error) {
@@ -105,6 +127,38 @@ export async function deleteNotification(
       success: false,
       error:
         error instanceof Error ? error.message : "Failed to delete notification",
+    }
+  }
+}
+
+export async function sendTestPushNotification(): Promise<{
+  success: boolean
+  error?: string
+}> {
+  try {
+    const currentUser = await getCurrentTeamContext()
+
+    await createNotification({
+      type: "GENERAL",
+      title: "Phone notifications are enabled",
+      body: "This is a test notification from TEEZ Admin.",
+      link: "/admin/notifications",
+      recipientEmail: currentUser.email,
+      actorEmail: currentUser.email,
+      entityType: "Notification",
+      sendEmail: false,
+      sendPush: true,
+      dedupeKey: `test-push:${currentUser.email}:${Date.now()}`,
+    })
+
+    revalidatePath("/admin/notifications")
+
+    return { success: true }
+  } catch (error) {
+    console.error("[sendTestPushNotification]", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to send test notification.",
     }
   }
 }

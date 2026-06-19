@@ -130,6 +130,7 @@ export async function toggleNotePin(noteId: string, isPinned: boolean) {
     })
 
     revalidatePath(`/admin/planning/${existing.eventId}/notes`)
+    revalidatePath(`/admin/planning/${existing.eventId}/dashboard`)
     emitNoteRealtime(existing.eventId, isPinned ? "NOTE_PINNED" : "NOTE_UNPINNED", noteId)
     return {
       success: true,
