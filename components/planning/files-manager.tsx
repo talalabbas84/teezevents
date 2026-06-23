@@ -48,6 +48,9 @@ import {
   Star,
   ChevronRight,
   FolderPlus,
+  Download,
+  ZoomIn,
+  X,
 } from "lucide-react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -164,6 +167,34 @@ function formatDate(iso: string): string {
   })
 }
 
+function isImageFile(file: FileSerialized): boolean {
+  if (file.mimeType?.startsWith("image/")) return true
+  return /\.(jpg|jpeg|png|gif|webp|avif|svg)(\?|$)/i.test(file.url)
+}
+
+function isPdfFile(file: FileSerialized): boolean {
+  return file.mimeType === "application/pdf" || file.url.endsWith(".pdf")
+}
+
+function isCloudinaryUrl(url: string): boolean {
+  return url.includes("cloudinary.com") || url.includes("res.cloudinary.com")
+}
+
+function getThumbnailUrl(url: string): string {
+  if (!isCloudinaryUrl(url)) return url
+  // Replace /upload/ with /upload/w_600,c_fill,q_auto,f_auto/
+  return url.replace(/\/upload\//, "/upload/w_600,c_fill,q_auto,f_auto/")
+}
+
+function getDownloadUrl(url: string, name: string): string {
+  if (isCloudinaryUrl(url)) {
+    // fl_attachment forces browser download; filename sets the downloaded filename
+    const encoded = encodeURIComponent(name)
+    return url.replace(/\/upload\//, `/upload/fl_attachment:${encoded}/`)
+  }
+  return url
+}
+
 const ALL_CATEGORIES: EventFileCategory[] = [
   "CONTRACT",
   "RECEIPT",
@@ -236,10 +267,12 @@ function uploadToCloudinary({
   file,
   eventId,
   onProgress,
+  quality = "original",
 }: {
   file: File
   eventId: string
   onProgress: (progress: number) => void
+  quality?: "original" | "optimized"
 }) {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
   const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
@@ -252,6 +285,11 @@ function uploadToCloudinary({
   body.append("file", file)
   body.append("upload_preset", uploadPreset)
   body.append("folder", `teez-events/${eventId}/documents`)
+  // Apply Cloudinary quality reduction for optimized uploads of images
+  if (quality === "optimized" && file.type.startsWith("image/")) {
+    body.append("quality", "auto")
+    body.append("format", "auto")
+  }
 
   return new Promise<CloudinaryUploadResult>((resolve, reject) => {
     const request = new XMLHttpRequest()
@@ -307,6 +345,7 @@ export function FilesClient({
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [newFolderName, setNewFolderName] = useState("")
+  const [previewFile, setPreviewFile] = useState<FileSerialized | null>(null)
 
   // Add form state
   const [form, setForm] = useState({
@@ -318,6 +357,7 @@ export function FilesClient({
     isImportant: false,
     description: "",
     selectedFile: null as File | null,
+    uploadQuality: "optimized" as "original" | "optimized",
   })
 
   const folderById = useMemo(() => {
@@ -408,6 +448,7 @@ export function FilesClient({
       isImportant: false,
       description: "",
       selectedFile: null,
+      uploadQuality: "optimized",
     })
     setError(null)
     setUploadProgress(0)
@@ -421,6 +462,8 @@ export function FilesClient({
       const category = inferCategoryFromFile(file, current.category)
       const folderId = file ? getCurrentUploadFolderId(category) : current.folderId
       const folder = folderId ? folderById.get(folderId) : null
+      // Default quality: images → optimized (smaller), documents → original (preserve quality)
+      const uploadQuality = file?.type.startsWith("image/") ? "optimized" : "original"
       return {
         ...current,
         selectedFile: file,
@@ -428,6 +471,7 @@ export function FilesClient({
         category,
         folderId,
         folder: file ? getFolderPath(folder) : current.folder,
+        uploadQuality,
       }
     })
   }
@@ -463,6 +507,7 @@ export function FilesClient({
             file: form.selectedFile,
             eventId,
             onProgress: setUploadProgress,
+            quality: form.uploadQuality,
           })
           uploadedUrl = uploaded.secure_url
           uploadedSizeBytes = uploaded.bytes ?? form.selectedFile.size
@@ -769,89 +814,159 @@ export function FilesClient({
                   </div>
                 </button>
               ))}
-              {filtered.map((file) => (
-                <Card
-                  key={file.id}
-                  className="group border-stone-200 bg-white shadow-sm transition-shadow hover:shadow-md"
-                >
-                  <CardContent className="p-4">
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EDDB]">
-                          <CategoryIcon
-                            category={file.category}
-                            className="text-[#c57a3a]"
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-stone-800">
-                            {file.name}
-                          </p>
-                          <p className="flex items-center gap-1 truncate text-xs text-stone-400">
-                            <FolderOpen className="h-3 w-3 shrink-0" />
-                            {getDisplayFolder(file.folder)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 gap-1 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100">
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
-                          title="Open file"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                        <button
-                          onClick={() => setDeleteTarget(file)}
-                          className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-xs",
-                          CATEGORY_BADGE_COLORS[file.category]
-                        )}
+              {filtered.map((file) => {
+                const isImg = isImageFile(file)
+                const isPdf = isPdfFile(file)
+                return (
+                  <Card
+                    key={file.id}
+                    className="group border-stone-200 bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden"
+                  >
+                    {/* Image thumbnail */}
+                    {isImg && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewFile(file)}
+                        className="relative block w-full overflow-hidden bg-stone-100"
+                        style={{ aspectRatio: "16/9" }}
+                        title="Preview image"
                       >
-                        {CATEGORY_LABELS[file.category]}
-                      </Badge>
-                      {file.isImportant && (
-                        <Badge
-                          variant="outline"
-                          className="gap-1 border-amber-200 bg-amber-50 text-xs text-amber-800"
-                        >
-                          <Star className="h-3 w-3" />
-                          Important
-                        </Badge>
-                      )}
-                      {file.sizeBytes ? (
-                        <span className="text-xs text-stone-400">
-                          {formatBytes(file.sizeBytes)}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {file.description && (
-                      <p className="mt-2 line-clamp-2 text-xs text-stone-500">
-                        {file.description}
-                      </p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={getThumbnailUrl(file.url)}
+                          alt={file.name}
+                          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+                          <ZoomIn className="h-6 w-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                        </div>
+                      </button>
                     )}
 
-                    <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-2 text-xs text-stone-400">
-                      <span className="truncate pr-2">{file.uploadedBy}</span>
-                      <span>{formatDate(file.createdAt)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <CardContent className="p-4">
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          {!isImg && (
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EDDB]">
+                              <CategoryIcon
+                                category={file.category}
+                                className="text-[#c57a3a]"
+                              />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-stone-800">
+                              {file.name}
+                            </p>
+                            <p className="flex items-center gap-1 truncate text-xs text-stone-400">
+                              <FolderOpen className="h-3 w-3 shrink-0" />
+                              {getDisplayFolder(file.folder)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-1 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100">
+                          {isImg && (
+                            <button
+                              onClick={() => setPreviewFile(file)}
+                              className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                              title="Preview"
+                            >
+                              <ZoomIn className="h-4 w-4" />
+                            </button>
+                          )}
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                            title="Open in new tab"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                          <a
+                            href={getDownloadUrl(file.url, file.name)}
+                            download={file.name}
+                            className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-[#c57a3a]"
+                            title="Download original"
+                          >
+                            <Download className="h-4 w-4" />
+                          </a>
+                          <button
+                            onClick={() => setDeleteTarget(file)}
+                            className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs",
+                            CATEGORY_BADGE_COLORS[file.category]
+                          )}
+                        >
+                          {CATEGORY_LABELS[file.category]}
+                        </Badge>
+                        {file.isImportant && (
+                          <Badge
+                            variant="outline"
+                            className="gap-1 border-amber-200 bg-amber-50 text-xs text-amber-800"
+                          >
+                            <Star className="h-3 w-3" />
+                            Important
+                          </Badge>
+                        )}
+                        {file.sizeBytes ? (
+                          <span className="text-xs text-stone-400">
+                            {formatBytes(file.sizeBytes)}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {file.description && (
+                        <p className="mt-2 line-clamp-2 text-xs text-stone-500">
+                          {file.description}
+                        </p>
+                      )}
+
+                      <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-2 text-xs text-stone-400">
+                        <span className="truncate pr-2">{file.uploadedBy}</span>
+                        <span>{formatDate(file.createdAt)}</span>
+                      </div>
+
+                      {/* Quick download bar for PDFs and docs */}
+                      {!isImg && (
+                        <div className="mt-2 flex gap-2">
+                          {isPdf && (
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              View PDF
+                            </a>
+                          )}
+                          <a
+                            href={getDownloadUrl(file.url, file.name)}
+                            download={file.name}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#c57a3a]/20 bg-[#c57a3a]/5 px-2.5 py-1.5 text-xs font-medium text-[#c57a3a] transition-colors hover:bg-[#c57a3a]/10"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Download
+                          </a>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           )}
         </section>
@@ -914,6 +1029,38 @@ export function FilesClient({
                     />
                   </div>
                   <p className="text-xs text-stone-500">{uploadProgress}% uploaded</p>
+                </div>
+              )}
+
+              {/* Quality toggle — only shown for image files */}
+              {form.selectedFile?.type.startsWith("image/") && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Upload Quality</Label>
+                  <div className="flex gap-2">
+                    {(["optimized", "original"] as const).map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setForm((p) => ({ ...p, uploadQuality: q }))}
+                        disabled={isUploading || isPending}
+                        className={cn(
+                          "flex-1 rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors",
+                          form.uploadQuality === q
+                            ? "border-[#c57a3a] bg-[#c57a3a]/10 text-[#c57a3a]"
+                            : "border-stone-200 bg-white text-stone-600 hover:border-stone-300"
+                        )}
+                      >
+                        <div className="font-semibold mb-0.5">
+                          {q === "optimized" ? "Optimized" : "Original Quality"}
+                        </div>
+                        <div className="text-[10px] text-stone-400 font-normal">
+                          {q === "optimized"
+                            ? "Smaller file, auto-compressed for fast loading"
+                            : "Full resolution, no compression applied"}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1208,6 +1355,54 @@ export function FilesClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Image preview lightbox ─────────────────────────────────────────── */}
+      {previewFile && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/90 p-4"
+          onClick={() => setPreviewFile(null)}
+        >
+          {/* Header bar */}
+          <div
+            className="flex w-full max-w-5xl items-center justify-between gap-4 pb-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="truncate text-sm font-medium text-white/90">
+              {previewFile.name}
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href={getDownloadUrl(previewFile.url, previewFile.name)}
+                download={previewFile.name}
+                className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/20"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download Original
+              </a>
+              <button
+                onClick={() => setPreviewFile(null)}
+                className="rounded-full p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Image */}
+          <div
+            className="flex max-h-[80dvh] max-w-5xl items-center justify-center overflow-hidden rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewFile.url}
+              alt={previewFile.name}
+              className="max-h-[80dvh] max-w-full rounded-xl object-contain shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

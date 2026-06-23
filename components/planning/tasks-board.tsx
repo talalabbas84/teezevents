@@ -998,6 +998,35 @@ export function TasksBoardClient({
         dueDate: "",
         assigneeEmails: [],
       })
+      // Optimistically add the new task to local state so the board updates immediately
+      const taskResult = result.data as {
+        id: string
+        sortOrder: number
+        blueprintTaskId: string | null
+        assignedTo: string | null
+        assigneeEmails: string[]
+      }
+      const newTask: PlanningTaskSerialized = {
+        id: taskResult.id,
+        eventId,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        status: form.status,
+        priority: form.priority,
+        category: form.category.trim() || null,
+        assignedTo: taskResult.assignedTo,
+        assigneeEmails: taskResult.assigneeEmails,
+        dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
+        completedAt: null,
+        sortOrder: taskResult.sortOrder ?? 0,
+        parentTaskId: null,
+        subtasks: [],
+        commentCount: 0,
+        blueprintTaskId: taskResult.blueprintTaskId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      setTasks((prev) => [newTask, ...prev])
       toast.success("Task created.")
       router.refresh()
     } catch (err: unknown) {
@@ -1046,7 +1075,7 @@ export function TasksBoardClient({
       </div>
 
     
-
+          
       {/* ── Kanban board ── */}
       <DndContext
         sensors={sensors}
