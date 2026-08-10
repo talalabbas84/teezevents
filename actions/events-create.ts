@@ -6,6 +6,14 @@ import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { publishRealtimeEvent } from "@/lib/realtime"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { eventDateTimeToDate, isValidEventDateTime } from "@/lib/event-time"
+import { EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH } from "@/lib/event-validation"
+
+const optionalEventDateTimeSchema = z
+  .string()
+  .optional()
+  .refine((value) => !value || isValidEventDateTime(value), "Enter a valid date and time.")
+  .transform((value) => (value ? eventDateTimeToDate(value) : undefined))
 
 const CreateEventSchema = z.object({
   id: z
@@ -19,14 +27,8 @@ const CreateEventSchema = z.object({
     .min(2, "Title is required")
     .max(140, "Title must be at most 140 characters")
     .transform((s) => s.trim()),
-  startsAt: z
-    .string()
-    .optional()
-    .transform((s) => (s && s.length > 0 ? new Date(s) : undefined)),
-  endsAt: z
-    .string()
-    .optional()
-    .transform((s) => (s && s.length > 0 ? new Date(s) : undefined)),
+  startsAt: optionalEventDateTimeSchema,
+  endsAt: optionalEventDateTimeSchema,
   venue: z
     .string()
     .max(140)
@@ -44,7 +46,10 @@ const CreateEventSchema = z.object({
     .transform((s) => s || undefined),
   previewDescription: z
     .string()
-    .max(240)
+    .max(
+      EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH,
+      `Preview description must be ${EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH.toLocaleString()} characters or fewer.`,
+    )
     .optional()
     .transform((s) => s || undefined),
   eventKind: z

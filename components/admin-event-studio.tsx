@@ -35,7 +35,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { formatEventDateTimeLocal } from "@/lib/event-time"
 import { cn } from "@/lib/utils"
+import { EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH } from "@/lib/event-validation"
 
 type AdminManagedTierView = {
   id: string
@@ -185,28 +187,6 @@ function formatCurrency(amountInCents: number) {
   }).format(amountInCents / 100)
 }
 
-function toDateTimeLocal(value: string | null) {
-  if (!value) {
-    return ""
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return ""
-  }
-
-  const offset = date.getTimezoneOffset()
-  const local = new Date(date.getTime() - offset * 60 * 1000)
-  return local.toISOString().slice(0, 16)
-}
-
-function dateToDateTimeLocal(date: Date) {
-  const offset = date.getTimezoneOffset()
-  const local = new Date(date.getTime() - offset * 60 * 1000)
-  return local.toISOString().slice(0, 16)
-}
-
 function formatStudioDate(value: string | null) {
   if (!value) {
     return "Date TBA"
@@ -272,6 +252,43 @@ function moveItem<T>(items: T[], fromIndex: number, toIndex: number) {
   return next
 }
 
+const eventFieldLabels: Record<string, string> = {
+  id: "Event ID",
+  title: "Title",
+  startsAt: "Start date and time",
+  venue: "Venue name",
+  address: "Address",
+  hostedBy: "Hosted by",
+  image: "Hero image",
+  gallery: "Gallery",
+  previewDescription: "Preview description",
+  description: "Full description",
+  contentSections: "Page sections",
+  tags: "Tags",
+  ticketPriceCad: "Base ticket price",
+  capacity: "Capacity",
+  maxTicketsPerOrder: "Max tickets per order",
+  ticketNote: "Ticket note",
+  ticketTiers: "Ticket tiers",
+  vouchers: "Vouchers",
+  event: "Event",
+}
+
+function formatEventFieldPath(path: string) {
+  const [group, rawIndex, field] = path.split(".")
+  const itemNumber = Number(rawIndex) + 1
+
+  if ((group === "ticketTiers" || group === "vouchers" || group === "contentSections") && Number.isInteger(itemNumber)) {
+    const groupLabel = group === "ticketTiers" ? "Ticket tier" : group === "vouchers" ? "Voucher" : "Page section"
+    const fieldLabel = field
+      ? field.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (character) => character.toUpperCase())
+      : ""
+    return `${groupLabel} ${itemNumber}${fieldLabel ? ` ${fieldLabel}` : ""}`
+  }
+
+  return eventFieldLabels[path] || path.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (character) => character.toUpperCase())
+}
+
 function testEventTemplate(): EventFormState {
   const start = new Date()
   start.setDate(start.getDate() + 1)
@@ -282,7 +299,7 @@ function testEventTemplate(): EventFormState {
   return {
     id: `test-event-${suffix}`,
     title: "Test Event",
-    startsAt: dateToDateTimeLocal(start),
+    startsAt: formatEventDateTimeLocal(start.toISOString()),
     venue: "Test Venue",
     address: "Toronto, ON",
     hostedBy: "TEEZ",
@@ -354,7 +371,7 @@ function fromEvent(event?: AdminManagedEventView | null): EventFormState {
   return {
     id: event?.id || "",
     title: event?.title || "",
-    startsAt: toDateTimeLocal(event?.startsAt || null),
+    startsAt: formatEventDateTimeLocal(event?.startsAt || null),
     venue: event?.venue || "",
     address: event?.address || "",
     hostedBy: event?.hostedBy || "",
@@ -373,11 +390,11 @@ function fromEvent(event?: AdminManagedEventView | null): EventFormState {
     eventKind: event?.eventKind || "SOCIAL",
     ticketPriceCad: ((event?.ticketPriceCents || 0) / 100).toFixed(2),
     capacity: String(event?.capacity || 80),
-    checkoutEnabled: event?.checkoutEnabled ?? true,
-    maxTicketsPerOrder: String(event?.maxTicketsPerOrder || event?.capacity || 80),
+    checkoutEnabled: event?.checkoutEnabled ?? false,
+    maxTicketsPerOrder: String(event?.maxTicketsPerOrder ?? 4),
     ticketNote: event?.ticketNote || "",
     featured: event?.featured ?? false,
-    isActive: event?.isActive ?? true,
+    isActive: event?.isActive ?? false,
     ticketTiers:
       event?.ticketTiers.map((tier) => ({
         localId: buildLocalId("tier"),
@@ -408,8 +425,8 @@ function fromEvent(event?: AdminManagedEventView | null): EventFormState {
             : String(voucher.percentOff || 0),
         minimumQuantity: voucher.minimumQuantity ? String(voucher.minimumQuantity) : "",
         maxRedemptions: voucher.maxRedemptions ? String(voucher.maxRedemptions) : "",
-        startsAt: toDateTimeLocal(voucher.startsAt),
-        expiresAt: toDateTimeLocal(voucher.expiresAt),
+        startsAt: formatEventDateTimeLocal(voucher.startsAt),
+        expiresAt: formatEventDateTimeLocal(voucher.expiresAt),
         isActive: voucher.isActive,
         redemptionCount: voucher.redemptionCount,
         discountCents: voucher.discountCents,
@@ -806,6 +823,7 @@ export function EventEditorCard({
   const [isUploading, setIsUploading] = useState(false)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle")
   const [pendingHeroCropFile, setPendingHeroCropFile] = useState<File | null>(null)
 
@@ -844,6 +862,8 @@ export function EventEditorCard({
       const currentForm = formRef.current
       setSaveStatus("saving")
       setError("")
+      setFieldErrors({})
+      setStatus("")
       if (shouldReload) setIsSubmitting(true)
 
       const response = await fetch("/api/admin/events", {
@@ -908,10 +928,8 @@ export function EventEditorCard({
 
       if (!response) {
         setSaveStatus("error")
-        if (shouldReload) {
-          setIsSubmitting(false)
-          setError("Network error. Please try again.")
-        }
+        if (shouldReload) setIsSubmitting(false)
+        setError("Network error. Please try again.")
         return
       }
 
@@ -919,10 +937,9 @@ export function EventEditorCard({
 
       if (!response.ok || !payload?.ok) {
         setSaveStatus("error")
-        if (shouldReload) {
-          setIsSubmitting(false)
-          setError(payload?.error || "Unable to save event.")
-        }
+        if (shouldReload) setIsSubmitting(false)
+        setFieldErrors(payload?.fieldErrors && typeof payload.fieldErrors === "object" ? payload.fieldErrors : {})
+        setError(payload?.error || "Unable to save event.")
         return
       }
 
@@ -1072,6 +1089,11 @@ export function EventEditorCard({
               <h2 className="mt-1.5 text-2xl font-serif font-bold">
                 {mode === "create" ? "Create a dynamic event" : form.title || form.id}
               </h2>
+              {mode === "create" && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Event ID and title are required. Everything marked optional can be added later.
+                </p>
+              )}
               {initialEvent && mode === "edit" && (
                 <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
                   <span>{initialEvent.ticketsIssued} issued</span>
@@ -1138,6 +1160,7 @@ export function EventEditorCard({
                   onClick={() => {
                     setForm(testEventTemplate())
                     setError("")
+                    setFieldErrors({})
                     setStatus("Test event template loaded. Save to create a hidden test event.")
                   }}
                   disabled={busy}
@@ -1227,28 +1250,34 @@ export function EventEditorCard({
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {mode === "create" && (
                     <div className="space-y-2">
-                      <Label htmlFor={`${mode}-event-id`}>Event ID</Label>
+                      <Label htmlFor={`${mode}-event-id`}>Event ID <span className="text-destructive">*</span></Label>
                       <Input
                         id={`${mode}-event-id`}
                         value={form.id}
                         onChange={(e) => setForm((c) => ({ ...c, id: e.target.value }))}
                         placeholder="summer-pulse"
+                        required
+                        minLength={2}
+                        maxLength={80}
                         disabled={busy}
                       />
                     </div>
                   )}
                   <div className={`space-y-2 ${mode === "create" ? "" : "xl:col-span-2"}`}>
-                    <Label htmlFor={`${mode}-title`}>Title</Label>
+                    <Label htmlFor={`${mode}-title`}>Title <span className="text-destructive">*</span></Label>
                     <Input
                       id={`${mode}-title`}
                       value={form.title}
                       onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))}
                       placeholder="SUMMER PULSE"
+                      required
+                      minLength={2}
+                      maxLength={140}
                       disabled={busy}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor={`${mode}-starts-at`}>Start Date & Time</Label>
+                    <Label htmlFor={`${mode}-starts-at`}>Start Date &amp; Time (optional)</Label>
                     <Input
                       id={`${mode}-starts-at`}
                       type="datetime-local"
@@ -1261,7 +1290,7 @@ export function EventEditorCard({
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor={`${mode}-venue`}>Venue Name</Label>
+                    <Label htmlFor={`${mode}-venue`}>Venue Name (optional)</Label>
                     <Input
                       id={`${mode}-venue`}
                       value={form.venue}
@@ -1271,7 +1300,7 @@ export function EventEditorCard({
                     />
                   </div>
                   <div className="space-y-2 xl:col-span-2">
-                    <Label htmlFor={`${mode}-address`}>Address / Public Location</Label>
+                    <Label htmlFor={`${mode}-address`}>Address / Public Location (optional)</Label>
                     <Input
                       id={`${mode}-address`}
                       value={form.address}
@@ -1284,7 +1313,7 @@ export function EventEditorCard({
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor={`${mode}-hosted-by`}>Hosted By</Label>
+                    <Label htmlFor={`${mode}-hosted-by`}>Hosted By (optional)</Label>
                     <Input
                       id={`${mode}-hosted-by`}
                       value={form.hostedBy}
@@ -1326,7 +1355,7 @@ export function EventEditorCard({
                 <div className="space-y-2">
                   <Label htmlFor={`${mode}-tags`} className="flex items-center gap-2">
                     <Tags size={15} />
-                    Tags
+                    Tags (optional)
                   </Label>
                   <Input
                     id={`${mode}-tags`}
@@ -1368,20 +1397,24 @@ export function EventEditorCard({
                 <AccordionContent className="px-5 pb-5 pt-1">
                   <div className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor={`${mode}-preview`}>Preview Description</Label>
-                  <p className="text-xs text-muted-foreground">Shown on event cards and the checkout page summary.</p>
+                  <Label htmlFor={`${mode}-preview`}>Preview Description (optional)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Shown on event cards and checkout. {form.previewDescription.length.toLocaleString()} /{" "}
+                    {EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH.toLocaleString()} characters.
+                  </p>
                   <Textarea
                     id={`${mode}-preview`}
                     value={form.previewDescription}
                     onChange={(e) => setForm((c) => ({ ...c, previewDescription: e.target.value }))}
                     placeholder="Short listing summary for cards and checkout."
                     rows={3}
+                    maxLength={EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH}
                     disabled={busy}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor={`${mode}-description`}>Full Description</Label>
+                  <Label htmlFor={`${mode}-description`}>Full Description (optional)</Label>
                   <p className="text-xs text-muted-foreground">Long-form event detail shown on the event page.</p>
                   <Textarea
                     id={`${mode}-description`}
@@ -1554,7 +1587,7 @@ export function EventEditorCard({
                 {/* Hero image */}
                 <div className="space-y-3">
                   <div>
-                    <Label>Hero Image</Label>
+                    <Label>Hero Image (optional)</Label>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       The main banner shown at the top of the event page and checkout.
                     </p>
@@ -1624,7 +1657,7 @@ export function EventEditorCard({
                     <div>
                       <div className="flex items-center gap-2">
                         <ImagePlus size={14} className="text-primary" />
-                        <Label>Gallery</Label>
+                        <Label>Gallery (optional)</Label>
                         {form.gallery.length > 0 && (
                           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                             {form.gallery.length}
@@ -1706,7 +1739,7 @@ export function EventEditorCard({
 
                   {/* URL paste fallback */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Or paste image URLs (one per line)</Label>
+                    <Label className="text-xs text-muted-foreground">Or paste image URLs (optional, one per line)</Label>
                     <Textarea
                       value={form.gallery.join("\n")}
                       onChange={(e) =>
@@ -1748,7 +1781,7 @@ export function EventEditorCard({
                 {/* Ticket settings */}
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-2">
-                    <Label htmlFor={`${mode}-price`}>Base / Lowest Price (CAD)</Label>
+                    <Label htmlFor={`${mode}-price`}>Base / Lowest Price (optional if using tiers)</Label>
                     <Input
                       id={`${mode}-price`}
                       type="number"
@@ -1758,6 +1791,9 @@ export function EventEditorCard({
                       onChange={(e) => setForm((c) => ({ ...c, ticketPriceCad: e.target.value }))}
                       disabled={busy}
                     />
+                    {form.checkoutEnabled && (
+                      <p className="text-xs text-muted-foreground">Checkout needs a paid base price or one active paid tier.</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor={`${mode}-capacity`}>Capacity</Label>
@@ -1783,7 +1819,7 @@ export function EventEditorCard({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor={`${mode}-ticket-note`}>Ticket Note</Label>
+                    <Label htmlFor={`${mode}-ticket-note`}>Ticket Note (optional)</Label>
                     <Input
                       id={`${mode}-ticket-note`}
                       value={form.ticketNote}
@@ -2262,7 +2298,18 @@ export function EventEditorCard({
             {/* Status / error messages */}
             {error && (
               <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {error}
+                <p className="font-medium">{error}</p>
+                {Object.keys(fieldErrors).length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {Object.entries(fieldErrors).flatMap(([field, messages]) =>
+                      messages.map((message, index) => (
+                        <li key={`${field}-${index}`}>
+                          <span className="font-medium">{formatEventFieldPath(field)}:</span> {message}
+                        </li>
+                      )),
+                    )}
+                  </ul>
+                )}
               </div>
             )}
             {status && (
@@ -2463,7 +2510,7 @@ export function AdminEventStudio({ events }: { events: AdminManagedEventView[] }
               </div>
             ) : (
               <div className="rounded-2xl border border-primary/15 bg-primary/10 p-4 text-sm text-muted-foreground">
-                Start with the required fields, then add ticket tiers, page sections, and images.
+                Only Event ID and Title are required for a draft. Ticket settings apply when checkout is enabled.
               </div>
             )}
           </div>

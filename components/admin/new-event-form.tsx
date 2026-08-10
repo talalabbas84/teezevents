@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import { EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH } from "@/lib/event-validation"
 
 // ─── Submit Button ────────────────────────────────────────────────────────────
 
@@ -163,13 +164,15 @@ export function NewEventForm() {
               name="previewDescription"
               placeholder="A brief teaser shown on the events listing page…"
               rows={2}
-              maxLength={240}
+              maxLength={EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH}
               className={cn(
                 "resize-none",
                 fe.previewDescription && "border-destructive focus-visible:ring-destructive"
               )}
             />
-            <p className="text-xs text-muted-foreground">Max 240 characters. Shown on the public events listing.</p>
+            <p className="text-xs text-muted-foreground">
+              Max {EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH.toLocaleString()} characters. Shown on the public events listing.
+            </p>
             <FieldError errors={fe.previewDescription} />
           </div>
         </CardContent>

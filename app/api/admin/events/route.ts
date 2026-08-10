@@ -3,9 +3,18 @@ import { z } from "zod"
 
 import { isAdminAuthenticated } from "@/lib/admin-auth"
 import { deleteAdminEvent, upsertAdminEvent } from "@/lib/admin-events"
+import { eventDateTimeToDate, isValidEventDateTime } from "@/lib/event-time"
+import { EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH } from "@/lib/event-validation"
 import { publishRealtimeEvent } from "@/lib/realtime"
 
 export const runtime = "nodejs"
+
+const optionalEventDateTimeSchema = z
+  .string()
+  .trim()
+  .max(40)
+  .refine(isValidEventDateTime, "Enter a valid date and time.")
+  .optional()
 
 const ticketTierSchema = z.object({
   id: z.string().trim().min(1).optional(),
@@ -28,8 +37,8 @@ const voucherSchema = z.object({
   percentOff: z.number().int().min(1).max(100).optional(),
   minimumQuantity: z.number().int().min(1).max(50).optional(),
   maxRedemptions: z.number().int().min(1).max(100000).optional(),
-  startsAt: z.string().trim().max(40).optional(),
-  expiresAt: z.string().trim().max(40).optional(),
+  startsAt: optionalEventDateTimeSchema,
+  expiresAt: optionalEventDateTimeSchema,
   isActive: z.boolean(),
 })
 
@@ -39,15 +48,30 @@ const contentSectionSchema = z.object({
 })
 
 const managedEventSchema = z.object({
-  id: z.string().trim().min(2).max(80),
-  title: z.string().trim().min(2).max(140),
-  startsAt: z.string().trim().max(40).optional(),
+  id: z
+    .string({ required_error: "Event ID is required." })
+    .trim()
+    .min(2, "Event ID must be at least 2 characters.")
+    .max(80, "Event ID must be 80 characters or fewer."),
+  title: z
+    .string({ required_error: "Title is required." })
+    .trim()
+    .min(2, "Title must be at least 2 characters.")
+    .max(140, "Title must be 140 characters or fewer."),
+  startsAt: optionalEventDateTimeSchema,
   venue: z.string().trim().max(140).optional(),
   address: z.string().trim().max(180).optional(),
   hostedBy: z.string().trim().max(80).optional(),
   image: z.string().trim().max(500).optional(),
   gallery: z.array(z.string().trim().max(500)).max(24).default([]),
-  previewDescription: z.string().trim().max(240).optional(),
+  previewDescription: z
+    .string()
+    .trim()
+    .max(
+      EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH,
+      `Preview description must be ${EVENT_PREVIEW_DESCRIPTION_MAX_LENGTH.toLocaleString()} characters or fewer.`,
+    )
+    .optional(),
   description: z.string().trim().max(5000).optional(),
   contentSections: z.array(contentSectionSchema).max(12).default([]),
   tags: z.array(z.string().trim().min(1).max(80)).max(24).default([]),
@@ -64,6 +88,14 @@ const managedEventSchema = z.object({
   vouchers: z.array(voucherSchema).default([]),
 })
 
+function getFieldErrors(error: z.ZodError) {
+  return error.issues.reduce<Record<string, string[]>>((fieldErrors, issue) => {
+    const field = issue.path.length > 0 ? issue.path.join(".") : "event"
+    fieldErrors[field] = [...(fieldErrors[field] || []), issue.message]
+    return fieldErrors
+  }, {})
+}
+
 export async function POST(request: Request) {
   const authenticated = await isAdminAuthenticated().catch(() => false)
 
@@ -75,13 +107,19 @@ export async function POST(request: Request) {
   const parsed = managedEventSchema.safeParse(json)
 
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid event payload." }, { status: 400 })
+    return NextResponse.json(
+      {
+        error: "Some event details need attention.",
+        fieldErrors: getFieldErrors(parsed.error),
+      },
+      { status: 400 },
+    )
   }
 
   try {
     const savedEvent = await upsertAdminEvent({
       ...parsed.data,
-      startsAt: parsed.data.startsAt || undefined,
+      startsAt: parsed.data.startsAt ? eventDateTimeToDate(parsed.data.startsAt).toISOString() : undefined,
       venue: parsed.data.venue || undefined,
       address: parsed.data.address || undefined,
       hostedBy: parsed.data.hostedBy || undefined,
@@ -116,8 +154,8 @@ export async function POST(request: Request) {
         percentOff: voucher.discountType === "PERCENT" ? voucher.percentOff : undefined,
         minimumQuantity: voucher.minimumQuantity,
         maxRedemptions: voucher.maxRedemptions,
-        startsAt: voucher.startsAt || undefined,
-        expiresAt: voucher.expiresAt || undefined,
+        startsAt: voucher.startsAt ? eventDateTimeToDate(voucher.startsAt).toISOString() : undefined,
+        expiresAt: voucher.expiresAt ? eventDateTimeToDate(voucher.expiresAt).toISOString() : undefined,
         isActive: voucher.isActive,
       })),
     })
