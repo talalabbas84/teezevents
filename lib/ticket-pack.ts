@@ -1,5 +1,6 @@
 import "server-only"
 
+import { EVENT_TIME_ZONE } from "@/lib/event-time"
 import { getPublicTicketUrl, getPublicTicketWalletUrl, getTicketQrCodeDataUrl } from "@/lib/ticket-qr"
 
 type TicketPackOrder = {
@@ -52,6 +53,7 @@ function formatEventDate(order: TicketPackOrder) {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 
@@ -60,6 +62,7 @@ function formatEventTime(order: TicketPackOrder) {
     return order.event.startsAt.toLocaleTimeString("en-CA", {
       hour: "numeric",
       minute: "2-digit",
+      timeZone: EVENT_TIME_ZONE,
     })
   }
 

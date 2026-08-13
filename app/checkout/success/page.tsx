@@ -4,6 +4,7 @@ import { Footer } from "@/components/footer"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { formatCurrency, syncOrderPaymentStatusFromCheckoutSession } from "@/lib/checkout"
+import { EVENT_TIME_ZONE } from "@/lib/event-time"
 import { getPublicEventById } from "@/lib/public-events"
 import { getTicketQrCodeDataUrl } from "@/lib/ticket-qr"
 
@@ -21,6 +22,7 @@ function formatEventDate(dateLabel: string | null, startsAt: Date | null) {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 
@@ -29,6 +31,7 @@ function formatEventTime(fallbackTime: string | undefined, startsAt: Date | null
     return startsAt.toLocaleTimeString("en-CA", {
       hour: "numeric",
       minute: "2-digit",
+      timeZone: EVENT_TIME_ZONE,
     })
   }
 

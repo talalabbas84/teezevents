@@ -2,6 +2,7 @@ import "server-only"
 
 import { StandardFonts, rgb, PDFDocument } from "pdf-lib"
 
+import { EVENT_TIME_ZONE } from "@/lib/event-time"
 import { getPublicTicketUrl, getPublicTicketWalletUrl, getTicketQrCodeDataUrl } from "@/lib/ticket-qr"
 
 type TicketPdfOrder = {
@@ -67,6 +68,7 @@ function formatEventDate(order: TicketPdfOrder) {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 
@@ -75,6 +77,7 @@ function formatEventTime(order: TicketPdfOrder) {
     return order.event.startsAt.toLocaleTimeString("en-CA", {
       hour: "numeric",
       minute: "2-digit",
+      timeZone: EVENT_TIME_ZONE,
     })
   }
 

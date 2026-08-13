@@ -29,6 +29,8 @@ import {
   X,
 } from "lucide-react"
 
+import { EVENT_TIME_ZONE } from "@/lib/event-time"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -213,6 +215,7 @@ function toDateLabel(value: string | null) {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 
@@ -230,6 +233,7 @@ function toTimeLabel(value: string | null) {
   return date.toLocaleTimeString("en-CA", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 
@@ -248,6 +252,7 @@ function toShortDateLabel(value: string | null) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 

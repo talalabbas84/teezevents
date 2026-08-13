@@ -1,6 +1,7 @@
 import "server-only"
 
 import { getEmailProviderLabel, isEmailServiceConfigured, sendEmail } from "@/lib/email-service"
+import { EVENT_TIME_ZONE } from "@/lib/event-time"
 import { getPrismaClient } from "@/lib/prisma"
 
 export type MarketingPlatformKey = "INSTAGRAM" | "TIKTOK" | "FACEBOOK" | "X" | "LINKEDIN" | "WHATSAPP" | "EMAIL"
@@ -1040,6 +1041,7 @@ function formatMarketingEventDate(startsAt: Date | null) {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 
@@ -1051,6 +1053,7 @@ function formatMarketingEventTime(startsAt: Date | null) {
   return startsAt.toLocaleTimeString("en-CA", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 

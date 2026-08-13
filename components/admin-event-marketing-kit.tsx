@@ -22,6 +22,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { EVENT_TIME_ZONE } from "@/lib/event-time"
 
 type MarketingEvent = {
   id: string
@@ -84,6 +85,7 @@ function formatEventDate(value: string | null) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 
@@ -101,6 +103,7 @@ function formatEventTime(value: string | null) {
   return date.toLocaleTimeString("en-CA", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 

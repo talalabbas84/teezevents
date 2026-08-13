@@ -1,6 +1,7 @@
 import "server-only"
 
 import { getEmailServiceSetupIssue, sendEmail } from "@/lib/email-service"
+import { EVENT_TIME_ZONE } from "@/lib/event-time"
 import { getOrderTicketPdfFilename, renderOrderTicketPackPdf } from "@/lib/ticket-pdf"
 import { getPublicTicketUrl, getPublicTicketWalletUrl } from "@/lib/ticket-qr"
 
@@ -49,6 +50,7 @@ function formatEventDate(order: TicketEmailOrder) {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
   })
 }
 
